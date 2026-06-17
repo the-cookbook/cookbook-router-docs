@@ -1,0 +1,123 @@
+---
+title: "Route loading and extraction API"
+description: "Resolve direct routes, static route modules, JSON files, globs, watch roots, composition options, and export metadata."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## `resolveRoutes(options)`
+
+```ts
+function resolveRoutes(
+  options: CliRouteOptions,
+): Promise<readonly RouteDefinition[]>;
+```
+
+Convenience projection over `resolveRouteInput()`.
+
+## `resolveRouteInput(options)`
+
+```ts
+function resolveRouteInput(options: CliRouteOptions): Promise<RouteFile>;
+```
+
+Returns routes plus merged route options, export metadata, and source metadata where available.
+
+## `resolveRouteInputWithOptions(options)`
+
+```ts
+interface ResolvedRouteInput {
+  readonly routeFile: RouteFile;
+  readonly options: CliRouteOptions;
+}
+
+function resolveRouteInputWithOptions(
+  options: CliRouteOptions,
+): Promise<ResolvedRouteInput>;
+```
+
+Resolves effective options once and returns them beside the loaded route model. This avoids config/glob work being repeated by commands that need both.
+
+## `resolveEffectiveRouteOptions(options)`
+
+```ts
+function resolveEffectiveRouteOptions(
+  options: CliRouteOptions,
+): Promise<CliRouteOptions>;
+```
+
+Expands configured patterns into concrete `routeFiles` and separately records stable `routeFileWatchPaths`. Empty route matches are normally an error; internal watch-state resolution can opt into empty matches so future file creation remains observable.
+
+## `loadRouteFiles(options)`
+
+```ts
+interface LoadRouteFilesOptions {
+  readonly routeFiles: readonly string[];
+  readonly fs?: CliFileSystem;
+}
+
+function loadRouteFiles(
+  options: LoadRouteFilesOptions,
+): Promise<readonly CliRouteSource[]>;
+```
+
+Loads each explicit file. Self-contained trees are validated immediately; modular declarations and cross-file intercept targets are validated after sources are merged.
+
+## `validateRouteFiles(options)`
+
+```ts
+function validateRouteFiles(
+  options: LoadRouteFilesOptions,
+): Promise<readonly CliRouteSource[]>;
+```
+
+Loads all sources, merges route options, registers constraints, then validates one graph. When composition fields exist it uses `defineRouteTree()`; otherwise it uses `validateRoutes()`.
+
+## `expandRouteFilePatterns(options)`
+
+```ts
+function expandRouteFilePatterns(options: {
+  readonly patterns: string | readonly string[];
+  readonly cwd?: string;
+  readonly fs?: CliFileSystem;
+  readonly excludeDirs?: readonly string[];
+}): Promise<readonly string[]>;
+```
+
+Supports explicit files and simple globs. Default traversal excludes common generated/dependency directories such as `node_modules`, `.git`, `dist`, `build`, `.next`, `.turbo`, and `.vite`. Results are deduplicated and sorted by traversal output.
+
+Custom filesystems need `readdir` and `stat` for globs.
+
+## `getRouteFilePatternWatchPaths(options)`
+
+```ts
+function getRouteFilePatternWatchPaths(options: {
+  readonly patterns: string | readonly string[];
+  readonly cwd?: string;
+}): readonly string[];
+```
+
+Returns explicit file paths or stable glob roots. It does not require the matching files to exist.
+
+## Static forms
+
+Supported extraction covers static route arrays/objects declared through `defineRoute`, `defineRoutes`, `defineRouteTree`, `defineSearch`, `defineHash`, and `mergeSearch`, plus supported named imports/re-exports and JSON route arrays.
+
+The extractor deliberately rejects arbitrary runtime computation. Route components and middleware can still be imported as runtime references; the route structure itself must be statically recoverable.
+
+## `RouteFileExport`
+
+```ts
+interface RouteFileExport {
+  readonly exportName: string;
+  readonly kind: 'route' | 'routes' | 'routeTree';
+}
+```
+
+This metadata is what lets `generateRouterArtifacts()` decide whether `routes.ts` can be rendered and how exports should be composed.
+
+## Where this bites
+
+A valid runtime TypeScript module is not automatically a statically extractable route module. “TypeScript can execute it” and “a build tool can reproduce it without executing arbitrary project code” are different claims.

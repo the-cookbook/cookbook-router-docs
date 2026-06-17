@@ -1,0 +1,30 @@
+---
+title: "Output safety and build-plugin errors"
+description: "Safe output-path rules, formatted build failures, watch fallback behavior, and adapter-specific failure channels."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Unsafe output paths
+
+Generated files are constrained to the resolved output directory. Paths that escape it through `..`, absolute-path substitution, or symlink-like ambiguity are rejected before writing.
+
+**Fix:** configure one dedicated `outDir` and let generation choose the four known artifact names. Do not use the low-level writer to turn generated filenames into arbitrary filesystem access.
+
+## `[cookbook-router] ...`
+
+`formatRouterBuildErrors()` prefixes every runner error with `[cookbook-router]` and joins them with newlines. Webpack/Rspack log the formatted block, Rollup warns/errors with it, esbuild returns it in `errors[0].text`, and Bun throws it.
+
+## Watch mode reports an error but does not terminate
+
+That is intentional for Webpack, Rspack, and Rollup watch flows. Previous valid artifacts remain untouched, fallback config/route roots stay watched, and the next relevant edit can recover.
+
+## New route files are not discovered by esbuild or Bun
+
+The current adapters run on host build start but cannot register arbitrary dynamic route roots. Run `cbr generate --watch` alongside those bundlers when create/delete discovery is required.
+
+## Generated output causes a rebuild loop
+
+The host watcher is observing `outDir` as a normal dependency. Webpack/Rspack extend ignored paths; Vite filters its output events; Rollup only adds source watch paths. Custom integration must preserve the same boundary.

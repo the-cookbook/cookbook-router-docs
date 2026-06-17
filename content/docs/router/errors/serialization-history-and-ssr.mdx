@@ -1,0 +1,38 @@
+---
+title: "Serialization, history, and SSR errors"
+description: "Hydration mismatch, invalid serialized state, unavailable browser history, and static-history mutation failures."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## `Hydration data was created for "...", but the client history is currently at "...". ...`
+
+**Cause:** serialized server pathname/search does not match the client history at router creation. Hash differences are handled separately because server requests do not carry fragments.
+
+**Fix:** hydrate with state produced for the same request URL, or omit `hydrationData` for client-only startup.
+
+## Invalid serialized router state
+
+`deserializeRouterState()` accepts JSON text or an unknown value, then validates the complete serialized shape. Failures identify invalid location, navigation state, match data, or unsafe object keys.
+
+**Fix:** pass the exact result of `router.serialize()`/`serializeRouterState()`. Treat serialized state as untrusted input; do not hand-edit it.
+
+## `Browser history requires a window-like environment. ...`
+
+**Cause:** `createBrowserHistory()` ran where no `window` was available and no window-like adapter was supplied.
+
+**Fix:** use `createMemoryRouter()` for tests/non-DOM runtimes or `createStaticRouter()` for request rendering.
+
+## `Static history cannot push navigation entries.`
+
+## `Static history cannot replace navigation entries.`
+
+**Cause:** code attempted a mutating history operation during static rendering.
+
+**Fix:** map redirect/response results at the server integration boundary. A request-scoped static history is deliberately read-only.
+
+## SSR starts with an empty match
+
+`createStaticRouter()` still needs `await router.start()` before rendering. `StaticRouterProvider` expects a started router; it does not silently resolve the request for you.

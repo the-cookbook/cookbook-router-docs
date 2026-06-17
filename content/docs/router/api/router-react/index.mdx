@@ -1,0 +1,45 @@
+---
+title: "@cookbook/router-react"
+description: "The complete React adapter: providers, typed links, route rendering, outlets, slots, lazy views, public contexts, and every hook."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+`@cookbook/router-react` is the React 18+ adapter for the renderer-neutral core. It does not own matching, URL parsing, middleware, route validation, or navigation. It subscribes to a core `Router`, converts resolved matches to React output, and exposes typed components and hooks.
+
+## Import surface
+
+```tsx
+import {
+  Link,
+  NavLink,
+  Outlet,
+  RouterProvider,
+  Slot,
+  lazyRouteView,
+  useNavigate,
+  useParams,
+} from '@cookbook/router-react';
+```
+
+The package publishes one root entrypoint. Internal source paths are not public API.
+
+## Reference map
+
+| Area | What is covered |
+| --- | --- |
+| [Providers and render helpers](/docs/router/api/router-react/provider) | `RouterProvider`, `StaticRouterProvider`, `useRouterState`, `renderReactRouteMatch`, and `renderRouteBoundary` |
+| [Links](/docs/router/api/router-react/links) | `Link`, `NavLink`, active matching, prefetch, and native-browser preservation |
+| [Outlets, slots, and lazy views](/docs/router/api/router-react/outlets) | `Outlet`, `Slot`, slot-local error isolation, and `lazyRouteView` |
+| [Hooks](/docs/router/api/router-react/hooks) | Router state, navigation, URL state, blockers, outlet context, and route metadata |
+| [Contracts](/docs/router/api/router-react/contracts) | Every exported React interface, type alias, and context value |
+
+## Responsibility boundary
+
+React receives already-resolved router state. Hooks such as `useSearchParams()` and `useHashParams()` do not reparse the browser URL and do not accept URL policy overrides. Configure those policies on routes, router creation, explicit `router.match()` calls, links, or navigation calls.
+
+## Where this bites
+
+A React component can render perfectly while the route contract is wrong. Treat core validation and generated contracts as the authority; the React package is an adapter, not a second router.

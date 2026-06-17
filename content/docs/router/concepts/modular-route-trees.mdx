@@ -1,0 +1,596 @@
+---
+title: "Modular route trees"
+description: "Compose route declarations and shared URL contracts across independent files and project locations."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+A route tree does not need to live in one file, one feature directory, or even one part of the project.
+
+Routes can be declared where their features are implemented, shared URL contracts can live in common modules, and the complete graph can be composed at the application boundary.
+
+Hierarchy comes from route declarations: not filenames, directories, or import paths.
+
+## The composition model
+
+Modular routing has two steps:
+
+1. `defineRoute()` preserves an independent route declaration.
+2. `defineRouteTree()` composes declarations into one validated route tree.
+
+```ts
+import { defineRoute, defineRouteTree } from '@cookbook/router';
+
+const usersRoute = defineRoute({
+  id: 'users',
+  path: '/users',
+  view: UsersLayout,
+});
+
+const userRoute = defineRoute({
+  id: 'users.show',
+  parent: 'users',
+  path: '{id:int}',
+  view: UserPage,
+});
+
+export const routes = defineRouteTree({
+  routes: [usersRoute, userRoute],
+});
+````
+
+`defineRoute()` validates what can be known from one declaration. It does not require the parent route to be present in the same module.
+
+`defineRouteTree()` sees the complete collection, resolves parent relationships, validates the graph, orders siblings, and returns runtime route definitions.
+
+## Routes can live anywhere
+
+Modular routes do not need to share a directory.
+
+A project can organize them by feature, application area, package, or ownership boundary:
+
+```text
+src/
+  features/
+    accounts/
+      account.route.ts
+      profile.route.ts
+  admin/
+    audit/
+      audit.route.ts
+  marketing/
+    pricing.route.ts
+  routing/
+    search/
+      pagination.ts
+    hash/
+      article-sections.ts
+  routes.ts
+```
+
+Each route file exports an independent declaration.
+
+```tsx title="src/features/accounts/account.route.ts"
+import { defineRoute } from '@cookbook/router';
+
+export const accountRoute = defineRoute({
+  id: 'account',
+  path: '/account',
+  view: AccountLayout,
+});
+```
+
+```tsx title="src/features/accounts/profile.route.ts"
+import { defineRoute } from '@cookbook/router';
+
+export const profileRoute = defineRoute({
+  id: 'account.profile',
+  parent: 'account',
+  path: 'profile',
+  view: ProfilePage,
+});
+```
+
+```tsx title="src/admin/audit/audit.route.ts"
+import { defineRoute } from '@cookbook/router';
+
+export const auditRoute = defineRoute({
+  id: 'admin.audit',
+  parent: 'admin',
+  path: 'audit',
+  view: AuditPage,
+});
+```
+
+Their locations do not affect the resulting tree. Only `id`, `parent`, `path`, and `order` participate in composition.
+
+For manual composition, import the declarations from wherever they live:
+
+```ts title="src/routes.ts"
+import { defineRouteTree } from '@cookbook/router';
+
+import { auditRoute } from './admin/audit/audit.route';
+import { accountRoute } from './features/accounts/account.route';
+import { profileRoute } from './features/accounts/profile.route';
+import { pricingRoute } from './marketing/pricing.route';
+
+export const routes = defineRouteTree({
+  routes: [
+    accountRoute,
+    profileRoute,
+    auditRoute,
+    pricingRoute,
+  ],
+});
+```
+
+The composition module is an application boundary. It does not need to own the route implementations.
+
+## Generated composition across locations
+
+The generator can collect route declarations from multiple files and source roots.
+
+```ts title="cookbook-router.config.ts"
+import { defineRouterConfig } from '@cookbook/router-cli';
+
+export default defineRouterConfig({
+  routeFiles: [
+    'src/features/**/*.route.{ts,tsx}',
+    'src/admin/**/*.route.{ts,tsx}',
+    'src/marketing/**/*.route.{ts,tsx}',
+  ],
+});
+```
+
+The files do not need a common route directory. They only need to match one of the configured route inputs.
+
+Cookbook Router composes the discovered declarations into the generated `routes.ts` module using the same `defineRouteTree()` model.
+
+Moving a route file from `features/` to `admin/` does not change its hierarchy. Changing its declaration does.
+
+See [Generated artifacts](/docs/router/getting-started/generated-artifacts) for how the generated route module is consumed.
+
+## Parent relationships
+
+A modular child declares its parent explicitly:
+
+```ts
+defineRoute({
+  id: 'account.profile', 
+  parent: 'account',// [!code highlight]
+  path: 'profile',
+});
+```
+
+During composition, `defineRouteTree()` finds the declaration whose ID is `account` and attaches the child beneath it.
+
+The parent may come from:
+
+* The same file
+* Another feature directory
+* Another package or source root
+* A generated route-file collection
+* A manually imported declaration
+
+The child does not need to import its parent. Both declarations only need to agree on the parent ID.
+
+A missing parent fails during composition:
+
+```ts
+defineRouteTree({
+  routes: [
+    defineRoute({
+      id: 'account.profile',
+      parent: 'account', // parend id "account" does not exists
+      path: 'profile',
+    }),
+  ],
+});
+```
+
+No route with the ID `account` exists in that collection.
+
+## IDs, parents, and paths have different jobs
+
+A modular route separates identity, hierarchy, and URL structure:
+
+```ts
+{
+  id: 'account.profile',
+  parent: 'account',
+  path: 'profile',
+}
+```
+
+* `id` identifies the route.
+* `parent` determines where it belongs.
+* `path` determines how it is reached beneath that parent.
+
+A dotted route ID does not infer hierarchy:
+
+```ts
+{
+  id: 'account.profile',
+  path: '/account/profile',
+}
+```
+
+Without `parent: 'account'`, this is a root declaration whose ID happens to contain a dot.
+
+The naming convention helps humans. The `parent` field builds the graph.
+
+## Child paths are relative
+
+Root routes can use absolute paths:
+
+```ts
+defineRoute({
+  id: 'account',
+  path: '/account',
+});
+```
+
+Children use paths relative to their parent:
+
+```ts
+defineRoute({
+  id: 'account.profile',
+  parent: 'account',
+  path: 'profile',
+});
+```
+
+The composed path is:
+
+```text
+/account/profile
+```
+
+Do not repeat the parent path on the child:
+
+```ts
+defineRoute({
+  id: 'account.profile',
+  parent: 'account',
+  path: '/account/profile',
+});
+```
+
+Absolute modular child paths are rejected. The parent relationship already establishes the route prefix.
+
+## Share search contracts
+
+Modularity also applies to route-owned URL state.
+
+Common search fields such as pagination should not be copied into every route declaration. Define them once with `defineSearch()`:
+
+```ts title="src/routing/search/pagination.ts"
+import { defineSearch } from '@cookbook/router';
+
+export const paginationSearch = defineSearch({
+  page: {
+    type: 'int',
+    default: 1,
+  },
+  pageSize: {
+    type: 'int',
+    default: 20,
+  },
+} as const);
+```
+
+A feature can define its own search fields separately:
+
+```ts title="src/features/products/product-search.ts"
+import { defineSearch } from '@cookbook/router';
+
+export const productSearch = defineSearch({
+  q: {
+    type: 'string',
+    optional: true,
+  },
+  sort: {
+    type: 'enum',
+    values: ['newest', 'price-low', 'price-high'],
+    default: 'newest',
+  },
+} as const);
+```
+
+Combine the shared and feature-specific contracts with `mergeSearch()`:
+
+```tsx title="src/features/products/products.route.ts"
+import {
+  defineRoute,
+  mergeSearch,
+} from '@cookbook/router';
+
+import { paginationSearch } from '../../routing/search/pagination';
+import { productSearch } from './product-search';
+
+export const productsRoute = defineRoute({
+  id: 'products',
+  path: '/products',
+  search: mergeSearch(// [!code highlight]
+    productSearch,// [!code highlight]
+    paginationSearch,// [!code highlight]
+  ),// [!code highlight]
+  view: ProductsPage,
+});
+```
+
+The resulting route search contract contains all fields:
+
+```ts
+{
+  q?: string;
+  sort: 'newest' | 'price-low' | 'price-high';
+  page: number;
+  pageSize: number;
+}
+```
+
+`mergeSearch()` does not silently overwrite fields. Duplicate keys are rejected:
+
+```ts
+mergeSearch(
+  defineSearch({
+    page: { type: 'int', default: 1 },
+  }),
+  defineSearch({
+    page: { type: 'string', optional: true },
+  }),
+);
+```
+
+A shared contract should mean one definition, not competing definitions with the same property name.
+
+## Share hash contracts
+
+Hash declarations can be shared in the same way.
+
+```ts title="src/routing/hash/article-sections.ts"
+import { defineHash } from '@cookbook/router';
+
+export const articleSectionHash = defineHash({
+  type: 'enum',
+  values: [
+    'overview',
+    'comments',
+    'history',
+  ],
+  optional: true,
+} as const);
+```
+
+Use the same contract from independent route files:
+
+```tsx title="src/features/articles/article.route.ts"
+import { defineRoute } from '@cookbook/router';
+
+import { articleSectionHash } from '../../routing/hash/article-sections';
+
+export const articleRoute = defineRoute({
+  id: 'articles.show',
+  parent: 'articles',
+  path: '{slug}',
+  hash: articleSectionHash,// [!code highlight]
+  view: ArticlePage,
+});
+```
+
+```tsx title="src/admin/articles/article-review.route.ts"
+import { defineRoute } from '@cookbook/router';
+
+import { articleSectionHash } from '../../routing/hash/article-sections';
+
+export const articleReviewRoute = defineRoute({
+  id: 'admin.articles.review',
+  parent: 'admin.articles',
+  path: '{slug}/review',
+  hash: articleSectionHash,// [!code highlight]
+  view: ArticleReviewPage,
+});
+```
+
+Both routes now agree on the accepted hash values and generated hash types.
+
+`defineSearch()` and `defineHash()` preserve literal descriptor information, so generated contracts retain enum values, defaults, optionality, and parsed value types.
+
+See [Search and hash](/docs/router/concepts/search-and-hash) for descriptor behavior, URL parsing, defaults, and invalid-value policies.
+
+## Static extraction of shared contracts
+
+Shared search and hash modules do not need to match a `routeFiles` glob themselves.
+
+The generator follows them when they are imported by a matched route file. Because they affect generated contracts, those imports must use relative or absolute file paths:
+
+```ts
+import { paginationSearch } from '../../routing/search/pagination';
+```
+
+Do not use a bundler alias for codegen-relevant route metadata:
+
+```ts
+import { paginationSearch } from '@/routing/search/pagination';
+```
+
+Aliases remain valid for runtime-only values such as route components because the generator does not need to evaluate those imports.
+
+This distinction keeps generation independent from bundler-specific module resolution.
+
+## Sibling order
+
+Use `order` when routes under the same parent require explicit precedence:
+
+```ts
+const createUserRoute = defineRoute({
+  id: 'users.create',
+  parent: 'users',
+  path: 'new',
+  order: 10,
+});
+
+const userRoute = defineRoute({
+  id: 'users.show',
+  parent: 'users',
+  path: '{id:int}',
+  order: 20,
+});
+```
+
+Sibling routes are sorted by:
+
+1. Numeric `order`
+2. Declaration order when `order` is equal or absent
+
+`order` only compares siblings. It does not define parentage and does not move routes between branches.
+
+Use it where matching precedence matters. Do not make import order carry routing meaning.
+
+## Composition-only fields
+
+`parent` and `order` exist to build the route graph.
+
+They are consumed by `defineRouteTree()` before runtime route definitions are returned. Runtime code receives a resolved nested tree rather than a flat list that still needs parent lookup.
+
+The boundary is deliberate:
+
+* Feature modules preserve independent declarations.
+* Shared modules preserve reusable URL contracts.
+* Composition resolves and validates the graph.
+* Runtime code receives one complete route tree.
+
+## What composition validates
+
+Graph-level validation requires the complete declaration collection.
+
+Composition rejects cases such as:
+
+* Duplicate route IDs
+* Missing parents
+* Parent cycles
+* Absolute child paths
+* Multiple index routes under one parent
+* Children attached to redirect routes
+* Contradictory inline and explicit parent relationships
+* Invalid sibling ordering
+* Unknown intercept targets
+* Intercept slots not owned by the source layout chain
+
+An isolated route file cannot prove that another file does not reuse its ID or that its parent exists elsewhere.
+
+Those checks belong at composition.
+
+## Static and modular trees can coexist
+
+Use `defineRoutes()` when a module owns a complete nested tree:
+
+```ts
+import { defineRoutes } from '@cookbook/router';
+
+export const policyRoutes = defineRoutes([
+  {
+    id: 'policies',
+    path: '/policies',
+    children: [
+      {
+        id: 'policies.privacy',
+        path: 'privacy',
+      },
+      {
+        id: 'policies.terms',
+        path: 'terms',
+      },
+    ],
+  },
+] as const);
+```
+
+Use `defineRoute()` when a declaration needs independent ownership:
+
+```ts
+export const profileRoute = defineRoute({
+  id: 'account.profile',
+  parent: 'account',
+  path: 'profile',
+});
+```
+
+Both approaches produce runtime route definitions.
+
+The difference is ownership:
+
+* `defineRoutes()` describes a complete tree in place.
+* `defineRouteTree()` composes independently owned declarations.
+
+A self-contained feature tree does not need to be split only to appear modular. A route owned by another feature should not be forced into a central array only to preserve hierarchy.
+
+## Validate the complete graph
+
+`defineRoute()` can validate one declaration, but it cannot prove that:
+
+* Its parent exists
+* No other file uses the same ID
+* The graph contains no cycles
+* Sibling precedence is valid
+* An intercept target exists elsewhere
+
+For manual composition, construct the tree with `defineRouteTree()` before creating the router.
+
+For generated composition, run:
+
+```bash
+cbr validate
+```
+
+or make generation part of the build.
+
+CI should validate the resolved graph. A directory full of individually valid declarations is not yet a valid route tree.
+
+## When to use modular declarations
+
+Use modular route trees when:
+
+* Features own routes independently
+* Parent and child routes live in different modules
+* Routes live across multiple project locations
+* The CLI or a bundler plugin discovers route files
+* Search and hash contracts are shared across routes
+* Composition belongs at an application boundary
+
+Prefer a static `defineRoutes()` tree when:
+
+* The complete hierarchy naturally belongs in one module
+* Inline children make the structure easier to understand
+* Independent route ownership provides no practical benefit
+
+Modularity should expose ownership and reuse. Splitting files without a boundary only hides the tree.
+
+## Where this bites
+
+### The files are nested, but the routes are not
+
+A nested folder does not infer a parent. Add `parent` explicitly.
+
+### The ID looks nested, but the route is not
+
+A dotted ID is only an ID. It does not establish ancestry.
+
+### A child repeats the complete URL
+
+Child paths are relative to their parent. Do not repeat the parent prefix.
+
+### A shared descriptor is imported through an alias
+
+Codegen-relevant imports must use relative or absolute file paths so the static extractor can follow them.
+
+### Two shared search contracts define the same key
+
+`mergeSearch()` rejects duplicate fields instead of choosing one silently.
+
+### An isolated declaration appears valid
+
+Missing parents, duplicate IDs, cycles, and cross-file conflicts surface only when the complete graph is composed or validated.

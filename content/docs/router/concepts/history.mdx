@@ -1,0 +1,919 @@
+---
+title: "History"
+description: "Understand the adapter contract behind browser, memory, static, and custom navigation environments."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+History connects the router runtime to an environment.
+
+The router does not access `window.history` directly. It consumes a `RouterHistory` adapter that exposes the current location, writes entries, moves through the stack, and reports external location changes.
+
+Cookbook Router includes three adapters:
+
+- Browser history for client applications
+- Memory history for tests and non-browser flows
+- Static history for SSR and static rendering
+
+The same router transition pipeline runs above each adapter.
+
+## The adapter boundary
+
+The router consumes this contract:
+
+```ts
+interface RouterHistory {
+  readonly location: RouterLocation;
+
+  readonly mode?:
+    | 'browser'
+    | 'memory'
+    | 'static';
+
+  redirectExternal?: (
+    href: string,
+    mode: 'push' | 'replace',
+  ) => void;
+
+  push: (
+    href: string,
+    state?: unknown,
+  ) => void;
+
+  replace: (
+    href: string,
+    state?: unknown,
+  ) => void;
+
+  back: () => void;
+  forward: () => void;
+  go: (delta: number) => void;
+
+  listen: (
+    listener: (
+      event: HistoryEvent,
+    ) => void,
+  ) => () => void;
+}
+````
+
+The history adapter does not know about:
+
+* Route IDs
+* Path constraints
+* Typed params
+* Search descriptors
+* Hash descriptors
+* Middleware
+* Lifecycle
+* Layouts or views
+
+Those belong to the router.
+
+History only transports locations and entry state.
+
+## Router locations
+
+Every adapter exposes a `RouterLocation`:
+
+```ts
+interface RouterLocation {
+  readonly pathname: string;
+  readonly search: string;
+  readonly hash: string;
+  readonly href: string;
+  readonly state?: unknown;
+  readonly key: string;
+}
+```
+
+For:
+
+```text
+/users/42?tab=settings#profile
+```
+
+the parsed location is:
+
+```ts
+{
+  pathname: '/users/42',
+  search: '?tab=settings',
+  hash: '#profile',
+  href: '/users/42?tab=settings#profile',
+  key: 'location-1',
+}
+```
+
+## `pathname`
+
+The app-relative pathname:
+
+```ts
+location.pathname;
+// '/users/42'
+```
+
+It does not contain the origin, query string, or hash.
+
+## `search`
+
+The raw query string, including the leading `?`:
+
+```ts
+location.search;
+// '?tab=settings'
+```
+
+An absent query string is:
+
+```ts
+''
+```
+
+Typed search parsing happens later during route matching.
+
+## `hash`
+
+The raw hash, including the leading `#`:
+
+```ts
+location.hash;
+// '#profile'
+```
+
+An absent hash is:
+
+```ts
+''
+```
+
+Typed hash parsing also happens later during route matching.
+
+## `href`
+
+`href` is always:
+
+```text
+pathname + search + hash
+```
+
+It never contains an origin:
+
+```ts
+location.href;
+// '/users/42?tab=settings#profile'
+```
+
+This keeps router state independent from deployment hosts and protocols.
+
+## `key`
+
+The key identifies a history entry.
+
+Built-in adapters create a new key for pushed entries and preserve the current key when an entry is replaced.
+
+React scroll restoration uses the key to associate an entry with its remembered scroll position.
+
+The key does not itself contain scroll or intercept data.
+
+## `state`
+
+`state` carries entry-specific data that should survive traversal through that history entry.
+
+Cookbook Router uses it for features such as:
+
+* Intercept restoration
+* `preventScrollReset`
+* Navigation context associated with an intercept
+
+Treat router-managed state as opaque. Custom adapters must preserve it across `push`, `replace`, `back`, `forward`, and `go`.
+
+In browser history, values must also be compatible with the browser history structured-clone rules.
+
+## History events
+
+History adapters notify listeners with:
+
+```ts
+type HistoryAction =
+  | 'push'
+  | 'replace'
+  | 'pop'
+  | 'hash';
+
+interface HistoryEvent {
+  readonly action: HistoryAction;
+  readonly location: RouterLocation;
+}
+```
+
+The actions mean:
+
+| Action      | Meaning                                              |
+| ----------- | ---------------------------------------------------- |
+| `'push'`    | A new entry became current                           |
+| `'replace'` | The current entry was replaced                       |
+| `'pop'`     | Traversal selected another existing entry            |
+| `'hash'`    | Browser hash navigation changed the current location |
+
+Memory history emits `push`, `replace`, and `pop`.
+
+Browser history also translates native `popstate` and `hashchange` events.
+
+Static history emits no events.
+
+## How the router uses history
+
+When a router starts, it resolves:
+
+```ts
+history.location
+```
+
+through matching, URL-state parsing, redirects, lifecycle, and middleware.
+
+```ts
+await router.start();
+```
+
+For normal programmatic navigation:
+
+```ts
+await router.navigate.to(
+  'users.details',
+  {
+    params: {
+      id: 42,
+    },
+  },
+);
+```
+
+the runtime:
+
+<Steps>
+  <Step>
+    Builds and matches the destination.
+  </Step>
+  <Step>
+    Runs blockers, before-lifecycle hooks, and middleware.
+  </Step>
+  <Step>
+    Writes the accepted location with `history.push()`.
+  </Step>
+  <Step>
+    Commits router state.
+  </Step>
+  <Step>
+    Runs after-navigation lifecycle hooks.
+  </Step>
+</Steps>
+
+Replace navigation follows the same process but calls:
+
+```ts
+history.replace(...)
+```
+
+If a blocker, lifecycle hook, or middleware cancels before commit, the attempted location is not pushed or replaced.
+
+## Canonical history replacement
+
+The router can replace the current entry while canonicalizing a matched URL.
+
+For example, with default path pruning:
+
+```text
+/about/
+```
+
+can resolve to:
+
+```text
+/about
+```
+
+The router preserves the entry key and replaces the non-canonical location.
+
+This canonical replacement occurs as part of location resolution and is distinct from an application call to `router.navigate.replace()`.
+
+Unmatched locations are not rewritten merely because their pathname could be pruned.
+
+## History traversal
+
+Router traversal methods delegate directly to the adapter:
+
+```ts
+router.navigate.back();
+router.navigate.forward();
+router.navigate.go(-2);
+```
+
+They return `void`.
+
+The adapter later emits a history event, and the router resolves the selected location through the normal transition pipeline.
+
+For a browser or memory `pop` transition:
+
+* The location is matched again.
+* Blockers and before hooks can run.
+* Middleware can run.
+* Router state is updated when accepted.
+
+When a history traversal is blocked, the runtime attempts to restore the previously committed location with `replace()` in non-static histories.
+
+## Use router navigation for application code
+
+Prefer:
+
+```ts
+await router.navigate.to(
+  'users.details',
+  {
+    params: {
+      id: 42,
+    },
+  },
+);
+```
+
+over calling the adapter directly:
+
+```ts
+history.push('/users/42');
+```
+
+Router navigation provides:
+
+* Route-ID inference
+* Param, search, and hash validation
+* Intercept options
+* Navigation context
+* Scroll-reset options
+* Internal href validation
+* A promise for the completed router transition
+
+Direct history calls are primarily for adapter implementations, environment integrations, and low-level tests.
+
+They still notify the router when the adapter is connected, but they bypass typed route construction at the call site.
+
+## Browser history
+
+Use `createBrowserHistory()` for explicit DOM-backed history:
+
+```ts
+import {
+  createBrowserHistory,
+  createRouter,
+} from '@cookbook/router';
+
+const history = createBrowserHistory();
+
+const router = createRouter({
+  routes,
+  history,
+});
+```
+
+It reads from:
+
+```text
+window.location
+window.history.state
+```
+
+and writes with:
+
+```text
+window.history.pushState()
+window.history.replaceState()
+```
+
+It listens for:
+
+```text
+popstate
+hashchange
+```
+
+### Default browser behavior
+
+When no custom history is passed, `createRouter()` selects browser history when `window` exists:
+
+```ts
+const router = createRouter({
+  routes,
+});
+```
+
+Outside a browser environment, the default falls back to memory history.
+
+Use the dedicated memory or static helpers when environment choice should be explicit.
+
+### Browser entry state
+
+The browser adapter stores its data under an internal wrapper:
+
+```ts
+{
+  cookbookRouterKey: location.key,
+  state: routerState,
+}
+```
+
+Consumers still see only:
+
+```ts
+location.key
+location.state
+```
+
+Do not depend on the browser wrapper shape directly.
+
+### External redirects
+
+Browser history implements `redirectExternal()` using:
+
+```ts
+window.location.assign(...)
+window.location.replace(...)
+```
+
+The router currently uses replace semantics for static route redirects and middleware redirects.
+
+Memory and static histories do not implement external navigation. An external redirect therefore becomes router error state unless a custom adapter provides `redirectExternal()`.
+
+### Browser requirement
+
+Calling `createBrowserHistory()` without a window-like environment throws:
+
+```text
+Browser history requires a window-like environment.
+```
+
+Use `createMemoryRouter()` or `createStaticRouter()` outside the browser.
+
+## Memory history
+
+Memory history models an address-bar stack without the DOM.
+
+```ts
+import { createMemoryRouter } from '@cookbook/router';
+
+const router = createMemoryRouter({
+  routes,
+  initialEntries: [
+    '/',
+    '/users/42',
+  ],
+  initialIndex: 1,
+});
+
+await router.start();
+```
+
+The current location is:
+
+```ts
+router.state.location.href;
+// '/users/42'
+```
+
+### Initial entries
+
+`initialEntries` accepts strings:
+
+```ts
+createMemoryHistory({
+  initialEntries: [
+    '/',
+    '/users',
+    '/users/42?tab=activity',
+  ],
+});
+```
+
+When omitted or empty, memory history starts at:
+
+```text
+/
+```
+
+`initialIndex` is clamped to the available entries.
+
+```ts
+createMemoryHistory({
+  initialEntries: [
+    '/one',
+    '/two',
+  ],
+  initialIndex: 50,
+});
+```
+
+starts at `/two`.
+
+### Push behavior
+
+A push appends a new entry and discards forward entries:
+
+```text
+/one
+/two        ← current
+/three
+
+back to /two
+push /four
+
+result:
+/one
+/two
+/four       ← current
+```
+
+### Replace behavior
+
+Replace updates the current entry without changing its position or key.
+
+### Traversal
+
+```ts
+history.back();
+history.forward();
+history.go(-2);
+```
+
+Movement is clamped to the available stack.
+
+A traversal that cannot change the index emits no event.
+
+## Memory router versus memory history
+
+Most tests should use `createMemoryRouter()`:
+
+```ts
+const router = createMemoryRouter({
+  routes,
+  initialEntries: [
+    '/users/42',
+  ],
+});
+
+await router.start();
+```
+
+This gives the test a complete router with matching and transitions.
+
+Use `createMemoryHistory()` directly when testing:
+
+* A custom router integration
+* Adapter behavior
+* Raw history events
+* History-state preservation
+
+History alone does not parse route params:
+
+```ts
+const history =
+  createMemoryHistory({
+    initialEntries: [
+      '/users/42',
+    ],
+  });
+
+history.location.pathname;
+// '/users/42'
+```
+
+To obtain:
+
+```ts
+{
+  id: 42,
+}
+```
+
+the location must be matched by a router.
+
+## Static history
+
+Static history represents one immutable request location:
+
+```ts
+import { createStaticHistory } from '@cookbook/router';
+
+const history = createStaticHistory({
+  url: '/articles/typed-routing',
+});
+```
+
+Its location does not change.
+
+```ts
+history.push('/next');
+// throws
+
+history.replace('/next');
+// throws
+```
+
+The traversal methods are inert:
+
+```ts
+history.back();
+history.forward();
+history.go(-1);
+```
+
+and `listen()` returns an empty cleanup function.
+
+Static history does not implement external redirects.
+
+## Prefer `createStaticRouter()` for SSR
+
+`createStaticHistory()` is the low-level adapter. For server rendering, use `createStaticRouter()`:
+
+```ts
+import { createStaticRouter } from '@cookbook/router';
+
+const router = createStaticRouter({
+  routes,
+  request,
+});
+
+await router.start();
+```
+
+It accepts:
+
+```ts
+createStaticRouter({
+  routes,
+  url: '/users/42',
+});
+```
+
+```ts
+createStaticRouter({
+  routes,
+  url: new URL(
+    'https://example.test/users/42',
+  ),
+});
+```
+
+```ts
+createStaticRouter({
+  routes,
+  request: new Request(
+    'https://example.test/users/42',
+  ),
+});
+```
+
+The static router:
+
+* Accepts a relative path, `URL`, or `Request`
+* Accepts only relative, `http`, or `https` inputs
+* Removes the origin
+* Resolves the route and typed URL state
+* Supports internal redirects and rewrites without mutating static history
+
+A static route redirect can change:
+
+```ts
+router.state.location
+```
+
+while:
+
+```ts
+history.location
+```
+
+remains the original fixed request location.
+
+That distinction is expected. Static history is the immutable environment input; router state is the resolved application destination.
+
+## Static redirects and platform responses
+
+Static history cannot leave the application.
+
+If static resolution reaches an external redirect and no custom adapter supplies `redirectExternal()`, the router enters error state.
+
+Server integrations must inspect router state and translate the result into the framework’s HTTP response model.
+
+The core history adapter does not send HTTP responses.
+
+## `parseHref()`
+
+`parseHref()` separates a URL into a `RouterLocation`:
+
+```ts
+import { parseHref } from '@cookbook/router';
+
+const location = parseHref(
+  '/users/42?tab=settings#profile',
+);
+```
+
+Result:
+
+```ts
+{
+  pathname: '/users/42',
+  search: '?tab=settings',
+  hash: '#profile',
+  href: '/users/42?tab=settings#profile',
+  key: 'location-1',
+}
+```
+
+Absolute origins are discarded:
+
+```ts
+parseHref(
+  'https://example.test/users/42',
+).href;
+
+// '/users/42'
+```
+
+You can supply state and a key:
+
+```ts
+parseHref('/users/42', {
+  key: 'entry-42',
+  state: {
+    source: 'search',
+  },
+});
+```
+
+## What `parseHref()` does not do
+
+`parseHref()` does not:
+
+* Match a route
+* Strip a router basename
+* Parse path constraints
+* Parse typed search
+* Parse typed hash
+* Apply route URL policies
+* Canonicalize the pathname
+* Validate an internal navigation target
+* Validate an SSR request as trusted input
+
+Use router APIs for route semantics:
+
+```ts
+const match = router.match('/users/42?tab=settings');
+
+match?.params;
+// { id: 42 }
+```
+
+Use `createStaticRouter()` rather than raw `parseHref()` for validated static request setup.
+
+## Custom history adapters
+
+Provide a custom history when navigation lives outside the browser, memory stack, or static request model:
+
+```ts
+const router = createRouter({
+  routes,
+  history: customHistory,
+});
+```
+
+A custom adapter must:
+
+* Expose its current `RouterLocation`
+* Preserve `state` and `key`
+* Update `location` during writes and traversal
+* Notify listeners when the current location changes
+* Return an unsubscribe function from `listen()`
+* Keep `replace()` on the same logical entry
+* Create a new logical entry for `push()`
+* Implement `redirectExternal()` when external redirects are supported
+
+Set `mode` when the adapter follows one of the built-in environment semantics:
+
+```ts
+mode: 'browser'
+mode: 'memory'
+mode: 'static'
+```
+
+The router uses static mode to avoid trying to mutate a static request location during canonicalization and redirect resolution.
+
+## History state and interception
+
+Intercepted navigation commits destination state to the history entry.
+
+That state contains enough information to restore:
+
+* The source location
+* The target route
+* The selected slot
+* Configured or call-site intercept identity
+* Structured-clone-safe navigation context
+
+Back selects the source entry. Forward can restore the intercepted entry.
+
+Custom histories must preserve the complete state object for this behavior to work.
+
+Do not copy or partially reconstruct router-managed history state.
+
+## History keys and scroll restoration
+
+When `RouterProvider` enables scroll restoration:
+
+```tsx
+<RouterProvider
+  router={router}
+  scrollRestoration
+/>
+```
+
+it stores scroll positions in memory by:
+
+```ts
+location.key
+```
+
+On a new entry, it scrolls to the top unless:
+
+* The location has a hash
+* Navigation used `preventScrollReset`
+* A remembered position exists for that key
+
+A replacement preserves the history key, so it continues to represent the same logical position.
+
+The scroll coordinates themselves are not written into `RouterLocation.state`. The provider keeps them in an internal in-memory map.
+
+## Hydration
+
+Serialized router state contains a `RouterLocation`, including its key and optional state.
+
+During hydration, the serialized pathname and search must match the active client history location.
+
+Hash differences are allowed because URL fragments are not sent to the server.
+
+```ts
+const serialized = serverRouter.serialize();
+
+const clientRouter = createRouter({
+  routes,
+  hydrationData: serialized,
+});
+```
+
+The framework integration should resolve the client history location after hydration when a client-only hash must be applied.
+
+## Choose the correct history
+
+| Environment             | Recommended API                                       |
+| ----------------------- | ----------------------------------------------------- |
+| Browser application     | `createRouter()` or explicit `createBrowserHistory()` |
+| Unit/integration tests  | `createMemoryRouter()`                                |
+| Low-level adapter tests | `createMemoryHistory()`                               |
+| SSR or static rendering | `createStaticRouter()`                                |
+| Custom host environment | `createRouter({ history })`                           |
+
+## Where this bites
+
+### `history.location` is not a route match
+
+It contains raw URL components. Use `router.match()` or `router.state.match` for route IDs and parsed URL state.
+
+### The location key does not contain intercept data
+
+The key identifies an entry. Intercept and scroll-reset metadata live in `location.state`.
+
+### A replace receives a new key
+
+Built-in replace operations preserve the current key. A custom adapter should do the same.
+
+### Direct `history.push()` bypasses typed navigation
+
+Use `router.navigate.to()` for application navigation.
+
+### A blocked browser Back changes briefly
+
+The browser selects the historical entry first. If the router blocks it, the runtime restores the previously committed location.
+
+### Static router state differs from static history
+
+Internal redirects and rewrites can resolve another router location without mutating the immutable static history input.
+
+### `parseHref()` accepts an absolute URL
+
+It discards the origin. It does not make the input trusted or validate it as an application route.
+
+### Scroll restoration forgets positions after remount
+
+The React provider stores positions in memory. They are keyed by history entry but are not persisted across a full application reload.

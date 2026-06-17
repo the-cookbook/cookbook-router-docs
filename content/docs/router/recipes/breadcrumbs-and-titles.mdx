@@ -1,0 +1,109 @@
+---
+title: "Breadcrumbs and page titles"
+description: "Derive navigation labels and app chrome from the active route metadata chain."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Breadcrumbs from route metadata
+
+A breadcrumb is a convention your app owns. The router carries the metadata; your UI decides how to tell the story.
+
+```ts
+defineRoute({
+  id: 'users',
+  path: '/users',
+  meta: {
+    breadcrumb: { label: 'Users', to: 'users' },
+  },
+} as const);
+```
+
+Read ancestor metadata and append breadcrumb values into one trail:
+
+```tsx
+import { Link, useRouteMeta } from '@cookbook/router-react';
+
+function Breadcrumbs() {
+  const meta = useRouteMeta({
+    includeAncestors: true,
+    merge: {
+      keys: {
+        breadcrumb: 'append',
+      },
+    },
+  });
+
+  const breadcrumbs = meta.breadcrumb ?? [];
+
+  return (
+    <nav>
+      {breadcrumbs.map((item) => (
+        <Link key={item.label} to={item.to}>
+          {item.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+```
+
+Use `merge: false` when you want the raw metadata chain instead of one merged object:
+
+```ts
+const metaChain = useRouteMeta({
+  includeAncestors: true,
+  merge: false,
+});
+```
+
+`merge: false` returns metadata objects only. Use `useMatches()` when you also need route ids, params, or match internals.
+
+## Page titles and app frame from route metadata
+
+Page metadata should do visible work. Use it to set the document title, then merge ancestors when the surrounding app frame needs inherited configuration.
+
+`useRouteMeta()` returns local metadata by default.
+
+```tsx
+function PageTitle() {
+  const meta = useRouteMeta();
+
+  React.useEffect(() => {
+    if (typeof meta.title === 'string') {
+      document.title = meta.title;
+    }
+  }, [meta.title]);
+
+  return null;
+}
+```
+
+Use ancestor merging for the app frame and inherited page configuration:
+
+```tsx
+const meta = useRouteMeta({
+  includeAncestors: true,
+  merge: {
+    default: 'shallow',
+    keys: {
+      layout: 'deep',
+      breadcrumb: 'append',
+      title: 'leaf',
+    },
+  },
+});
+```
+
+For a simpler leaf-wins merge:
+
+```tsx
+const meta = useRouteMeta({
+  includeAncestors: true,
+  merge: 'leaf',
+});
+```
+
+`merge: 'leaf'` works key by key. Parent keys stay in place unless a child route defines the same key.

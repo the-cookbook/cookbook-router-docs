@@ -1,0 +1,47 @@
+---
+title: "Watch and recovery"
+description: "How each adapter notices changes, avoids output loops, preserves good artifacts, and recovers after invalid input."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Recovery is part of correctness
+
+A watch plugin that reports an error and then stops observing the broken input is not a watch plugin. It is a one-shot build wearing a lanyard.
+
+## Capability matrix
+
+| Capability | Vite | Webpack | Rspack | Rollup/Rolldown | esbuild | Bun |
+| --- | --- | --- | --- | --- | --- | --- |
+| Generate before compilation | Yes | Yes | Yes | Yes | Yes | Yes |
+| Watch config candidates | Yes | Yes | Yes | Yes | Host graph only | Host graph only |
+| Watch route glob roots | Yes | Yes | Yes | Yes | No | No |
+| Detect created/deleted route files | Yes | Yes | Yes | Yes | Not guaranteed | Not guaranteed |
+| Preserve previous valid output after watch failure | Yes | Yes | Yes | Yes | Files are not rewritten on failed run | Files are not rewritten on failed run |
+| Retry after repair | Yes | Yes | Yes | Yes | On next host build start | On next host build start |
+
+## What is watched
+
+The shared watch-state resolver tries to load effective options with empty route matches allowed. On success it watches the resolved config plus route-file watch roots. On failure it falls back to all standard config candidates plus roots derived from explicit route patterns.
+
+Generated output is excluded from normal dependency watching. Otherwise writing `contracts.ts` would cause another build, which would write `contracts.ts`, which would cause another build, until the laptop becomes a space heater.
+
+## Delete recovery
+
+Vite explicitly watches the output directory for deletion events and regenerates missing artifacts. Webpack/Rspack ignore the output directory as an ordinary watch dependency, then generate again before the next compilation. Rollup regenerates at each build start.
+
+## esbuild and Bun companion watch
+
+```json title="package.json"
+{
+  "scripts": {
+    "dev:routes": "cbr generate --watch",
+    "dev:app": "your-bundler-watch-command",
+    "dev": "run-p dev:routes dev:app"
+  }
+}
+```
+
+Use any process runner your project already trusts. The architectural point is two cooperating watches: Cookbook Router owns route discovery; the bundler owns the application graph.

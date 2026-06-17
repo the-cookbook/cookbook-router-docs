@@ -1,0 +1,973 @@
+---
+title: "Serialization and hydration"
+description: "Safely transfer the minimal server router snapshot and reconstruct matching client state."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Serialization transfers the minimum router state needed for an SSR client to reproduce the server’s initial route render.
+
+Hydration uses that snapshot to initialize the client router before React hydrates the server HTML.
+
+It does not serialize the complete router runtime, application data, React state, middleware state, or loaded modules.
+
+## The hydration flow
+
+<Steps>
+  <Step>
+    Create and start a static router for the server request.
+  </Step>
+  <Step>
+    Render the started router.
+  </Step>
+  <Step>
+    Serialize its minimal state with `stringifyRouterState()`.
+  </Step>
+  <Step>
+    Embed minimal state with `stringifyRouterState()`.
+  </Step>
+  <Step>
+    Embed that hardened JSON in the HTML response.
+  </Step>
+  <Step>
+    Parse and validate the payload with `deserializeRouterState()` in the browser.
+  </Step>
+  <Step>
+    Create the client router with `hydrationData`.
+  </Step>
+  <Step>
+    Hydrate React before manually starting the client router.
+  </Step>
+</Steps>
+
+The server and client must use compatible routes and router configuration so the serialized location resolves to the same initial UI.
+
+## Server rendering
+
+Create a static router for the current request and resolve it before rendering:
+
+```tsx
+import { renderToString } from 'react-dom/server';
+
+import {
+  createStaticRouter,
+  stringifyRouterState,
+} from '@cookbook/router';
+
+import { StaticRouterProvider } from '@cookbook/router-react';
+
+import { routes } from './routes';
+
+export async function renderRequest(
+  request: Request,
+) {
+  const router = createStaticRouter({
+    routes,
+    request,
+  });
+
+  await router.start();
+
+  const appHtml = renderToString(
+    <StaticRouterProvider
+      router={router}
+      fallback={<NotFoundPage />}
+      errorFallback={ApplicationError}
+    />,
+  );
+
+  const hydrationJson =
+    stringifyRouterState(router);
+
+  return `<!doctype html>
+<html>
+  <body>
+    <div id="root">${appHtml}</div>
+
+    <script>
+      window.__COOKBOOK_ROUTER__ = ${hydrationJson};
+    </script>
+
+    <script
+      type="module"
+      src="/src/main.tsx"
+    ></script>
+  </body>
+</html>`;
+}
+````
+
+`StaticRouterProvider` requires a started router. It does not start the router during static rendering because React effects do not run on the server.
+
+## Client hydration
+
+Read and validate the embedded value before creating the browser router:
+
+```tsx
+import { hydrateRoot } from 'react-dom/client';
+
+import {
+  createRouter,
+  deserializeRouterState,
+  type SerializedRouterState,
+} from '@cookbook/router';
+
+import { RouterProvider } from '@cookbook/router-react';
+
+import { routes } from './routes';
+
+declare global {
+  interface Window {
+    __COOKBOOK_ROUTER__?:
+      | SerializedRouterState
+      | string;
+  }
+}
+
+const root = document.getElementById('root');
+
+if (!root) {
+  throw new Error(
+    'Application root was not found.',
+  );
+}
+
+const hydrationData =
+  window.__COOKBOOK_ROUTER__
+    ? deserializeRouterState(window.__COOKBOOK_ROUTER__)
+    : undefined;
+
+const router = createRouter({
+  routes,
+  ...(hydrationData
+    ? { hydrationData }
+    : {}),
+});
+
+hydrateRoot(
+  root,
+  <RouterProvider router={router} />,
+);
+```
+
+**Do not** call:
+
+```ts
+await router.start();
+```
+
+before `hydrateRoot()`.
+
+The hydrated state must be available for the first client render so React sees the same route-derived output as the server.
+
+`RouterProvider` starts the router after mounting by default.
+
+## Serialized state shape
+
+The hydration payload is intentionally small:
+
+```ts
+interface SerializedRouterState {
+  readonly location: RouterLocation;
+
+  readonly navigation: RouterNavigationState;
+}
+```
+
+The navigation value can be:
+
+```ts
+type RouterNavigationState =
+  | 'idle'
+  | 'pending'
+  | 'redirecting'
+  | 'blocked'
+  | 'error';
+```
+
+A normal SSR response should usually serialize a completed, successful transition whose navigation state is `idle`.
+
+## Serialized location
+
+The location contains:
+
+```ts
+interface RouterLocation {
+  readonly pathname: string;
+  readonly search: string;
+  readonly hash: string;
+  readonly href: string;
+  readonly key: string;
+  readonly state?: unknown;
+}
+```
+
+For example:
+
+```ts
+{
+  location: {
+    pathname: '/users/42',
+    search: '?tab=activity',
+    hash: '',
+    href: '/users/42?tab=activity',
+    key: 'server-entry',
+  },
+
+  navigation: 'idle',
+}
+```
+
+`href` must equal:
+
+```text
+pathname + search + hash
+```
+
+It never includes an origin.
+
+## What is reconstructed
+
+The route match is not part of `SerializedRouterState`.
+
+When the client router is created, Cookbook Router matches the serialized location again using the client’s:
+
+* Route tree
+* Basename
+* Path options
+* Custom path constraints
+* Search and hash descriptors
+* URL policies
+
+That reconstructs:
+
+* The matched route branch
+* Parsed params
+* Parsed search state
+* Preserved unknown search state
+* Parsed hash state
+* Route metadata references
+* Rendering ownership
+
+The server and client must therefore use compatible route declarations and router configuration.
+
+The hydration payload does not contain enough information to detect every route-tree or configuration difference by itself.
+
+## What is not serialized
+
+Serialization does not include:
+
+* `router.state.match`
+* `router.state.error`
+* `router.state.previousLocation`
+* The route tree
+* Ranked routes
+* Middleware functions
+* Lifecycle hooks
+* Navigation blockers
+* Preload promises
+* Loaded JavaScript modules
+* React component state
+* Outlet or slot context
+* Application query caches
+* Resolved error-boundary state
+* The router’s started, starting, or disposed flags
+
+Hydration is a route-state handoff, not a general application-state transport.
+
+Application data needs its own serialization and hydration mechanism.
+
+## Serialization APIs
+
+Cookbook Router exposes four related operations.
+
+| API                             | Result             |              Validation | HTML-safe escaping |
+| ------------------------------- | ------------------ | ----------------------: | -----------------: |
+| `router.serialize()`            | Raw minimal object | No additional hardening |                 No |
+| `serializeRouterState(router)`  | Validated object   |                     Yes |     Not applicable |
+| `stringifyRouterState(router)`  | JSON string        |                     Yes |                Yes |
+| `deserializeRouterState(value)` | Validated object   |                     Yes |     Not applicable |
+
+## `router.serialize()`
+
+The runtime method returns the current minimal snapshot:
+
+```ts
+const state = router.serialize();
+```
+
+Its implementation is equivalent to:
+
+```ts
+{
+  location: router.state.location,
+  navigation: router.state.navigation,
+}
+```
+
+Use it for internal inspection or when another trusted layer will perform validation and transport encoding.
+
+Do not insert this directly into HTML with raw `JSON.stringify()`.
+
+## `serializeRouterState()`
+
+Use `serializeRouterState()` when a validated object is needed:
+
+```ts
+import { serializeRouterState } from '@cookbook/router';
+
+const hydrationData = serializeRouterState(router);
+```
+
+It validates the state shape and returns a sanitized clone.
+
+This is suitable for:
+
+* Passing state within a trusted process
+* Test setup
+* A transport layer that handles its own safe encoding
+* Creating memory-router hydration data
+
+It does not return a JSON string.
+
+## `stringifyRouterState()`
+
+Use `stringifyRouterState()` when embedding hydration state in HTML:
+
+```ts
+import { stringifyRouterState } from '@cookbook/router';
+
+const json = stringifyRouterState(router);
+```
+
+It:
+
+1. Reads `router.serialize()`.
+2. Validates the serialized state.
+3. Sanitizes `location.state`.
+4. Serializes the result as JSON.
+5. Escapes HTML-significant characters.
+
+It escapes:
+
+```text
+<
+>
+&
+U+2028
+U+2029
+```
+
+For example:
+
+```text
+</script>
+```
+
+becomes JSON containing:
+
+```text
+\u003c/script\u003e
+```
+
+This prevents serialized data from closing the surrounding script element.
+
+## `deserializeRouterState()`
+
+Use `deserializeRouterState()` at the receiving boundary:
+
+```ts
+const hydrationData = deserializeRouterState(window.__COOKBOOK_ROUTER__);
+```
+
+It accepts either:
+
+```ts
+SerializedRouterState
+```
+
+or:
+
+```ts
+string
+```
+
+String input is parsed as JSON. Both string and object input are validated and sanitized before being returned.
+
+An empty string, malformed JSON, invalid location, or unsupported navigation state throws.
+
+`deserializeRouterState()` validates serialized structure. It does not:
+
+* Match the location against routes
+* Validate route params
+* Verify the active route ID
+* Verify the server and client route trees
+* Authenticate the payload
+* Prove the payload came from the server
+
+Route matching happens when the client router is created.
+
+## Location validation
+
+The serializer and deserializer validate the location fields.
+
+### Pathname
+
+A valid pathname:
+
+* Is a string
+* Starts with `/`
+* Does not contain a null character
+* Does not contain `://`
+
+```text
+/users/42
+```
+
+Invalid examples include:
+
+```text
+users/42
+javascript://example
+```
+
+### Search
+
+Search must either be empty or begin with `?`:
+
+```text
+?tab=activity
+```
+
+It cannot contain a null character.
+
+### Hash
+
+Hash must either be empty or begin with `#`:
+
+```text
+#details
+```
+
+It cannot contain a null character.
+
+### Href consistency
+
+The following must be equal:
+
+```ts
+location.href ===
+  `${location.pathname}${location.search}${location.hash}`;
+```
+
+A payload cannot claim one pathname while carrying a different `href`.
+
+### Key
+
+The location key must be a string without a null character.
+
+The key identifies the initial logical history entry. It is not a security credential.
+
+### Navigation
+
+The navigation value must be one of the supported router navigation states.
+
+Unknown values are rejected:
+
+```ts
+{
+  navigation: 'complete',
+}
+```
+
+## Location state sanitization
+
+`location.state` can contain router-managed history state, including interception and scroll-reset metadata.
+
+The hardened helpers recursively sanitize it.
+
+They preserve:
+
+* `null`
+* `undefined`
+* Strings
+* Numbers
+* Booleans
+* Arrays
+* Enumerable object properties
+
+Unsafe property names are removed:
+
+```text
+__proto__
+constructor
+prototype
+```
+
+Functions, symbols, and bigint values are not preserved. Object instances lose their prototype and are copied as data records containing their enumerable properties.
+
+Use plain JSON-like data:
+
+```ts
+{
+  source: 'gallery',
+  position: 3,
+  filters: ['featured'],
+}
+```
+
+Do not depend on serialization preserving:
+
+* Functions
+* React elements
+* DOM nodes
+* Class identity
+* `Date` behavior
+* Maps or sets
+* Closures
+* Cyclic object graphs
+
+JSON number behavior also applies. Values such as `NaN` and `Infinity` do not survive JSON serialization as ordinary numbers.
+
+## Why raw `JSON.stringify()` is unsafe
+
+This is not the correct HTML embedding path:
+
+```ts
+JSON.stringify(
+  router.serialize(),
+);
+```
+
+It skips the router’s:
+
+* Location validation
+* Navigation-state validation
+* State sanitization
+* Unsafe-property filtering
+* Script-breaking character escaping
+
+A value in history state could contain:
+
+```html
+</script><script>...</script>
+```
+
+Raw JSON embedded in an inline script can terminate the original script element.
+
+Use:
+
+```ts
+stringifyRouterState(router);
+```
+
+## Hydration compatibility
+
+In a browser, Cookbook Router compares the hydration location against the current history location.
+
+The following must match exactly:
+
+```text
+pathname
+search
+```
+
+The following are not part of that comparison:
+
+```text
+hash
+key
+state
+```
+
+For example, this matches:
+
+```text
+Server: /articles/router?preview=true
+Client: /articles/router?preview=true#summary
+```
+
+This does not:
+
+```text
+Server: /articles/router?preview=true
+Client: /articles/router?preview=false
+```
+
+## Pathname or search mismatch
+
+When pathname or search differs, router construction does not throw.
+
+Instead, the router:
+
+* Keeps the serialized location as its initial state
+* Recomputes its match from that serialized location
+* Stores a hydration mismatch error in `router.state.error`
+
+```ts
+const router = createRouter({
+  routes,
+  hydrationData,
+});
+
+router.state.error;
+// Hydration mismatch error
+```
+
+The error message includes the server and client hrefs.
+
+A mismatch usually means:
+
+* The wrong hydration payload reached the page
+* The server and client used different basenames
+* An SSR redirect did not update the browser URL
+* The route configuration differs
+* A reverse proxy or deployment layer changed the request path
+* The browser navigated before hydration initialized
+
+Treat this as an SSR integration failure rather than silently accepting unrelated state.
+
+## Hash differences
+
+URL fragments are not included in normal HTTP requests.
+
+For a browser address such as:
+
+```text
+/articles/router?preview=true#summary
+```
+
+the server ordinarily receives:
+
+```text
+/articles/router?preview=true
+```
+
+The server therefore renders and serializes a location without `#summary`.
+
+During client hydration, Cookbook Router intentionally keeps the serialized server hash for the first render so React can hydrate matching HTML.
+
+After hydration commits, `RouterProvider` compares the router state with `window.location`.
+
+When pathname and search match but the hash differs, the provider starts or refreshes the router using the browser location.
+
+The resulting sequence is:
+
+```text
+Server render:
+  /articles/router?preview=true
+
+First client render:
+  /articles/router?preview=true
+
+After hydration:
+  /articles/router?preview=true#summary
+```
+
+This lets typed hash parsing run after the initial hydration boundary.
+
+## Do not start before hydration
+
+This is unsafe for SSR hydration:
+
+```tsx
+const router = createRouter({
+  routes,
+  hydrationData,
+});
+
+await router.start();
+
+hydrateRoot(
+  root,
+  <RouterProvider router={router} />,
+);
+```
+
+When the browser has a client-only hash, `router.start()` resolves that hash before React hydrates. The first client render can then differ from the server HTML.
+
+Use:
+
+```tsx
+const router = createRouter({
+  routes,
+  hydrationData,
+});
+
+hydrateRoot(
+  root,
+  <RouterProvider router={router} />,
+);
+```
+
+`RouterProvider` coordinates startup after mount.
+
+A non-React renderer or framework adapter must provide the same ordering: hydrate the host output first, then resolve the actual client history location.
+
+## Hydration does not start the router
+
+Passing `hydrationData` initializes:
+
+* `router.state.location`
+* `router.state.match`
+* `router.state.navigation`
+* A hydration error, when applicable
+
+It does not set:
+
+```ts
+router.started;
+```
+
+to `true`.
+
+The client router still needs a startup transition.
+
+By default, `RouterProvider` starts it after mounting:
+
+```tsx
+<RouterProvider router={router} />
+```
+
+That transition resolves the current history location and runs the normal client pipeline, including:
+
+* Canonicalization
+* Matching
+* Static redirects
+* Blockers registered before startup
+* Lifecycle hooks
+* Middleware
+* Router-state commit
+
+Hydration does not memoize the server transition or skip client middleware and lifecycle.
+
+Code shared between server and client should tolerate running once in each environment.
+
+## Provider middleware and startup
+
+Middleware passed to `RouterProvider` is registered before the provider starts the router:
+
+```tsx
+<RouterProvider
+  router={router}
+  middleware={[
+    clientMiddleware,
+  ]}
+/>
+```
+
+This middleware participates in the post-mount client startup transition.
+
+Do not manually start the router before mounting the provider when provider middleware must apply to startup.
+
+## Errors are not transported
+
+`SerializedRouterState` includes the navigation value but not:
+
+```ts
+router.state.error;
+```
+
+This means a server exception, returned `Response`, lifecycle error, or middleware error is not transmitted to the browser through router hydration state.
+
+For example, a server router can contain:
+
+```ts
+{
+  navigation: 'error',
+  error: serverError,
+}
+```
+
+but serialization only carries:
+
+```ts
+{
+  navigation: 'error',
+  location,
+}
+```
+
+The original `serverError` is absent on the client.
+
+Do not use router hydration as an error transport.
+
+Before emitting hydratable HTML, the server integration should explicitly handle:
+
+* HTTP redirects
+* Returned `Response` values
+* Authentication failures
+* Server-only exceptions
+* Unrecoverable router error state
+
+Prefer serializing a successfully resolved `idle` state.
+
+## Redirects, rewrites, and hydration URLs
+
+The serialized pathname and search must match the URL that remains in the browser.
+
+A static router can resolve another internal location without mutating its static history input. That is useful during server resolution, but it can create incompatible hydration state.
+
+For example:
+
+```text
+Browser request URL: /old
+Serialized router URL: /new
+```
+
+The client detects a mismatch unless the server response also redirects the browser to `/new`.
+
+SSR integrations must deliberately map routing outcomes:
+
+* Send an HTTP redirect when the visible browser URL should change.
+* Preserve or reconstruct rewrite behavior without serializing an incompatible visible URL.
+* Do not blindly serialize a resolved location whose pathname or search differs from the URL that will remain in the address bar.
+
+## Memory-router hydration
+
+`createMemoryRouter()` uses the hydration location as its initial history entry:
+
+```ts
+const clientRouter = createMemoryRouter({
+    routes,
+    hydrationData,
+  });
+```
+
+When `hydrationData` is provided:
+
+* `initialEntries` is ignored
+* `initialIndex` is ignored
+* Memory history begins at `hydrationData.location.href`
+
+This is useful for SSR-style tests:
+
+```ts
+const serverRouter = createMemoryRouter({
+    routes,
+    initialEntries: [
+      '/users/42?tab=activity',
+    ],
+  });
+
+await serverRouter.start();
+
+const clientRouter = createMemoryRouter({
+    routes,
+    hydrationData:
+      serializeRouterState(
+        serverRouter,
+      ),
+  });
+
+expect(clientRouter.state.location.href).toBe('/users/42?tab=activity');
+```
+
+Outside a browser, `createRouter()` also falls back to memory history and seeds that history from the hydration href.
+
+## Hydration is not an authenticity boundary
+
+The browser can inspect and modify hydration data.
+
+Validation prevents malformed router state from being accepted, but it does not make the payload trusted.
+
+Do not use hydration data as proof of:
+
+* Authentication
+* Authorization
+* Subscription state
+* Server-side validation
+* Ownership of a resource
+* Permission to access protected data
+
+Enforce security on the server and again through the appropriate application policy.
+
+## Application data hydration
+
+Router hydration only reconstructs route state.
+
+Application data needs a separate mechanism:
+
+```tsx
+<script>
+  window.__QUERY_STATE__ = ...;
+</script>
+```
+
+or a framework/query-library hydration API.
+
+Keep the concerns separate:
+
+| Concern                                 | Owner                         |
+| --------------------------------------- | ----------------------------- |
+| Current URL and router navigation state | Cookbook Router hydration     |
+| Route matching and typed URL parsing    | Client router                 |
+| Query and resource cache                | Application data layer        |
+| React component state                   | React                         |
+| Authentication authority                | Server and application policy |
+| Rendered server HTML                    | Renderer/framework            |
+
+## Choose the correct helper
+
+### Use `router.serialize()` when
+
+* Inspecting a trusted runtime snapshot
+* Another trusted layer performs validation
+* The value is not being embedded directly in HTML
+
+### Use `serializeRouterState()` when
+
+* A validated object is required
+* State remains within a trusted process
+* A test or non-HTML transport needs the object form
+
+### Use `stringifyRouterState()` when
+
+* Embedding router state in server-rendered HTML
+* Producing the inline hydration script payload
+
+### Use `deserializeRouterState()` when
+
+* Reading a string or object across a serialization boundary
+* Initializing a client router from server output
+* Validating test or platform-provided hydration state
+
+## Where this bites
+
+### The first client route differs from the server route
+
+Check that the server and browser pathname and search are identical and that both environments use the same route configuration.
+
+### A client-only hash causes hydration warnings
+
+The router was started before `hydrateRoot()`. Let `RouterProvider` synchronize the hash after hydration.
+
+### Server middleware runs again in the browser
+
+Hydration initializes state but does not mark the router as started. Client startup still runs the transition pipeline.
+
+### A server error disappears on the client
+
+`RouterState.error` is not serialized. Handle server failures before producing hydratable HTML.
+
+### An SSR redirect produces a hydration mismatch
+
+The serialized target URL differs from the URL left in the browser. Return an HTTP redirect or otherwise align the visible URL.
+
+### History context loses a function or class instance
+
+`location.state` is sanitized as data. Store plain JSON-like values only.
+
+### `initialEntries` has no effect
+
+`createMemoryRouter()` uses the hydration location when `hydrationData` is present.
+
+### Raw JSON breaks the hydration script
+
+`JSON.stringify(router.serialize())` does not escape script-breaking characters. Use `stringifyRouterState()`.
+
+### Deserialization succeeds but the UI still differs
+
+Shape validation does not verify that server and client routes, basenames, constraints, URL policies, or application data are identical.

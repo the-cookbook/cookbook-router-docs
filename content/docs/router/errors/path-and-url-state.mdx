@@ -1,0 +1,85 @@
+---
+title: "Path and URL-state errors"
+description: "Exact path-constraint, inherited-param, search, hash, merge, and pathMatch failures."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Invalid path pattern or unknown path constraint.
+
+**Symptom**
+Validation fails with a PathKit/URLKit path-pattern error, such as an unknown constraint type.
+
+**Cause**
+The route path is malformed or references a custom constraint that was not registered before validation.
+
+**Fix**
+Fix the path pattern or register the custom constraint through `defineRoutes(..., { pathConstraints })`, `defineRouteTree(...)`, `createRouter(...)`, or the CLI config.
+
+## Route "..." declares duplicate inherited param "...".
+
+**Symptom**
+Validation fails while composing parent and child params.
+
+**Cause**
+A child route declares a path param with the same name as an inherited parent param.
+
+**Fix**
+Use distinct param names across a branch, such as teamId and userId instead of id and id.
+
+## Invalid static search descriptor.
+
+**Symptom**
+Validation throws a URLKit descriptor error for route search.
+
+**Cause**
+search is not a valid static URLKit descriptor. Common causes include runtime builders, invalid defaults, invalid enum values, invalid optional/many combinations, or runtime date codec objects.
+
+**Fix**
+Use static descriptor objects only. Do not use runtime URLKit builders or runtime date codec objects in route definitions.
+
+## Invalid static hash descriptor.
+
+**Symptom**
+Validation throws a URLKit descriptor error for route hash.
+
+**Cause**
+hash is not a valid static URLKit hash descriptor. Common causes include unsupported shorthand, empty enum values, defaults outside enum values, optional: false, or optional: true combined with default.
+
+**Fix**
+Use an object hash descriptor with valid values/default/optional combinations.
+
+## Route "..." hash value "..." must not include a leading #.
+
+**Symptom**
+Validation fails on hash descriptor values or defaults.
+
+**Cause**
+A hash enum value or default includes the leading #.
+
+**Fix**
+Use bare hash values such as "comments". The router adds # when building URLs.
+
+## Duplicate search descriptor key "..." passed to mergeSearch().
+
+**Symptom**
+Reusable search descriptor merging fails.
+
+**Cause**
+Two descriptors passed to mergeSearch() contain the same key.
+
+**Fix**
+Rename one key or merge the descriptors manually so the override is explicit.
+
+## Router url.pathMatch.end: false is not supported yet.
+
+**Symptom**
+Router URL option validation fails.
+
+**Cause**
+pathMatch.end was set to false, but prefix matching is not supported by the current route match state.
+
+**Fix**
+Remove pathMatch.end: false. Use exact route matching until prefix matching is supported.

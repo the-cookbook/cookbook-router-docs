@@ -1,0 +1,48 @@
+---
+title: "CLI and codegen troubleshooting"
+description: "Fix static extraction, config/runtime constraints, stale package builds, and generated artifact failures."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Custom path constraints are not registered during CLI generation
+
+Declare custom constraints in the second `defineRoutes` argument so the CLI can extract and register them before validation and generation.
+
+```ts
+export const routes = defineRoutes([{ id: 'posts.show', path: '/posts/{slug:slug}' }], {
+  pathConstraints: { slug },
+});
+```
+
+Avoid registering constraints only through side effects in files the CLI cannot statically evaluate.
+
+## Static extraction does not support URLKit runtime builders
+
+CLI-consumed route files must remain statically analyzable. Do not use runtime builders like `int().default(1)` in static route definitions unless the CLI explicitly supports them. Use static descriptors instead:
+
+```ts
+search: {
+  page: { type: 'int', default: 1 },
+}
+```
+
+## Examples still use stale package builds
+
+Examples consume workspace packages. After package source changes, run:
+
+```sh
+pnpm build:packages
+```
+
+Then restart the example dev server.
+
+## Route file extraction fails on computed values
+
+The CLI route extractor is intentionally static. Keep codegen-relevant route fields inline and literal where possible. If a route file builds IDs, paths, search schemas, hash values, metadata, children, slot configs, or redirects through imported constants or helper functions, move those values inline or use a simpler route file for generation.
+
+## Generation succeeds but `routes.ts` is absent
+
+`routes.ts` is conditional. The aggregate generator writes it only when route inputs expose statically composable route exports. `contracts.ts`, `register.d.ts`, and `manifest.json` are the unconditional successful outputs.

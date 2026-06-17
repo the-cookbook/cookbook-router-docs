@@ -1,0 +1,974 @@
+---
+title: "Loading and errors"
+description: "Place Suspense and error boundaries at the route, layout, slot, or provider level."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Loading and error fallbacks are ownership boundaries.
+
+The correct fallback is not simply the closest property in the route tree. Route fallbacks, layout fallbacks, slot isolation, and provider defaults protect different parts of the rendered application.
+
+In React, Cookbook Router maps these declarations to Suspense and error boundaries while keeping the core router renderer-neutral.
+
+## Fallback layers
+
+| Fallback | Responsibility |
+| --- | --- |
+| `route.loading` | Suspense fallback for the active leaf route’s content |
+| `route.error` | Error fallback for the active leaf route’s content or route-state error |
+| `layout.loading` | Shared Suspense fallback for the main outlet content rendered inside a layout |
+| `layout.error` | Shared error fallback for the main outlet content rendered inside a layout |
+| `<Slot errorFallback>` | Error isolation for one rendered named slot |
+| `RouterProvider.loadingFallback` | Default Suspense fallback when no route or layout loading fallback owns the content |
+| `RouterProvider.errorFallback` | Default error fallback when no route, layout, or slot fallback owns the failure |
+| `RouterProvider.fallback` | Content rendered when no route matches; it is not a loading or error fallback |
+
+The central rule is:
+
+> Route fallbacks belong to one leaf destination. Layout fallbacks belong to the outlet rendered inside a layout shell.
+
+## Basic setup
+
+A route can provide local fallbacks while its parent layout provides shared fallbacks for the rest of the section:
+
+```tsx
+import {
+  defineRoutes,
+} from '@cookbook/router';
+
+import {
+  lazyRouteView,
+} from '@cookbook/router-react';
+
+const ReportPage = lazyRouteView(() =>
+  import('./report-page').then(
+    ({ ReportPage }) => ({
+      default: ReportPage,
+    }),
+  ),
+);
+
+export const routes = defineRoutes([
+  {
+    id: 'dashboard',
+    path: '/dashboard',
+
+    layout: {
+      view: DashboardLayout,
+      loading: DashboardLoading,
+      error: DashboardError,
+    },
+
+    children: [
+      {
+        id: 'dashboard.index',
+        index: true,
+        view: DashboardHome,
+      },
+      {
+        id: 'dashboard.report',
+        path: 'reports/{reportId}',
+        view: ReportPage,
+        loading: ReportLoading,
+        error: ReportError,
+      },
+    ],
+  },
+] as const);
+````
+
+For `dashboard.report`:
+
+* `ReportLoading` overrides `DashboardLoading`.
+* `ReportError` overrides `DashboardError`.
+
+For `dashboard.index`:
+
+* `DashboardLoading` and `DashboardError` are inherited from the layout because the index route has no local fallbacks.
+
+## Loading is driven by Suspense
+
+Loading fallbacks render when React content suspends.
+
+Typical causes include:
+
+* `React.lazy()`
+* `lazyRouteView()`
+* A component that throws a pending promise
+* A suspending descendant rendered inside a route or layout outlet
+
+```tsx
+const AccountPage = lazyRouteView(() =>
+  import('./account-page').then(
+    ({ AccountPage }) => ({
+      default: AccountPage,
+    }),
+  ),
+);
+```
+
+```tsx
+{
+  id: 'account',
+  path: '/account',
+  view: AccountPage,
+  loading: AccountLoading,
+}
+```
+
+While `AccountPage` is pending, `AccountLoading` renders.
+
+Loading fallbacks do **not** automatically render while the router waits for:
+
+* Blockers
+* Lifecycle hooks
+* Middleware
+* Route-level `preload`
+* Programmatic `router.preload()`
+* Other asynchronous work that does not suspend React rendering
+
+Use loading fallbacks for rendering suspension. Use application state when non-rendering work needs a visible pending indicator.
+
+## Route loading fallbacks
+
+`route.loading` belongs to the active leaf route:
+
+```tsx
+import type {
+  RouteLoadingFallbackProps,
+} from '@cookbook/router-react';
+
+function ArticleLoading({
+  route,
+}: RouteLoadingFallbackProps) {
+  return (
+    <p>
+      Loading {route.id}
+    </p>
+  );
+}
+```
+
+```tsx
+{
+  id: 'articles.show',
+  path: '/articles/{slug}',
+  view: ArticlePage,
+  loading: ArticleLoading,
+}
+```
+
+The fallback renders at that route’s position in the outlet tree.
+
+Given:
+
+```text
+Application layout
+  └─ Articles layout
+       └─ articles.show
+```
+
+the route fallback replaces the pending `articles.show` content while the surrounding layouts remain rendered.
+
+### Route fallbacks are not inherited
+
+This does not give `ParentLoading` to `parent.child`:
+
+```tsx
+{
+  id: 'parent',
+  path: '/parent',
+  view: ParentPage,
+  loading: ParentLoading,
+
+  children: [
+    {
+      id: 'parent.child',
+      path: 'child',
+      view: LazyChildPage,
+    },
+  ],
+}
+```
+
+When `parent.child` is the leaf match, `parent.loading` is not considered.
+
+The child uses:
+
+1. Its own `route.loading`
+2. The nearest inherited `layout.loading`
+3. `RouterProvider.loadingFallback`
+4. Nothing
+
+Use `layout.loading` when descendants should share a loading fallback.
+
+### Route fallback means leaf fallback
+
+A route can have both a view and children, but its route-level fallback is only selected when that route is the active leaf.
+
+Do not use `route.loading` or `route.error` as a substitute for a shared branch boundary.
+
+## Layout loading fallbacks
+
+`layout.loading` belongs to the content rendered through the layout’s main `<Outlet />`.
+
+```tsx
+function DashboardLayout() {
+  return (
+    <section>
+      <DashboardNavigation />
+
+      <main>
+        <Outlet />
+      </main>
+    </section>
+  );
+}
+```
+
+```tsx
+{
+  id: 'dashboard',
+  path: '/dashboard',
+
+  layout: {
+    view: DashboardLayout,
+    loading: DashboardLoading,
+  },
+
+  children: [
+    {
+      id: 'dashboard.reports',
+      path: 'reports',
+      view: LazyReportsPage,
+    },
+  ],
+}
+```
+
+While `LazyReportsPage` suspends:
+
+* `DashboardLayout` stays mounted.
+* `DashboardNavigation` stays visible.
+* `DashboardLoading` renders inside the layout outlet.
+
+This is the correct boundary for persistent application shells.
+
+## Nested layout loading
+
+Layout fallbacks are inherited down the main branch. The nearest active declaration wins.
+
+```tsx
+{
+  id: 'app',
+  path: '/app',
+
+  layout: {
+    view: AppLayout,
+    loading: AppLoading,
+  },
+
+  children: [
+    {
+      id: 'app.admin',
+      path: 'admin',
+
+      layout: {
+        view: AdminLayout,
+        loading: AdminLoading,
+      },
+
+      children: [
+        {
+          id: 'app.admin.users',
+          path: 'users',
+          view: LazyUsersPage,
+        },
+      ],
+    },
+  ],
+}
+```
+
+When `app.admin.users` suspends, `AdminLoading` wins over `AppLoading`.
+
+A leaf route loading fallback would win over both.
+
+## A layout does not catch itself
+
+The layout boundary is placed around the content inserted into the layout, not around the layout component itself.
+
+```tsx
+{
+  id: 'dashboard',
+  path: '/dashboard',
+
+  layout: {
+    view: DashboardLayout,
+    error: DashboardContentError,
+  },
+}
+```
+
+`DashboardContentError` can handle failures from the route content rendered inside `DashboardLayout`.
+
+It does not handle an error thrown while rendering `DashboardLayout` itself. That failure continues to an owning ancestor layout or the provider error fallback.
+
+This distinction keeps the shell outside the boundary that protects its outlet.
+
+## Layout fallback validation
+
+A layout loading or error fallback requires an active layout view.
+
+Valid:
+
+```tsx
+{
+  id: 'dashboard',
+  path: '/dashboard',
+
+  layout: {
+    view: DashboardLayout,
+    loading: DashboardLoading,
+    error: DashboardError,
+  },
+}
+```
+
+Invalid without a layout in the active scope:
+
+```tsx
+{
+  id: 'dashboard',
+  path: '/dashboard',
+
+  layout: {
+    loading: DashboardLoading,
+  },
+}
+```
+
+Cookbook Router rejects layout fallbacks when no layout shell exists on that route or an active ancestor.
+
+Use route fallbacks for route-local content when no layout boundary exists.
+
+## Loading precedence
+
+For the active main branch, loading fallback selection is:
+
+```text
+leaf route.loading
+        ↓
+nearest layout.loading
+        ↓
+RouterProvider loadingFallback
+        ↓
+nothing
+```
+
+Example provider default:
+
+```tsx
+<RouterProvider
+  router={router}
+  loadingFallback={
+    <ApplicationLoading />
+  }
+/>
+```
+
+The provider fallback is global configuration, but it does not necessarily replace the whole application.
+
+When a persistent layout is already rendered, the provider fallback can appear at the pending outlet boundary inside that layout.
+
+## Route error fallbacks
+
+`route.error` handles the active leaf route boundary:
+
+```tsx
+import type {
+  RouteErrorFallbackProps,
+} from '@cookbook/router-react';
+
+function ArticleError({
+  error,
+  reset,
+  route,
+}: RouteErrorFallbackProps) {
+  return (
+    <section>
+      <h2>
+        Could not render {route.id}
+      </h2>
+
+      <pre>
+        {error instanceof Error
+          ? error.message
+          : 'Unknown error'}
+      </pre>
+
+      <button
+        type="button"
+        onClick={reset}
+      >
+        Retry
+      </button>
+    </section>
+  );
+}
+```
+
+```tsx
+{
+  id: 'articles.show',
+  path: '/articles/{slug}',
+  view: ArticlePage,
+  error: ArticleError,
+}
+```
+
+For a React render error, `reset()` clears the local error-boundary state and retries rendering.
+
+Like `route.loading`, `route.error` is not inherited by child routes.
+
+```tsx
+{
+  id: 'articles',
+  path: '/articles',
+  error: ArticlesError,
+
+  children: [
+    {
+      id: 'articles.show',
+      path: '{slug}',
+      view: BrokenArticlePage,
+    },
+  ],
+}
+```
+
+`ArticlesError` does not become the child’s fallback.
+
+The child uses its own route error, the nearest layout error, or the provider error fallback.
+
+## Layout error fallbacks
+
+`layout.error` handles rendering failures from the main outlet content inside the layout shell:
+
+```tsx
+function DashboardError({
+  error,
+  reset,
+}: RouteErrorFallbackProps) {
+  return (
+    <section>
+      <h2>
+        Dashboard content failed
+      </h2>
+
+      <button
+        type="button"
+        onClick={reset}
+      >
+        Retry
+      </button>
+    </section>
+  );
+}
+```
+
+```tsx
+{
+  id: 'dashboard',
+  path: '/dashboard',
+
+  layout: {
+    view: DashboardLayout,
+    error: DashboardError,
+  },
+
+  children: [
+    {
+      id: 'dashboard.reports',
+      path: 'reports',
+      view: ReportsPage,
+    },
+  ],
+}
+```
+
+If `ReportsPage` throws, the dashboard shell remains mounted and `DashboardError` renders inside its outlet.
+
+The fallback receives the matched route that owns the selected fallback. For an inherited layout error, that route can be an ancestor rather than the failing leaf.
+
+## Error precedence
+
+For the active main branch, error selection is:
+
+```text
+leaf route.error
+        ↓
+nearest layout.error
+        ↓
+RouterProvider errorFallback
+        ↓
+unhandled render error
+```
+
+Configure a provider fallback as the final application-level boundary:
+
+```tsx
+import type {
+  RouterErrorFallbackProps,
+} from '@cookbook/router-react';
+
+function ApplicationError({
+  error,
+  reset,
+  route,
+}: RouterErrorFallbackProps) {
+  return (
+    <section>
+      <h1>
+        Application error
+      </h1>
+
+      {route ? (
+        <p>
+          Route: {route.id}
+        </p>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={reset}
+      >
+        Retry
+      </button>
+    </section>
+  );
+}
+```
+
+```tsx
+<RouterProvider
+  router={router}
+  errorFallback={ApplicationError}
+/>
+```
+
+`errorFallback` receives a component type, not a rendered element.
+
+## Render errors and router-state errors
+
+Error fallbacks can be reached from two different sources.
+
+### React render errors
+
+Examples:
+
+* A route component throws
+* A lazy route import rejects
+* A descendant component throws while rendering
+* An error occurs inside a rendered route outlet
+
+These failures are caught by React error boundaries.
+
+For these errors, `reset()` clears the owning boundary and retries rendering.
+
+### Router-state errors
+
+Examples include:
+
+* Strict invalid search or hash state
+* Middleware throwing
+* Lifecycle failure
+* A returned middleware `Response`
+* Another transition error associated with an accepted route match
+
+The router stores these failures in:
+
+```ts
+router.state.error;
+```
+
+When an active match exists, the selected route, layout, or provider error fallback renders that state error.
+
+A router-state error is not the same as a React render error. The fallback is being rendered directly from router state rather than catching a component failure.
+
+Do not treat the supplied `reset()` as a universal transition retry. Recover router-state errors by fixing the relevant state and navigating or refreshing:
+
+```tsx
+import {
+  useRouter,
+} from '@cookbook/router-react';
+
+function NavigationError({
+  error,
+}: RouteErrorFallbackProps) {
+  const router = useRouter();
+
+  return (
+    <section>
+      <p>
+        {error instanceof Error
+          ? error.message
+          : 'Navigation failed'}
+      </p>
+
+      <button
+        type="button"
+        onClick={() => {
+          void router.refresh();
+        }}
+      >
+        Retry navigation
+      </button>
+    </section>
+  );
+}
+```
+
+## Provider fallbacks
+
+`RouterProvider` exposes three separate props:
+
+```tsx
+<RouterProvider
+  router={router}
+  fallback={
+    <NotFoundPage />
+  }
+  loadingFallback={
+    <ApplicationLoading />
+  }
+  errorFallback={
+    ApplicationError
+  }
+/>
+```
+
+### `fallback`
+
+Used when no route matches.
+
+It is not:
+
+* A Suspense fallback
+* A render-error fallback
+* A route-level not-found route
+* A loading indicator
+
+A wildcard route is usually preferable when not-found behavior needs normal route metadata, lifecycle, middleware, or layout rendering:
+
+```tsx
+{
+  id: 'not-found',
+  path: '/{*path}',
+  view: NotFoundPage,
+}
+```
+
+### `loadingFallback`
+
+Used when React content suspends and no closer route or layout loading fallback applies.
+
+### `errorFallback`
+
+Used when no closer route, layout, or slot error boundary handles the failure.
+
+Always configure an application-level error fallback when router-state and rendering failures should remain visible.
+
+## Named slot errors
+
+Named slots have a separate error-isolation mechanism:
+
+```tsx
+function DashboardLayout() {
+  return (
+    <section>
+      <Slot
+        name="sidebar"
+        errorFallback={SidebarError}
+      />
+
+      <Outlet />
+    </section>
+  );
+}
+```
+
+```tsx
+import type {
+  SlotErrorFallbackProps,
+} from '@cookbook/router-react';
+
+function SidebarError({
+  error,
+  reset,
+}: SlotErrorFallbackProps) {
+  return (
+    <aside>
+      <p>
+        Sidebar failed
+      </p>
+
+      <button
+        type="button"
+        onClick={reset}
+      >
+        Retry sidebar
+      </button>
+    </aside>
+  );
+}
+```
+
+When `errorFallback` is provided, errors from the rendered slot are isolated to that `<Slot />`.
+
+The main outlet and surrounding layout remain rendered.
+
+## Hide failed slot content
+
+Pass `null` to isolate a slot failure and render nothing:
+
+```tsx
+<Slot
+  name="notifications"
+  errorFallback={null}
+/>
+```
+
+This is different from omitting the prop.
+
+### Prop omitted
+
+```tsx
+<Slot name="notifications" />
+```
+
+The slot uses its normal route/layout/provider error handling and can bubble beyond the slot when no closer boundary handles it.
+
+### `null` provided
+
+```tsx
+<Slot
+  name="notifications"
+  errorFallback={null}
+/>
+```
+
+The error is caught at the slot and the slot renders nothing.
+
+## Slot fallback precedence
+
+When `<Slot errorFallback>` is present, it owns render errors for that rendered slot subtree.
+
+It takes precedence over a route-level error declared by a matched slot route:
+
+```tsx
+{
+  id: 'dashboard.sidebar',
+  path: 'reports',
+  view: SidebarReports,
+  error: SidebarRouteError,
+}
+```
+
+```tsx
+<Slot
+  name="sidebar"
+  errorFallback={SidebarBoundaryError}
+/>
+```
+
+If `SidebarReports` throws, `SidebarBoundaryError` renders.
+
+`SidebarRouteError` does not.
+
+This gives the layout that renders the slot final control over whether a slot failure should remain isolated.
+
+## Layout fallbacks do not own slots
+
+A layout’s `loading` and `error` fallbacks belong to its main outlet branch.
+
+They are not automatically inherited into named slot route trees:
+
+```tsx
+layout: {
+  view: DashboardLayout,
+  loading: DashboardLoading,
+  error: DashboardError,
+
+  slots: {
+    sidebar: {
+      routes: sidebarRoutes,
+    },
+  },
+}
+```
+
+The sidebar branch uses:
+
+* Its own route loading or error fallback
+* Its own nested layout fallbacks
+* `<Slot errorFallback>` for render-error isolation
+* Provider defaults when no closer fallback exists
+
+There is currently no `<Slot loadingFallback>` prop.
+
+Use loading and error declarations inside the slot route tree when it needs independent route-aware fallbacks.
+
+## Intercept errors
+
+Intercept views render through a slot and follow the same error-isolation rule.
+
+```tsx
+<Slot
+  name="modal"
+  errorFallback={ModalError}
+/>
+```
+
+If an intercepted modal view throws, `ModalError` catches it.
+
+Without a slot-local fallback, the intercepted route’s applicable route/layout fallback or provider fallback handles the error.
+
+## What error boundaries do not catch
+
+React error boundaries do not catch every failure in the application.
+
+They do not directly catch:
+
+* Event-handler errors
+* Errors thrown in arbitrary asynchronous callbacks
+* Programmatic preload failures before navigation
+* Errors handled outside the rendered route tree
+* Server failures that never enter router state or React rendering
+
+Handle those at their source:
+
+```tsx
+async function saveDocument() {
+  try {
+    await documents.save();
+  } catch (error) {
+    notifications.showError(error);
+  }
+}
+```
+
+Lifecycle `onError` and `onNavigationError` report transition failures. They are not render error boundaries.
+
+See [Lifecycle](/docs/router/concepts/lifecycle) for transition-error observation.
+
+## Fallback component props
+
+### Loading fallback
+
+Route and layout loading components receive:
+
+```ts
+interface RouteLoadingFallbackProps {
+  readonly route: MatchedRoute;
+}
+```
+
+`route` is the route that owns the selected fallback.
+
+### Route or layout error fallback
+
+```ts
+interface RouteErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+  readonly route: MatchedRoute;
+}
+```
+
+### Provider error fallback
+
+```ts
+interface RouterErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+  readonly route?: MatchedRoute;
+}
+```
+
+`route` is optional because some router failures occur without an active match.
+
+### Slot error fallback
+
+```ts
+interface SlotErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+}
+```
+
+Slot fallbacks do not receive a route because the slot may contain a fallback view, matched slot route, or intercepted destination.
+
+## Choose the correct owner
+
+### Use `route.loading` or `route.error` when
+
+* The fallback belongs only to one leaf destination
+* The route should override its section layout
+* A route has unique retry or loading UI
+
+### Use `layout.loading` or `layout.error` when
+
+* Descendants share one application shell
+* The shell should remain mounted
+* Loading or failure should replace only the layout outlet
+* Multiple child routes share the same section treatment
+
+### Use `<Slot errorFallback>` when
+
+* A sidebar, modal, header, or other named slot should fail independently
+* The main route must remain usable after the slot fails
+* Slot failure should render nothing with `errorFallback={null}`
+
+### Use provider fallbacks when
+
+* The application needs a final default
+* A route or layout did not define a closer fallback
+* Failures without a route-specific owner must remain visible
+
+## Where this bites
+
+### A parent route fallback does not handle its child
+
+Route fallbacks are leaf-local. Put shared fallback behavior on `layout`.
+
+### A layout fallback does not catch the layout component
+
+It protects content rendered inside the shell, not the shell itself.
+
+### A layout error does not isolate a sidebar
+
+Named slot branches do not inherit the owner layout’s fallback. Use slot-local or slot-route error handling.
+
+### The provider loading fallback appears inside a layout
+
+Provider fallback means default ownership, not necessarily full-screen placement. Existing layouts can remain mounted around it.
+
+### Navigation is pending but no loading fallback appears
+
+Loading fallbacks respond to React suspension, not every asynchronous transition stage.
+
+### `reset()` does not repeat failed middleware
+
+Boundary reset retries rendering. Use `router.refresh()` or another navigation to retry router-state failures.
+
+### A slot route error fallback is ignored
+
+When `<Slot errorFallback>` is present, the slot-local boundary deliberately takes precedence.
+
+### `fallback` shows instead of an error page
+
+`fallback` is the unmatched-route UI. Configure `errorFallback` so router errors are not conflated with not-found output.

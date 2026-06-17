@@ -1,0 +1,53 @@
+---
+title: "Project structure"
+description: "A production-ready project structure for route definitions, generated artifacts, and application integration."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Recommended layout
+
+```bash
+.
+├── cookbook-router.config.ts
+├── .cookbook-router
+│   ├── contracts.ts
+│   ├── register.d.ts
+│   ├── manifest.json
+│   └── routes.ts        # only when the input is statically composable
+└── src
+    ├── routes
+    │   ├── root.route.ts
+    │   ├── users.route.ts
+    │   └── users.show.route.ts
+    ├── router.ts
+    └── app.ts
+```
+
+<Steps>
+  <Step>
+    Keep route declarations statically inspectable. Export `defineRoute(...)`, `defineRoutes(...)`, or route arrays that the generator can analyze.
+  </Step>
+
+  <Step>
+    In `cookbook-router.config.ts`, set `routeFiles` to the route definition modules the project should load. Route nesting is determined by route IDs and explicit parent relationships, not by folder structure.
+  </Step>
+
+  <Step>
+    Keep the generated `.cookbook-router` directory and commit it to source control so contracts remain available in fresh checkouts, CI, and editor sessions before generation runs. Import the generated `routes.ts` module only when the selected input mode produces it.
+  </Step>
+
+  <Step>
+    In `tsconfig.json`, add `.cookbook-router/contracts.ts` and `.cookbook-router/register.d.ts` to the `include` array so TypeScript loads the generated route types and exposes them through Cookbook Router APIs.
+  </Step>
+</Steps>
+
+## Static declarations remain supported
+
+A single `defineRoutes([...])` tree is valid and often simpler. Modular files are an option for larger modular applications, not a tax every application must pay.
+
+## Where this bites
+
+A file tree does not create a route tree. Two files in nested folders **remain siblings** unless explicitly delcared a `parent` or are nested in `children`.

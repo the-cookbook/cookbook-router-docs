@@ -1,0 +1,228 @@
+---
+title: "React contracts"
+description: "Every public type and context exported from the @cookbook/router-react root entrypoint."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+The package exposes one root entrypoint. The contracts below are the supported type surface; similarly named internal renderer types are not public imports.
+
+## Link and navigation types
+
+### `LinkPrefetch`
+
+```ts
+type LinkPrefetch = false | 'hover' | 'focus' | 'interaction' | 'mount';
+```
+
+### `LinkProps<Route>`
+
+Extends anchor attributes except `href`, then adds typed `route`/`to`, explicit `href`, route params, search, hash, URL build options, interception, context, scroll reset, replacement, and prefetch. See [Links](/docs/router/api/router-react/links).
+
+### `NavLinkEndOptions`, `NavLinkEnd`, `NavLinkRenderProps`, `NavLinkProps<Route>`
+
+```ts
+interface NavLinkEndOptions {
+  readonly search?: 'all' | 'ignore';
+}
+
+type NavLinkEnd = boolean | NavLinkEndOptions;
+
+interface NavLinkRenderProps {
+  readonly isActive: boolean;
+}
+```
+
+`NavLinkProps` mirrors typed link options, adds `end`, and accepts node or render-function children.
+
+## Outlet and slot types
+
+```ts
+interface OutletProps<T = unknown> {
+  readonly context?: T;
+  readonly children?: ReactNode;
+}
+
+interface SlotErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+}
+
+type SlotErrorFallback = ComponentType<SlotErrorFallbackProps> | null;
+
+interface SlotProps<T = unknown> {
+  readonly name: string;
+  readonly context?: T;
+  readonly errorFallback?: SlotErrorFallback;
+}
+```
+
+`SlotErrorFallback` is a package-root export. Omit `errorFallback` to let render errors bubble to the nearest route, layout, or provider boundary. Pass a component to isolate the error to the slot, or pass `null` to isolate it and render nothing.
+
+## Lazy view type
+
+```ts
+interface LazyRouteViewComponent<
+  Component extends ComponentType<any> = ComponentType<any>,
+> extends LazyExoticComponent<Component> {
+  readonly preload: () => Promise<{ readonly default: Component }>;
+}
+```
+
+## Provider and rendering types
+
+### `RouterScrollBehavior`
+
+```ts
+type RouterScrollBehavior = ScrollBehavior;
+```
+
+`RouterScrollBehavior` is the public provider alias for the DOM scroll behavior accepted by `window.scrollTo`: `'auto'`, `'instant'`, or `'smooth'`. It only affects provider-managed restoration when `scrollRestoration` is enabled. The default is `'auto'`.
+
+```ts
+interface RouterProviderProps {
+  readonly router: Router;
+  readonly autoStart?: boolean;
+  readonly children?: ReactNode;
+  readonly fallback?: ReactNode;
+  readonly loadingFallback?: ReactNode;
+  readonly errorFallback?: ComponentType<RouterErrorFallbackProps>;
+  readonly middleware?: readonly Middleware[];
+  readonly scrollRestoration?: boolean;
+  readonly scrollBehavior?: RouterScrollBehavior;
+}
+
+interface StaticRouterProviderProps {
+  readonly router: Router;
+  readonly children?: ReactNode;
+  readonly fallback?: ReactNode;
+  readonly loadingFallback?: ReactNode;
+  readonly errorFallback?: ComponentType<RouterErrorFallbackProps>;
+  readonly middleware?: readonly Middleware[];
+}
+```
+
+```ts
+interface RenderReactRouteMatchOptions {
+  readonly loadingFallback?: ReactNode;
+  readonly errorFallback?: ComponentType<RouterErrorFallbackProps>;
+  readonly error?: unknown;
+}
+```
+
+Fallback component contracts:
+
+```ts
+interface RouteLoadingFallbackProps {
+  readonly route: MatchedRoute;
+}
+
+interface RouteErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+  readonly route: MatchedRoute;
+}
+
+interface RouterErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+  readonly route?: MatchedRoute;
+}
+```
+
+## Public context types and values
+
+```ts
+interface RouterContextValue {
+  readonly router: Router;
+  readonly state: RouterState;
+}
+
+interface OutletContextValue {
+  readonly context?: unknown;
+}
+
+interface RouteRenderContextValue {
+  readonly match: MatchedRoute;
+}
+
+interface SlotRenderContextValue {
+  readonly ownerRouteId: string;
+  readonly slots: Readonly<Record<string, ReactNode>>;
+  readonly renderOptions?: RenderReactRouteMatchOptions;
+}
+```
+
+Corresponding public context values:
+
+```ts
+RouterContext
+OutletContext
+RouteRenderContext
+SlotRenderContext
+```
+
+Internal `OutletRenderContext`, `SlotErrorIsolationContext`, and their accessor hooks are not package-root exports.
+
+## Hook option and result types
+
+```ts
+interface UseBlockerOptions {
+  readonly when: boolean;
+  readonly message?: string;
+}
+
+interface BlockerState {
+  readonly blocked: boolean;
+}
+
+interface OutletContextOptions {
+  readonly strict?: boolean;
+}
+
+interface UseRouteMetaOptions {
+  readonly includeAncestors?: boolean;
+  readonly merge?: false | RouteMetaMergeInput;
+}
+```
+
+## Generated registration types
+
+```ts
+interface Register {}
+
+interface RouterContracts extends CoreRouterContracts {}
+
+type RegisteredContracts = Register extends {
+  readonly contracts: infer Contracts;
+}
+  ? Contracts
+  : RouterContracts;
+```
+
+Generated `register.d.ts` augments `Register` in both core and React packages. Route IDs, params, search, hash, metadata, and outlet context therefore narrow consistently across router methods, links, and hooks.
+
+## Export inventory
+
+The root entrypoint exports these type names:
+
+```text
+LinkPrefetch, LinkProps, LazyRouteViewComponent,
+NavLinkEnd, NavLinkEndOptions, NavLinkProps, NavLinkRenderProps,
+OutletProps,
+RenderReactRouteMatchOptions, RouteErrorFallbackProps,
+RouteLoadingFallbackProps, RouterErrorFallbackProps, RouterProviderProps,
+StaticRouterProviderProps, RouterScrollBehavior,
+SlotErrorFallback, SlotErrorFallbackProps, SlotProps,
+OutletContextValue, RouteRenderContextValue,
+SlotRenderContextValue, RouterContextValue,
+BlockerState, UseBlockerOptions,
+OutletContextOptions, UseRouteMetaOptions,
+Register, RegisteredContracts, RouterContracts
+```
+
+## Where this bites
+
+Do not deep-import a useful-looking type from `src/` or `dist/`. It may be real implementation code and still not be part of the package contract.

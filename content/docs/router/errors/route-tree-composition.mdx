@@ -1,0 +1,129 @@
+---
+title: "Route-tree composition errors"
+description: "Exact defineRouteTree failures for parents, cycles, absolute child paths, and modular declaration conflicts."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## defineRouteTree routes must be an array.
+
+**Symptom**
+Modular route tree composition fails before route declarations are collected.
+
+**Cause**
+`defineRouteTree({ routes })` received a non-array routes value.
+
+**Fix**
+Pass the array of `defineRoute(...)` declarations to `defineRouteTree({ routes })`.
+
+## Every route declaration must be an object.
+
+**Symptom**
+Modular route tree composition fails while collecting declarations.
+
+**Cause**
+A defineRouteTree routes entry or inline child declaration is null, undefined, primitive, or otherwise not an object.
+
+**Fix**
+Export route declarations created with `defineRoute({...})` and pass only those declarations to defineRouteTree.
+
+## Every route declaration must define a non-empty string id.
+
+**Symptom**
+Modular route tree composition cannot identify a declaration.
+
+**Cause**
+A route declaration is missing id, has an empty id, or uses a non-string id.
+
+**Fix**
+Give every defineRoute declaration a stable non-empty string id.
+
+## Route "..." parent must be a string when provided.
+
+**Symptom**
+defineRouteTree fails on parent.
+
+**Cause**
+parent was provided but is not a string.
+
+**Fix**
+Use parent: "parent.route.id" or omit parent for root declarations.
+
+## Route "..." order must be a number when provided.
+
+**Symptom**
+defineRouteTree fails on order.
+
+**Cause**
+order was provided but is not a number.
+
+**Fix**
+Use a numeric order value or omit order.
+
+## Route "..." is declared inline under "..." but declares parent "...".
+
+**Symptom**
+defineRouteTree fails while collecting inline children.
+
+**Cause**
+An inline child declares a parent different from the containing route id.
+
+**Fix**
+Omit parent on inline children or set it to the containing route id.
+
+## Route "..." declares parent "...", but no route with id "..." exists.
+
+**Symptom**
+defineRouteTree fails while attaching parented routes.
+
+**Cause**
+A declaration references a parent id that was not included in the route declaration array.
+
+**Fix**
+Add the missing parent declaration or fix the parent id.
+
+## Route "..." declares parent "...", but redirect routes cannot have children.
+
+**Symptom**
+defineRouteTree fails while attaching parented routes.
+
+**Cause**
+The declared parent route has redirect, and redirect routes cannot own children.
+
+**Fix**
+Move the child to a different parent or remove redirect from the parent.
+
+## Route parent cycle found: ....
+
+**Symptom**
+defineRouteTree fails during parent cycle validation.
+
+**Cause**
+The parent graph contains a cycle, such as a -> b -> a.
+
+**Fix**
+Break the cycle by changing or removing one parent reference.
+
+## Route "..." has parent "..." but uses absolute path "...". Child route paths must be relative.
+
+**Symptom**
+defineRouteTree fails during composition validation.
+
+**Cause**
+A route with parent uses an absolute path starting with /.
+
+**Fix**
+Use a relative child path such as "details" instead of "/details".
+
+## Route "..." intercept "..." uses a slot that is not declared by the source route layout or an ancestor layout.
+
+**Symptom**
+defineRouteTree fails during intercept validation.
+
+**Cause**
+The source route configures an intercept for a slot that is not declared locally or by an ancestor layout.
+
+**Fix**
+Declare the slot in layout.slots on the source route or an ancestor route.

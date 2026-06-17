@@ -1,0 +1,47 @@
+---
+title: "Route and layout fallbacks"
+description: "Place loading and error boundaries at the scope you intend to replace."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Route-local fallback
+
+```tsx
+const route = defineRoute({
+  id: 'reports',
+  path: '/reports',
+  view: ReportsPage,
+  loading: ReportsLoading,
+  error: ReportsError,
+});
+```
+
+Route `loading` and `error` are renderer-neutral route fields. They apply to that route and are not inherited by descendants.
+
+## Layout fallback
+
+```tsx
+const route = defineRoute({
+  id: 'app',
+  path: '/app',
+  layout: {
+    view: AppLayout,
+    loading: AppLoading,
+    error: AppError,
+  },
+  children: [/* ... */],
+});
+```
+
+Layout fallbacks belong to the active layout boundary and can cover descendant rendering. Declaring `layout.loading` or `layout.error` without an active layout view is a validation error.
+
+## Global provider fallback
+
+Use `RouterProvider` fallbacks for application-wide startup or uncaught route-tree failures. They are not a substitute for a local boundary when only one route or slot should disappear.
+
+## Where this bites
+
+`errorFallback` was removed from route and layout declarations. Use `error`. `Slot` still has its own `errorFallback` prop because slot isolation is a React rendering concern, not a route-definition fallback.

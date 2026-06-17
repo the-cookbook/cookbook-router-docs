@@ -1,0 +1,10 @@
+{
+  "title": "Getting Started",
+  "pages": [
+    "installation",
+    "quick-start",
+    "project-setup",
+    "config-file",
+    "generated-artifacts"
+  ]
+}

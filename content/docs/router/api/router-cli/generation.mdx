@@ -1,0 +1,115 @@
+---
+title: "Generation API"
+description: "Exact signatures and behavior for contracts, register augmentation, manifest serialization, route-module rendering, aggregate generation, and idempotent writes."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## `generateContracts(routes, options?)`
+
+```ts
+function generateContracts(
+  routes: readonly RouteDefinition[],
+  options?: DefineRoutesOptions | RouterPathOptions,
+): string;
+```
+
+Validates the resolved tree, registers supplied custom constraints, flattens normalized routes, and emits interfaces for parsed/input params, parsed/input search, hash, metadata, paths, outlet context, and the aggregate `RouterContracts`.
+
+Passing `DefineRoutesOptions` lets generation use both `pathOptions` and `pathConstraints`. Passing bare `RouterPathOptions` is the lower-level form.
+
+## `generateRegister()`
+
+```ts
+function generateRegister(): string;
+```
+
+Emits `register.d.ts`, which imports generated contracts and augments `Register` in `@cookbook/router`, `@cookbook/router-react`, and `@cookbook/router-cli`.
+
+## `generateManifest(routes, options?)`
+
+```ts
+interface ManifestRoute {
+  readonly id: string;
+  readonly path?: string;
+  readonly parentId?: string;
+  readonly index: boolean;
+  readonly url?: RouterUrlOptions;
+}
+
+interface RouteManifest {
+  readonly routes: readonly ManifestRoute[];
+}
+
+function generateManifest(
+  routes: readonly RouteDefinition[],
+  options?: DefineRoutesOptions | RouterPathOptions,
+): RouteManifest;
+
+function serializeManifest(manifest: RouteManifest): string;
+```
+
+The serialized output is stable two-space JSON with a trailing newline. The manifest carries route-level URL options needed by manifest consumers; it does not serialize views, middleware, or other runtime functions.
+
+## `generateRoutesModule(sources, routesPath?, options?, runtimeOptions?)`
+
+```ts
+function generateRoutesModule(
+  sources: readonly CliRouteSource[],
+  routesPath?: string,
+  options?: DefineRoutesOptions,
+  runtimeOptions?: GeneratedRouteTreeRuntimeOptions,
+): string;
+```
+
+Renders physical imports and either `defineRoutes()` or `defineRouteTree()` composition. It preserves module-preload imports and runtime-safe path-constraint imports. A single compatible static routes export may be re-exported directly instead of wrapped.
+
+Calling this low-level function with no imports returns an empty route export. Aggregate generation does not call it unless at least one route source contains exported route metadata.
+
+## `generateRouterArtifacts(options)`
+
+```ts
+interface GenerateRouterArtifactsOptions extends CliRouteOptions {}
+function generateRouterArtifacts(
+  options: GenerateRouterArtifactsOptions,
+): Promise<CommandResult>;
+```
+
+Order of work:
+
+1. Resolve config, globs, output, and effective options.
+2. Validate output does not clobber source route files.
+3. Load and compose route sources.
+4. Register path constraints.
+5. Create the output directory.
+6. Render all applicable outputs.
+7. Write only files whose contents changed.
+
+Successful output:
+
+| File | Condition |
+| --- | --- |
+| `contracts.ts` | Always |
+| `register.d.ts` | Always |
+| `manifest.json` | Always |
+| `routes.ts` | Only when route sources contain statically composable exports |
+
+Generation validates before writing. A failed watch run therefore leaves the previous valid artifact set intact.
+
+## `writeGeneratedFile(fs, path, contents)`
+
+```ts
+function writeGeneratedFile(
+  fs: CliFileSystem,
+  path: string,
+  contents: string,
+): Promise<boolean>;
+```
+
+Returns `false` when the existing file is byte-for-byte identical and `true` after a write. A read failure is treated as “file absent,” then the write is attempted.
+
+## Where this bites
+
+Do not infer `routes.ts` from the existence of contracts. JSON inputs can describe a valid route tree and generate contracts without providing importable runtime route exports.

@@ -1,0 +1,57 @@
+---
+title: "Login return URL"
+description: "Redirect unauthenticated navigation and preserve a validated internal destination."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Login redirect with return URL
+
+A login redirect should remember the user’s destination, not make them start over. Model the return URL as typed search state.
+
+```ts
+export const loginRoute = defineRoute({
+  id: 'login',
+  path: '/login',
+  search: {
+    redirect: { type: 'string', optional: true },
+  },
+  meta: {
+    access: 'public',
+  },
+} as const);
+```
+
+Redirect unauthenticated users with the current href:
+
+```ts
+const authMiddleware: Middleware = ({ route, location, redirect }) => {
+  if (route.route.meta?.access === 'public' || session.isAuthenticated()) {
+    return;
+  }
+
+  return redirect(`/login?redirect=${encodeURIComponent(location.href)}`);
+};
+```
+
+After login, replace the current entry with the requested destination. Pass `intercept: false` so the return trip lands on the canonical page, not inside a contextual intercept that happened to be active.
+
+```tsx
+import { useNavigate, useSearchParams } from '@cookbook/router-react';
+
+function LoginForm() {
+  const navigate = useNavigate();
+  const search = useSearchParams('login');
+
+  async function submit() {
+    await session.login();
+
+    const redirectTo = search.redirect ?? '/overview';
+    await navigate.replace(redirectTo, { intercept: false });
+  }
+
+  // ...
+}
+```

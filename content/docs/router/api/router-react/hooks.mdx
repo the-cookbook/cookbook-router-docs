@@ -1,0 +1,262 @@
+---
+title: "Hooks API"
+description: "Exact overloads, return values, failure behavior, and usage for every public Cookbook Router React hook."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Every hook on this page reads `RouterContext` and throws the missing-provider diagnostic when used outside `RouterProvider` or `StaticRouterProvider`. The only state subscription that accepts a router directly is [`useRouterState(router)`](/docs/router/api/router-react/provider#userouterstaterouter).
+
+## `useRouter()`
+
+```ts
+function useRouter(): Router;
+```
+
+Returns the core router from context. Use it when a component needs an API that does not have a dedicated hook, such as `preload()`, `refresh()`, `serialize()`, or `match()`.
+
+```tsx
+function RefreshButton() {
+  const router = useRouter();
+  return <button onClick={() => void router.refresh()}>Refresh route</button>;
+}
+```
+
+## `useRouterContext()`
+
+```ts
+function useRouterContext(): RouterContextValue;
+
+interface RouterContextValue {
+  readonly router: Router;
+  readonly state: RouterState;
+}
+```
+
+This is the public low-level integration hook. Application components normally prefer narrower hooks because they communicate intent and return smaller values.
+
+## `useLocation()`
+
+```ts
+function useLocation(): RouterLocation;
+```
+
+Returns the current router location, including `pathname`, `search`, `hash`, `href`, key, and history state. Parsed route URL state belongs to `useParams()`, `useSearchParams()`, `useUnknownSearchParams()`, and `useHashParams()`.
+
+## `useMatches()`
+
+```ts
+function useMatches(): readonly MatchedRoute[];
+```
+
+Returns the active primary branch from root to leaf, or `[]` when no route matches. Each entry includes its normalized route and parsed params. Named slot branches are resolved separately and are not appended to this array.
+
+## `useNavigation()`
+
+```ts
+function useNavigation(): RouterNavigationState;
+```
+
+Returns the current core navigation state. It is the same `state.navigation` value exposed by the router, including idle, pending, blocked, redirecting, and error transitions.
+
+## `useNavigate()`
+
+```ts
+function useNavigate(): Router['navigate'];
+```
+
+Returns the router's stable navigation object. Its route-ID overloads are narrowed by generated contracts.
+
+```tsx
+function OpenUser({ id }: { readonly id: number }) {
+  const navigate = useNavigate();
+
+  return (
+    <button onClick={() => void navigate.to('users.show', { params: { id } })}>
+      Open user
+    </button>
+  );
+}
+```
+
+`to()` pushes, `replace()` replaces, and `back()`, `forward()`, and `go(delta)` move through history. Rejections remain visible to the caller; the hook does not swallow navigation failures.
+
+## `useHref()`
+
+```ts
+function useHref<Route extends RouteId>(
+  routeId: Route,
+  options?: HrefOptions<Route>,
+): string;
+
+function useHref<Route extends RouteId>(
+  options: NavigateOptions<Route>,
+): string;
+```
+
+Builds an href through the active router without navigating. The object overload is useful when route ID and URL state are already grouped.
+
+```tsx
+const href = useHref('reports.month', {
+  params: { year: 2026, month: 6 },
+  search: { compare: true },
+});
+```
+
+Missing or invalid required params throw during render. That is deliberate: broken URLs should fail where they are declared, not after a user clicks them.
+
+## `useParams()`
+
+```ts
+function useParams<Route extends RouteId>(routeId: Route): RouteParams<Route>;
+function useParams(): RouteParams<RouteId>;
+```
+
+Without a route ID, the hook first uses the current route-render context and otherwise returns the active match's merged params. With a route ID, it returns that active branch entry's params. Missing matches or inactive route IDs return an empty object typed to the requested contract.
+
+```tsx
+function UserPage() {
+  const { id } = useParams('users.show'); // number for {id:int}
+  return <UserRecord id={id} />;
+}
+```
+
+## `useSearchParams()`
+
+```ts
+function useSearchParams<Route extends RouteId>(routeId: Route): RouteSearch<Route>;
+function useSearchParams(): RouteSearch<RouteId>;
+```
+
+Returns the active match's already-parsed declared search values. Passing an inactive route ID returns an empty object. Defaults and value coercion were already applied by URLKit during matching.
+
+The hook does not provide a setter. Build or navigate to a new URL with `Link`, `useNavigate()`, or `router.href()`.
+
+## `useUnknownSearchParams()`
+
+```ts
+function useUnknownSearchParams(): RouterUnknownSearchParams;
+```
+
+Returns undeclared query-string values preserved under `unknownSearch: 'preserve'`. It always returns an object; no active match or no preserved values produces `{}`.
+
+Declared search belongs to `useSearchParams()`. The two sets are kept separate so untyped campaign or partner parameters cannot masquerade as validated route state.
+
+## `useHashParams()`
+
+```ts
+type ResolvedRouteHash<Route extends RouteId> =
+  Exclude<RouteHash<Route>, undefined> | null;
+
+function useHashParams<Route extends RouteId = RouteId>(
+  routeId?: Route,
+): ResolvedRouteHash<Route>;
+```
+
+Returns the parsed hash value. It returns `null` when there is no active match, the requested route is not active, or no hash is present.
+
+## `useBlocker()`
+
+```ts
+interface UseBlockerOptions {
+  readonly when: boolean;
+  readonly message?: string;
+}
+
+interface BlockerState {
+  readonly blocked: boolean;
+}
+
+function useBlocker(options: UseBlockerOptions): BlockerState;
+```
+
+When `when` is falsy, no router or browser-unload blocker is registered and `{ blocked: false }` is returned. When truthy:
+
+- in-app navigation is blocked;
+- when `message` and `window.confirm` are available, confirmation decides whether navigation proceeds;
+- browser unload registers `beforeunload`; browsers control the final generic wording;
+- unmounting or changing dependencies removes the registrations.
+
+```tsx
+const { blocked } = useBlocker({
+  when: form.formState.isDirty,
+  message: 'Discard unsaved changes?',
+});
+```
+
+`blocked` reflects whether blocking is currently enabled. It is not a historical record of the last transition.
+
+## `useOutletContext()`
+
+```ts
+interface OutletContextOptions {
+  readonly strict?: boolean;
+}
+
+function useOutletContext(): unknown;
+
+function useOutletContext<Route extends RouteId>(
+  routeId: Route,
+  options?: OutletContextOptions,
+): RouteOutletContext<Route>;
+
+function useOutletContext<Context>(
+  options?: OutletContextOptions,
+): Context;
+```
+
+Reads context supplied by the nearest `Outlet` or `Slot`. The route-ID overload narrows through generated outlet-context contracts. The generic overload is useful before generation or for local context shapes.
+
+When context is absent, the default result is `undefined`. With `strict: true`, the hook throws the missing-outlet-context diagnostic. In the route-ID overload, the route ID is included in that diagnostic.
+
+```tsx
+interface AccountContext {
+  readonly organizationId: string;
+}
+
+const context = useOutletContext<AccountContext>({ strict: true });
+```
+
+## `useRouteMeta()`
+
+```ts
+interface UseRouteMetaOptions {
+  readonly includeAncestors?: boolean;
+  readonly merge?: false | RouteMetaMergeInput;
+}
+```
+
+Public overloads:
+
+```ts
+function useRouteMeta(): RegisteredRouteMeta<RouteId>;
+
+function useRouteMeta(
+  options: UseRouteMetaOptions & { readonly merge?: RouteMetaMergeInput },
+): RegisteredRouteMeta<RouteId>;
+
+function useRouteMeta(
+  options: UseRouteMetaOptions & { readonly merge: false },
+): readonly RegisteredRouteMeta<string>[];
+
+function useRouteMeta<Route extends string>(
+  routeId: Route,
+  options?: UseRouteMetaOptions,
+): RegisteredRouteMeta<Route> | readonly RegisteredRouteMeta<Route>[];
+```
+
+Without a route ID, the hook prefers the current render-context match; outside a route view it uses the active leaf. With a route ID, an active branch entry is used when available, otherwise the normalized route tree is queried.
+
+- `includeAncestors: false` is the default and selects one route.
+- `includeAncestors: true` builds root-to-target metadata.
+- omitted `merge` returns one merged object using core defaults.
+- `merge: false` returns ordered metadata objects without composition.
+- a merge string or object forwards to `mergeRouteMetaChain()`.
+
+Unknown targets resolve to an empty object or empty array rather than throwing.
+
+## Where this bites
+
+These hooks subscribe to state; they do not reinterpret it. Changing `arrayFormat`, unknown-search policy, defaults, or parsing behavior inside a component is too late. Put those policies on the route/router or on the call that builds or matches the URL.

@@ -1,0 +1,907 @@
+---
+title: "Middleware"
+description: "Apply destination-side policy before navigation commits, including access checks, redirects, rewrites, and cancellation."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Middleware applies application policy while a matched destination is being resolved.
+
+Use it when a navigation may need to:
+
+- Check authentication or permissions
+- Validate application state required by the destination
+- Redirect to another location
+- Rewrite to another internal route
+- Cancel before history commits
+- Produce navigation error state
+
+Middleware is destination-side policy. It is not a replacement for blockers, route lifecycle hooks, runtime URL parsing, or application data loaders.
+
+## Basic example
+
+Register router-wide middleware through `createRouter()`:
+
+```ts
+import {
+  createRouter,
+  type Middleware,
+} from '@cookbook/router';
+
+import { routes } from './routes';
+
+const requireAuth: Middleware = ({
+  route,
+  location,
+  redirect,
+}) => {
+  if (
+    route.route.meta?.requiresAuth !== true ||
+    session.isAuthenticated()
+  ) {
+    return;
+  }
+
+  return redirect(
+    `/login?redirect=${encodeURIComponent(location.href)}`,
+  );
+};
+
+export const router = createRouter({
+  routes,
+  middleware: [requireAuth], // [!code highlight]
+});
+````
+
+For a protected route:
+
+```tsx
+{
+  id: 'account',
+  path: '/account',
+  meta: {
+    requiresAuth: true,
+  },
+  view: AccountPage,
+}
+```
+
+Navigating to `/account` while signed out begins a redirect transition to `/login`.
+
+## Where middleware can be registered
+
+Middleware can be router-wide, registered temporarily at runtime, or attached to a route.
+
+## Router-wide middleware
+
+Pass middleware when creating the router:
+
+```ts
+const router = createRouter({
+  routes,
+  middleware: [ // [!code highlight]
+    requireAuth, // [!code highlight]
+    recordNavigationIntent, // [!code highlight]
+  ], // [!code highlight]
+});
+```
+
+Router-wide middleware is appropriate for cross-cutting rules such as:
+
+* Authentication
+* Tenant selection
+* Maintenance mode
+* Navigation auditing
+* Global feature availability
+
+Configured middleware remains active for the lifetime of the router.
+
+## Runtime middleware
+
+Use `router.useMiddleware()` when an integration or application subsystem needs to register middleware temporarily:
+
+```ts
+const unregister = router.useMiddleware([
+  recordNavigationIntent,
+  requireWorkspace,
+]);
+```
+
+Remove it when the integration is disposed:
+
+```ts
+unregister();
+```
+
+Runtime middleware runs after middleware supplied to `createRouter()` and before route-level middleware.
+
+Runtime registration only affects transitions that begin after registration. It does not retroactively rerun a transition that already completed.
+
+Use `router.refresh()` when the current location should be resolved again through the active middleware and lifecycle pipeline:
+
+```ts
+await router.refresh();
+```
+
+## Route-level middleware
+
+Declare middleware directly on a route when the policy belongs to that branch:
+
+```tsx
+const requireAuthenticatedSession: Middleware = ({
+  location,
+  redirect,
+}) => {
+  if (session.isAuthenticated()) {
+    return;
+  }
+
+  return redirect(
+    `/login?redirect=${encodeURIComponent(location.href)}`,
+  );
+};
+
+const routes = defineRoutes([
+  {
+    id: 'account',
+    path: '/account',
+    middleware: [ // [!code highlight]
+      requireAuthenticatedSession, // [!code highlight]
+    ], // [!code highlight]
+    children: [
+      {
+        id: 'account.profile',
+        path: 'profile',
+        view: ProfilePage,
+      },
+      {
+        id: 'account.security',
+        path: 'security',
+        view: SecurityPage,
+      },
+    ],
+  },
+] as const);
+```
+
+Navigating to either descendant includes the `account` middleware because `account` belongs to the matched branch.
+
+Route-level middleware runs from parent to leaf:
+
+```text
+account middleware
+account.profile middleware
+```
+
+This lets a matchable parent enforce policy for its descendants without repeating the middleware on every child.
+
+### Route placement and context are different
+
+Route placement decides **when the middleware is included**.
+
+The middleware context always describes the final leaf destination.
+
+For a navigation to `account.profile`, middleware attached to `account` still receives:
+
+```ts
+route.id === 'account.profile';
+```
+
+Every middleware in one transition receives the same leaf `route`, parsed params, search state, hash state, and target location.
+
+Do not expect middleware attached to a parent to receive that parent as `context.route`.
+
+When a parent owns a fixed policy, express that policy in the middleware itself rather than attempting to read the parent’s metadata from the leaf context.
+
+## React provider middleware
+
+The React provider can register runtime middleware:
+
+```tsx
+import {
+  RouterProvider,
+} from '@cookbook/router-react';
+
+<RouterProvider
+  router={router}
+  middleware={[
+    requireAuth,
+  ]}
+/>
+```
+
+The provider registers this middleware through `router.useMiddleware()`.
+
+When the provider starts the router automatically, its middleware participates in the initial transition.
+
+When the router was already started before the provider mounted, provider middleware only affects future transitions. Register middleware before `router.start()` when it must participate in initial resolution.
+
+## Execution order
+
+Middleware is one part of the complete transition pipeline.
+
+<Steps>
+  <Step>
+    Canonicalize and match the target location.
+  </Step>
+  <Step>
+    Resolve a static route redirect, when the accepted route declares one.
+  </Step>
+  <Step>
+    Run navigation blockers.
+  </Step>
+  <Step>
+    Run global and route before-navigation lifecycle hooks.
+  </Step>
+  <Step>
+    Run router-wide middleware.
+  </Step>
+  <Step>
+    Run runtime-registered middleware.
+  </Step>
+  <Step>
+    Run route middleware from parent to leaf.
+  </Step>
+  <Step>
+    Commit the accepted location when no middleware interrupts the transition.
+  </Step>
+  <Step>
+    Run after-navigation lifecycle hooks.
+  </Step>
+</Steps>
+
+Within the middleware stage, the order is:
+
+```text
+createRouter middleware
+router.useMiddleware middleware
+parent route middleware
+child route middleware
+leaf route middleware
+```
+
+Middleware functions run sequentially. Each asynchronous result is awaited before the next middleware begins.
+
+The first redirect, rewrite, cancellation, `Response`, or thrown error stops the middleware pipeline.
+
+## Static redirects run first
+
+A route-level `redirect` is resolved before blockers, lifecycle hooks, and middleware:
+
+```ts
+{
+  id: 'legacy-account',
+  path: '/old-account',
+  redirect: '/account',
+  middleware: [
+    auditLegacyAccount,
+  ],
+}
+```
+
+`auditLegacyAccount` does not run when the static redirect is resolved.
+
+The redirect target starts a new transition and runs middleware for its accepted branch.
+
+Use middleware instead of a static redirect when the source route must inspect runtime state before choosing the destination.
+
+## Middleware context
+
+Every middleware receives:
+
+```ts
+interface MiddlewareContext {
+  readonly route: MatchedRoute;
+  readonly location: RouterLocation;
+  readonly params: Record<string, unknown>;
+  readonly search:
+    | ParsedRouteSearch
+    | Record<string, unknown>;
+  readonly unknownSearch?:
+    ParsedUnknownRouteSearch;
+  readonly hash:
+    | ParsedRouteHash
+    | unknown;
+
+  redirect: (
+    to: string,
+  ) => MiddlewareResult;
+
+  rewrite: (
+    to: string,
+  ) => MiddlewareResult;
+
+  cancel: () => MiddlewareResult;
+}
+```
+
+## `route`
+
+`route` is the leaf entry of the accepted destination branch:
+
+```ts
+const inspectDestination: Middleware = ({
+  route,
+}) => {
+  console.log(route.id);
+};
+```
+
+The normalized route definition is available through:
+
+```ts
+route.route;
+```
+
+Local metadata is available through:
+
+```ts
+route.route.meta;
+```
+
+For example:
+
+```ts
+const requireAuth: Middleware = ({
+  route,
+  redirect,
+}) => {
+  if (
+    route.route.meta?.requiresAuth === true &&
+    !session.isAuthenticated()
+  ) {
+    return redirect('/login');
+  }
+};
+```
+
+Metadata remains `Record<string, unknown>` inside `MiddlewareContext`. Generated route metadata contracts do not specialize middleware by route ID.
+
+Narrow metadata values before using them:
+
+```ts
+const access =
+  route.route.meta?.access;
+
+if (access === 'private') {
+  // access is narrowed to the expected string.
+}
+```
+
+Metadata is local to the leaf route in this context. Parent metadata is not automatically merged into `route.route.meta`.
+
+## `location`
+
+`location` is the target location currently being resolved:
+
+```ts
+const logTarget: Middleware = ({
+  location,
+}) => {
+  console.log(location.href);
+};
+```
+
+It is available before history commits the destination.
+
+After a rewrite begins, the rewritten transition receives the rewritten target location.
+
+## `params`
+
+`params` contains the parsed parameters for the accepted leaf match:
+
+```ts
+const validateDocument: Middleware = ({
+  params,
+}) => {
+  const documentId =
+    params.documentId;
+
+  if (typeof documentId !== 'string') {
+    throw new TypeError(
+      'Expected documentId to be a string.',
+    );
+  }
+};
+```
+
+Path constraints have already parsed their values:
+
+```text
+{id:int}       → number
+{price:decimal} → number
+{slug}         → string
+{slug:slug}    → string
+{*path}        → readonly string[]
+```
+
+The middleware context is intentionally broad. Narrow values before passing them to typed application services.
+
+## `search`
+
+`search` contains parsed declared search state:
+
+```ts
+const validatePage: Middleware = ({
+  search,
+}) => {
+  const page = search.page;
+
+  if (
+    page !== undefined &&
+    typeof page !== 'number'
+  ) {
+    throw new TypeError(
+      'Expected page to be a number.',
+    );
+  }
+};
+```
+
+Search defaults and URLKit parsing have already been applied before middleware runs.
+
+A defaulted field can therefore exist even when it was absent from the original query string.
+
+## `unknownSearch`
+
+`unknownSearch` contains undeclared query keys when the accepted route preserves unknown search state.
+
+```ts
+const recordCampaign: Middleware = ({
+  unknownSearch,
+}) => {
+  const source =
+    unknownSearch?.utm_source;
+
+  if (typeof source === 'string') {
+    analytics.recordSource(source);
+  }
+};
+```
+
+It is absent when unknown search values were stripped or no preserved unknown values exist.
+
+## `hash`
+
+`hash` contains the parsed declared hash value:
+
+```ts
+const validateSection: Middleware = ({
+  hash,
+}) => {
+  if (
+    hash !== undefined &&
+    hash !== 'overview' &&
+    hash !== 'activity'
+  ) {
+    throw new Error(
+      'Unsupported account section.',
+    );
+  }
+};
+```
+
+The leading `#` is not part of the parsed hash value.
+
+## Middleware results
+
+A middleware function returns:
+
+```ts
+type MiddlewareResult =
+  | void
+  | false
+  | Response
+  | {
+      readonly type: 'redirect';
+      readonly to: string;
+    }
+  | {
+      readonly type: 'rewrite';
+      readonly to: string;
+    }
+  | {
+      readonly type: 'cancel';
+    };
+```
+
+Prefer the context helpers instead of constructing result objects manually.
+
+| Result          | Navigation outcome                                           |
+| --------------- | ------------------------------------------------------------ |
+| `void`          | Continue to the next middleware                              |
+| `false`         | Stop with blocked navigation                                 |
+| `cancel()`      | Stop with blocked navigation                                 |
+| `redirect(to)`  | Begin another transition and replace history with its target |
+| `rewrite(to)`   | Begin another internal transition without writing history    |
+| `Response`      | Store the response as navigation error state                 |
+| Throw or reject | Enter navigation error handling                              |
+
+## Continue navigation
+
+Return nothing when the transition may continue:
+
+```ts
+const requireWorkspace: Middleware = () => {
+  if (workspace.isAvailable()) {
+    return;
+  }
+
+  throw new Error(
+    'No active workspace is available.',
+  );
+};
+```
+
+After a `void` result, the next middleware runs.
+
+## Redirect
+
+Use `redirect()` when the destination should become the committed URL:
+
+```ts
+const requireAuth: Middleware = ({
+  location,
+  redirect,
+}) => {
+  if (session.isAuthenticated()) {
+    return;
+  }
+
+  return redirect(
+    `/login?redirect=${encodeURIComponent(location.href)}`,
+  );
+};
+```
+
+An internal middleware redirect:
+
+* Starts another complete transition
+* Uses replace semantics
+* Matches and validates the new target
+* Runs blockers, lifecycle hooks, and middleware again
+* Counts toward `maxRedirectDepth`
+
+The intermediate attempted location is not committed as its own history entry.
+
+### External redirects
+
+Absolute redirect targets are supported:
+
+```ts
+const openDocumentation: Middleware = ({
+  redirect,
+}) => {
+  return redirect(
+    'https://docs.example.com',
+  );
+};
+```
+
+Browser history performs the external navigation with:
+
+```ts
+window.location.replace(target);
+```
+
+Memory and static history cannot leave the application unless a custom history adapter implements `redirectExternal`.
+
+If the active history cannot perform an external redirect, the router enters error state.
+
+## Rewrite
+
+Use `rewrite()` when another internal route should resolve without writing that target to history:
+
+```ts
+const showLogin: Middleware = ({
+  location,
+  rewrite,
+}) => {
+  if (session.isAuthenticated()) {
+    return;
+  }
+
+  return rewrite(
+    `/login?redirect=${encodeURIComponent(location.href)}`,
+  );
+};
+```
+
+A rewrite:
+
+* Starts another complete internal transition
+* Resolves and renders the rewrite target
+* Updates router state to the rewrite target
+* Performs no push or replace history write
+* Counts toward `maxRedirectDepth`
+
+A rewrite does not always mean “keep the attempted URL.”
+
+During programmatic navigation, the attempted destination has not yet been committed. When middleware rewrites it, the previously committed browser URL remains.
+
+For example:
+
+```text
+Current browser URL: /home
+Attempted destination: /private
+Rewrite target: /login
+
+Browser URL after rewrite: /home
+Router state location: /login
+Rendered route: login
+```
+
+During startup, refresh, or browser back/forward resolution, the current history entry can remain visible while router state resolves the rewrite target.
+
+External rewrites are rejected:
+
+```ts
+return rewrite(
+  'https://example.com',
+);
+```
+
+Use `redirect()` to leave the application.
+
+## Cancellation
+
+Use middleware cancellation when application policy should refuse the destination without producing an error:
+
+```ts
+const requireReportsAccess: Middleware = ({
+  cancel,
+}) => {
+  if (!permissions.canOpenReports()) {
+    return cancel();
+  }
+};
+```
+
+Returning `false` has the same outcome:
+
+```ts
+const requireReportsAccess: Middleware = () => {
+  if (!permissions.canOpenReports()) {
+    return false;
+  }
+};
+```
+
+Cancellation:
+
+* Stops the remaining middleware
+* Does not commit the attempted destination
+* Does not run after-navigation hooks
+* Sets `router.state.navigation` to `'blocked'`
+* Does not render an error fallback
+
+Use `cancel()` when the explicit outcome improves readability.
+
+Use a navigation blocker instead when the decision is primarily about leaving application state, such as an unsaved form.
+
+## Returning a `Response`
+
+Middleware may return a web `Response`:
+
+```ts
+const requireAuthorization: Middleware = () => {
+  return new Response(
+    'Forbidden',
+    {
+      status: 403,
+    },
+  );
+};
+```
+
+The current runtime stores it as navigation error state:
+
+```ts
+router.state.navigation === 'error';
+router.state.error instanceof Response;
+```
+
+The core router does not automatically:
+
+* Follow a `Location` header
+* Treat a `3xx` response as a redirect
+* Send the response through an HTTP server
+* Choose a route based on its status code
+* Commit the attempted location
+
+This does not redirect:
+
+```ts
+return new Response(null, {
+  status: 302,
+  headers: {
+    Location: '/login',
+  },
+});
+```
+
+Use:
+
+```ts
+return redirect('/login');
+```
+
+Server and platform integrations must inspect `router.state.error` and map a returned `Response` to their own environment explicitly.
+
+## Throwing errors
+
+Throw when middleware cannot complete its policy check:
+
+```ts
+const requireConfiguration: Middleware = () => {
+  if (!configuration.isLoaded()) {
+    throw new Error(
+      'Application configuration is unavailable.',
+    );
+  }
+};
+```
+
+A thrown or rejected value enters the navigation error path:
+
+```ts
+router.state.navigation === 'error';
+router.state.error;
+```
+
+Unlike cancellation, an error can render route or provider error handling.
+
+Use cancellation for an expected refusal. Throw for an unexpected or unrecoverable transition failure.
+
+## Redirect and rewrite loops
+
+Every redirect or rewrite begins another transition.
+
+The router protects against loops:
+
+```ts
+const router = createRouter({
+  routes,
+  maxRedirectDepth: 10,
+});
+```
+
+The default is `10`.
+
+The limit counts:
+
+* Static route redirects
+* Middleware redirects
+* Middleware rewrites
+
+When the limit is exceeded, navigation enters error state:
+
+```text
+Navigation exceeded the maximum redirect count.
+```
+
+The deprecated `maxRedirectionDepth` option remains accepted. Prefer `maxRedirectDepth`.
+
+## What middleware does not run for
+
+Middleware only runs for a matched destination transition.
+
+It does not run during:
+
+```ts
+router.href(...);
+router.resolve(...);
+router.match(...);
+router.preload(...);
+router.preloadHref(...);
+```
+
+It also does not run when no route matches:
+
+```ts
+router.match('/missing') === null;
+```
+
+Define a wildcard not-found route when unknown paths must pass through route middleware:
+
+```ts
+{
+  id: 'not-found',
+  path: '/{*path}',
+  middleware: [
+    recordUnknownPath,
+  ],
+  view: NotFoundPage,
+}
+```
+
+Middleware on a static redirect source route also does not run because the static redirect is resolved earlier in the pipeline.
+
+## Choose the correct mechanism
+
+### Use middleware when
+
+* Destination access depends on authentication or permissions
+* The transition may redirect or rewrite
+* Parsed destination params or search state affect policy
+* A cross-cutting destination rule applies before commit
+
+### Use a static route redirect when
+
+* One route always resolves another route
+* No runtime condition is required
+* Source middleware does not need to run
+
+### Use a blocker when
+
+* Current application state may prevent leaving
+* Unsaved work must stop navigation
+* React should also protect browser unload
+
+### Use lifecycle hooks when
+
+* Behavior belongs to entering or leaving a route
+* Route-level setup or cleanup is required
+* Cancellation is needed without redirect or rewrite helpers
+
+### Use route runtime loading or preload hooks when
+
+* The route needs application data
+* The work should be cached, invalidated, or represented as loading state
+* The concern is resource ownership rather than transition policy
+
+Middleware decides whether a destination may proceed. It should not become an unstructured data-loading layer.
+
+## Where this bites
+
+### Metadata access uses one normalized route layer
+
+Use:
+
+```ts
+route.route.meta;
+```
+
+Not:
+
+```ts
+route.route.route.meta;
+```
+
+### Parent middleware receives the leaf route
+
+Route placement controls inclusion. `context.route` remains the leaf destination for every middleware in the pipeline.
+
+### Parent metadata is not inherited into the context
+
+`route.route.meta` is the leaf route’s local metadata. Attach a fixed policy function to the parent branch when the policy should cover descendants.
+
+### A pathless group cannot own middleware
+
+Current route validation only permits pathless routes as structural layout or grouping routes with children. Attach middleware to a matchable parent route or register it globally.
+
+### Global middleware does not run for an unmatched URL
+
+Without a matched destination, the middleware stage is skipped. Add a wildcard route when unknown locations need policy handling.
+
+### A static redirect bypasses source middleware
+
+Static route redirects run before middleware. Use conditional middleware redirects when the source must execute logic first.
+
+### A rewrite leaves an older browser URL visible
+
+Rewrites suppress history writes. During programmatic navigation, the previously committed URL remains while router state resolves the rewrite target.
+
+### A `302 Response` does not redirect
+
+Returned responses become navigation error state. Use `redirect()`.
+
+### Provider middleware misses startup
+
+When the router was started before `<RouterProvider>` registered its middleware, that middleware only applies to future transitions.
+
+### A redirect loop error mentions redirects
+
+`maxRedirectDepth` counts rewrites too, even though the diagnostic refers to the maximum redirect count.

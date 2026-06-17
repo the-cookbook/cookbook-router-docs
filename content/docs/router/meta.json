@@ -1,0 +1,20 @@
+{
+  "title": "Cookbook Router",
+  "description": "Router, React integration, CLI, diagnostics, and recipes.",
+  "root": true,
+  "pages": [
+    "---Introduction---",
+    "index",
+    "getting-started",
+    "---Concepts---",
+    "concepts",
+    "---API Reference---",
+    "...api",
+    "---Errors---",
+    "errors",
+    "---Troubleshooting---",
+    "troubleshooting",
+    "---Recipes---",
+    "recipes"
+  ]
+}

@@ -1,0 +1,30 @@
+---
+title: "Validate routes in CI"
+description: "Make invalid routes and stale generated contracts fail before a release artifact exists."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Add deterministic commands
+
+```json title="package.json"
+{
+  "scripts": {
+    "routes:validate": "cbr validate",
+    "routes:generate": "cbr generate",
+    "ci:routes": "pnpm routes:validate && pnpm routes:generate && git diff --exit-code -- .cookbook-router"
+  }
+}
+```
+
+`validate` checks the route input without treating generated output as proof. `generate` then verifies static extraction and output safety. The diff check catches stale committed artifacts when your project chooses to commit them.
+
+## Validate the same config as builds
+
+Do not give CI a simplified route list. Use the same config file, path constraints, route globs, and output directory as local builds. A green toy tree says nothing about the application tree.
+
+## Where this bites
+
+A TypeScript compile can pass against stale generated declarations while runtime routes changed. API types are not an integrity checksum. Generation belongs before typecheck/build or in the bundler plugin lifecycle.

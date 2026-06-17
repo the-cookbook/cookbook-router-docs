@@ -1,0 +1,1257 @@
+---
+title: "Route metadata"
+description: "Attach application-owned information to routes, read local or ancestor metadata, and merge it with explicit policies."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Route metadata attaches application-owned information to the route tree.
+
+Use it for declarative information such as:
+
+- Page titles
+- Breadcrumbs
+- Navigation labels
+- Access hints
+- Analytics names
+- Layout preferences
+- SEO configuration
+- Feature flags
+
+Cookbook Router preserves metadata on normalized and matched routes. It does not use metadata to decide whether a route matches or how navigation behaves.
+
+Your application decides what each metadata key means.
+
+## Declare metadata
+
+Add a `meta` object to a route:
+
+```ts
+import {
+  defineRoutes,
+} from '@cookbook/router';
+
+export const routes = defineRoutes([
+  {
+    id: 'root',
+    path: '/',
+    meta: {
+      title: 'Application',
+      chrome: {
+        sidebar: true,
+      },
+    },
+    children: [
+      {
+        id: 'users',
+        path: 'users',
+        meta: {
+          title: 'Users',
+          breadcrumb: {
+            label: 'Users',
+            route: 'users',
+          },
+        },
+      },
+    ],
+  },
+] as const);
+````
+
+The authored metadata type is:
+
+```ts
+type RouteMeta = Record<string, unknown>;
+```
+
+The router requires `meta` to be an object. Its values are application-owned.
+
+Metadata does not automatically:
+
+* Change route ranking
+* Enforce authentication
+* Set the document title
+* Create breadcrumbs
+* Merge with parent metadata
+* Affect generated hrefs
+* Become component state
+
+Those behaviors only exist when application code reads and interprets the metadata.
+
+## Metadata is route-local
+
+Metadata metadata
+
+* Affect generated hrefs
+* Become component state
+
+Those behaviors only belongs to the route where it is declared.
+
+```ts
+{
+  id: 'root',
+  path: '/',
+  meta: {
+    title: 'Application',
+  },
+  children: [
+    {
+      id: 'users',
+      path: 'users',
+      meta: {
+        section: 'accounts',
+      },
+    },
+  ],
+}
+```
+
+The `users` route metadata is:
+
+```ts
+{
+  section: 'accounts',
+}
+```
+
+It does not automatically become:
+
+```ts
+{
+  title: 'Application',
+  section: 'accounts',
+}
+```
+
+Ancestor collection and merging are explicit read operations.
+
+This keeps route declarations predictable. A route’s normalized `meta` field always represents its own authored metadata.
+
+## Read one route
+
+Use `getRouteMeta()` to read local metadata for a route ID:
+
+```ts
+import { getRouteMeta } from '@cookbook/router';
+
+const meta = getRouteMeta(
+  router.routes,
+  'users',
+);
+```
+
+Given:
+
+```ts
+{
+  id: 'users',
+  path: '/users',
+  meta: {
+    title: 'Users',
+    access: 'private',
+  },
+}
+```
+
+the result is:
+
+```ts
+{
+  title: 'Users',
+  access: 'private',
+}
+```
+
+`getRouteMeta()` does not include ancestors.
+
+It can read an inactive route because it works from the normalized route tree rather than the current match.
+
+An unknown route ID returns:
+
+```ts
+{}
+```
+
+## Read a target route chain
+
+Use `getRouteMetaChain()` when metadata from a specific route and its ancestors is needed:
+
+```ts
+import { getRouteMetaChain } from '@cookbook/router';
+
+const chain = getRouteMetaChain(
+  router.routes,
+  'users.details',
+  {
+    includeAncestors: true,
+  },
+);
+```
+
+The chain is ordered from root to target:
+
+```text
+root
+users
+users.details
+```
+
+Without `includeAncestors: true`, only the target route is returned:
+
+```ts
+const chain = getRouteMetaChain(
+  router.routes,
+  'users.details',
+);
+```
+
+```text
+users.details
+```
+
+The target route does not need to be active.
+
+An unknown route ID returns:
+
+```ts
+[]
+```
+
+## Read the active metadata chain
+
+Use `getActiveRouteMetaChain()` when metadata must come from the current match:
+
+```ts
+import { getActiveRouteMetaChain } from '@cookbook/router';
+
+const chain = getActiveRouteMetaChain(
+  router.state.match,
+  {
+    includeAncestors: true,
+  },
+);
+```
+
+For an active location such as:
+
+```text
+/users/42
+```
+
+the chain can contain:
+
+```text
+root
+users
+users.details
+```
+
+Without `includeAncestors: true`, only the active leaf entry is returned.
+
+```ts
+const chain = getActiveRouteMetaChain(
+  router.state.match,
+);
+```
+
+When there is no active match, the result is:
+
+```ts
+[]
+```
+
+## Target chain versus active chain
+
+The two chain helpers serve different purposes.
+
+| Helper                      | Source                | Requires active match | Parsed params |
+| --------------------------- | --------------------- | --------------------: | ------------: |
+| `getRouteMetaChain()`       | Normalized route tree |                    No |            No |
+| `getActiveRouteMetaChain()` | Current `RouteMatch`  |                   Yes |           Yes |
+
+Use `getRouteMetaChain()` for:
+
+* Menus
+* Static navigation models
+* Route inspection
+* Metadata for an inactive destination
+* Build or application tooling
+
+Use `getActiveRouteMetaChain()` for:
+
+* Current breadcrumbs
+* Active page chrome
+* Metadata that needs parsed route params
+* Runtime analytics for the active branch
+
+## Metadata chain entries
+
+Both helpers return `RouteMetaEntry` objects:
+
+```ts
+interface RouteMetaEntry<
+  Route extends string = RouteId,
+> {
+  readonly id: Route;
+
+  readonly params: Record<string, unknown>;
+
+  readonly meta: Record<string, unknown>;
+
+  readonly route: NormalizedRoute;
+
+  readonly match?: MatchedRoute;
+}
+```
+
+Each entry contains:
+
+* `id`: the route ID
+* `meta`: local metadata declared by that route
+* `route`: the normalized route
+* `params`: params available for that entry
+* `match`: the active matched entry, when the chain came from an active match
+
+For a static target chain, `params` is `{}` and `match` is absent.
+
+For an active chain, params are the parsed values visible at that branch level:
+
+```ts
+const chain = getActiveRouteMetaChain(
+  router.state.match,
+  {
+    includeAncestors: true,
+  },
+);
+
+for (const entry of chain) {
+  console.log(
+    entry.id,
+    entry.params,
+    entry.meta,
+  );
+}
+```
+
+This is useful when breadcrumb labels depend on parsed parameters.
+
+## Merge a metadata chain
+
+Use `mergeRouteMetaChain()` to turn an ordered chain into one metadata object:
+
+```ts
+import { mergeRouteMetaChain } from '@cookbook/router';
+
+const chain = getActiveRouteMetaChain(
+  router.state.match,
+  {
+    includeAncestors: true,
+  },
+);
+
+const meta = mergeRouteMetaChain(chain);
+```
+
+The chain is processed from root to leaf.
+
+The default merge mode is:
+
+```ts
+'shallow'
+```
+
+## Merge modes
+
+Cookbook Router supports five merge modes:
+
+| Mode        | Behavior                                                                             |
+| ----------- | ------------------------------------------------------------------------------------ |
+| `'leaf'`    | The later route value replaces the earlier value for the same key                    |
+| `'shallow'` | Plain objects at the same key are merged one level; other values use the later value |
+| `'deep'`    | Plain objects are recursively merged; other values use the later value               |
+| `'append'`  | Values are collected into an array from root to leaf                                 |
+| `'prepend'` | Values are collected into an array from leaf to root                                 |
+
+## `leaf`
+
+`leaf` selects the leaf-most defined value **per metadata key**:
+
+```ts
+const meta = mergeRouteMetaChain(
+  chain,
+  'leaf',
+);
+```
+
+Given:
+
+```ts
+// root
+{
+  headerHeight: 16,
+  title: 'Application',
+}
+
+// child
+{
+  title: 'Users',
+}
+```
+
+the result is:
+
+```ts
+{
+  headerHeight: 16,
+  title: 'Users',
+}
+```
+
+`leaf` does not discard the complete ancestor object. Ancestor-only keys remain.
+
+It means:
+
+> For each duplicated key, keep the value nearest the leaf.
+
+## `shallow`
+
+`shallow` is the default.
+
+When both values for a key are plain objects, they are merged one level:
+
+```ts
+// root
+{
+  chrome: {
+    sidebar: true,
+    density: 'comfortable',
+  },
+}
+
+// child
+{
+  chrome: {
+    density: 'compact',
+  },
+}
+```
+
+Result:
+
+```ts
+{
+  chrome: {
+    sidebar: true,
+    density: 'compact',
+  },
+}
+```
+
+For strings, numbers, arrays, dates, class instances, and other non-plain objects, the later value replaces the earlier one.
+
+## `deep`
+
+`deep` recursively merges plain objects:
+
+```ts
+// root
+{
+  seo: {
+    robots: {
+      index: true,
+      follow: true,
+    },
+    openGraph: {
+      siteName: 'Cookbook',
+    },
+  },
+}
+
+// child
+{
+  seo: {
+    robots: {
+      index: false,
+    },
+    openGraph: {
+      section: 'users',
+    },
+  },
+}
+```
+
+Result:
+
+```ts
+{
+  seo: {
+    robots: {
+      index: false,
+      follow: true,
+    },
+    openGraph: {
+      siteName: 'Cookbook',
+      section: 'users',
+    },
+  },
+}
+```
+
+Arrays are not deep-merged. A child array replaces an ancestor array.
+
+## `append`
+
+`append` collects values from root to leaf:
+
+```ts
+const meta = mergeRouteMetaChain(
+  chain,
+  {
+    keys: {
+      breadcrumb: 'append',
+    },
+  },
+);
+```
+
+Given:
+
+```ts
+// root
+{
+  breadcrumb: {
+    label: 'Home',
+    route: 'root',
+  },
+}
+
+// child
+{
+  breadcrumb: {
+    label: 'Users',
+    route: 'users',
+  },
+}
+
+// leaf
+{
+  breadcrumb: {
+    label: 'Details',
+  },
+}
+```
+
+the result contains:
+
+```ts
+{
+  breadcrumb: [
+    {
+      label: 'Home',
+      route: 'root',
+    },
+    {
+      label: 'Users',
+      route: 'users',
+    },
+    {
+      label: 'Details',
+    },
+  ],
+}
+```
+
+If a value is already an array, its elements are concatenated into the result.
+
+## `prepend`
+
+`prepend` collects values in the opposite direction:
+
+```ts
+const meta = mergeRouteMetaChain(
+  chain,
+  {
+    keys: {
+      breadcrumb: 'prepend',
+    },
+  },
+);
+```
+
+Result:
+
+```ts
+{
+  breadcrumb: [
+    {
+      label: 'Details',
+    },
+    {
+      label: 'Users',
+      route: 'users',
+    },
+    {
+      label: 'Home',
+      route: 'root',
+    },
+  ],
+}
+```
+
+## Configure merge behavior per key
+
+Different metadata keys often need different policies.
+
+```ts
+const chain = getActiveRouteMetaChain(
+  router.state.match,
+  {
+    includeAncestors: true,
+  },
+);
+
+const meta = mergeRouteMetaChain(
+  chain,
+  {
+    default: 'leaf',
+
+    keys: {
+      breadcrumb: 'append',
+      chrome: 'deep',
+      seo: 'deep',
+    },
+  },
+);
+```
+
+Given metadata across the branch:
+
+```ts
+// root
+{
+  breadcrumb: {
+    label: 'Home',
+    route: 'root',
+  },
+
+  chrome: {
+    sidebar: true,
+    density: 'comfortable',
+  },
+
+  seo: {
+    robots: {
+      index: true,
+      follow: true,
+    },
+  },
+}
+
+// users
+{
+  breadcrumb: {
+    label: 'Users',
+    route: 'users',
+  },
+
+  chrome: {
+    density: 'compact',
+  },
+}
+
+// users.details
+{
+  breadcrumb: {
+    label: 'Details',
+  },
+
+  title: 'User details',
+
+  seo: {
+    robots: {
+      index: false,
+    },
+  },
+}
+```
+
+the merged result is:
+
+```ts
+{
+  breadcrumb: [
+    {
+      label: 'Home',
+      route: 'root',
+    },
+    {
+      label: 'Users',
+      route: 'users',
+    },
+    {
+      label: 'Details',
+    },
+  ],
+
+  chrome: {
+    sidebar: true,
+    density: 'compact',
+  },
+
+  title: 'User details',
+
+  seo: {
+    robots: {
+      index: false,
+      follow: true,
+    },
+  },
+}
+```
+
+Per-key rules override the default mode.
+
+## Undefined and null values
+
+`undefined` metadata values are skipped:
+
+```ts
+// parent
+{
+  title: 'Users',
+}
+
+// child
+{
+  title: undefined,
+}
+```
+
+Result:
+
+```ts
+{
+  title: 'Users',
+}
+```
+
+`null` is preserved as an explicit value:
+
+```ts
+// parent
+{
+  title: 'Users',
+}
+
+// child
+{
+  title: null,
+}
+```
+
+Result:
+
+```ts
+{
+  title: null,
+}
+```
+
+Use `null` when a child should explicitly clear an inherited value.
+
+## React `useRouteMeta()`
+
+The React integration exposes the same metadata model through `useRouteMeta()`:
+
+```tsx
+import { useRouteMeta } from '@cookbook/router-react';
+```
+
+## Read local rendered-route metadata
+
+Call the hook without arguments:
+
+```tsx
+function UserPage() {
+  const meta = useRouteMeta();
+
+  return null;
+}
+```
+
+When a local route render context exists, the hook returns metadata for that rendered route.
+
+This matters in layouts, route views, slot routes, and intercepted views: the nearest render context is preferred over the global active leaf.
+
+Outside a local route render context, the hook falls back to the active leaf route.
+
+## Read a specific route
+
+Pass a route ID:
+
+```tsx
+const meta = useRouteMeta('users');
+```
+
+This reads the target route even when it is not currently active.
+
+An unknown route ID returns:
+
+```ts
+{}
+```
+
+## Include the active branch
+
+Without a route ID, `includeAncestors: true` reads the complete active branch from root to active leaf:
+
+```tsx
+const meta = useRouteMeta({
+  includeAncestors: true,
+});
+```
+
+The default merge mode remains `shallow`.
+
+This uses the active router branch even when the hook is called from a parent layout’s local render context.
+
+## Include ancestors of a target route
+
+Pass a route ID when the chain should stop at a particular route:
+
+```tsx
+const meta = useRouteMeta(
+  'users.details',
+  {
+    includeAncestors: true,
+  },
+);
+```
+
+The chain is:
+
+```text
+root
+users
+users.details
+```
+
+If the route is active, its active branch entries are used.
+
+If it is inactive, the normalized route tree is used.
+
+## Configure React merging
+
+The hook accepts the same merge input as `mergeRouteMetaChain()`:
+
+```tsx
+const meta = useRouteMeta({
+  includeAncestors: true,
+
+  merge: {
+    default: 'leaf',
+
+    keys: {
+      breadcrumb: 'append',
+      chrome: 'deep',
+      seo: 'deep',
+    },
+  },
+});
+```
+
+A string merge mode is also accepted:
+
+```tsx
+const meta = useRouteMeta({
+  includeAncestors: true,
+  merge: 'leaf',
+});
+```
+
+## Read unmerged metadata objects
+
+Pass `merge: false` to receive the ordered metadata objects:
+
+```tsx
+const chain = useRouteMeta({
+  includeAncestors: true,
+  merge: false,
+});
+```
+
+Result:
+
+```ts
+[
+  {
+    title: 'Application',
+  },
+  {
+    title: 'Users',
+  },
+  {
+    title: 'User details',
+  },
+]
+```
+
+This returns metadata objects only.
+
+It does not return `RouteMetaEntry` values, route IDs, params, or normalized routes.
+
+Use `getActiveRouteMetaChain()` when those details are needed.
+
+For an unknown route ID:
+
+```tsx
+useRouteMeta(
+  'missing',
+  {
+    merge: false,
+  },
+);
+```
+
+the result is:
+
+```ts
+[]
+```
+
+## Breadcrumbs from active metadata
+
+Use an unmerged active chain when breadcrumb labels need route IDs or params:
+
+```ts
+const chain = getActiveRouteMetaChain(
+  router.state.match,
+  {
+    includeAncestors: true,
+  },
+);
+
+const breadcrumbs = chain.flatMap(
+  (entry) => {
+    const breadcrumb =
+      entry.meta.breadcrumb;
+
+    if (
+      !breadcrumb ||
+      typeof breadcrumb !== 'object'
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        routeId: entry.id,
+        params: entry.params,
+        breadcrumb,
+      },
+    ];
+  },
+);
+```
+
+Use `append` when each route already declares a complete breadcrumb value and only the ordered values are required:
+
+```ts
+const merged = mergeRouteMetaChain(
+  chain,
+  {
+    keys: {
+      breadcrumb: 'append',
+    },
+  },
+);
+```
+
+## Metadata does not enforce policy
+
+Metadata can describe policy:
+
+```ts
+{
+  id: 'account',
+  path: '/account',
+  meta: {
+    requiresAuth: true,
+  },
+}
+```
+
+It does not enforce it.
+
+Middleware, lifecycle, rendering, or application code must interpret the value:
+
+```ts
+const requireAuth: Middleware = ({
+  route,
+  redirect,
+}) => {
+  if (
+    route.route.meta?.requiresAuth === true &&
+    !session.isAuthenticated()
+  ) {
+    return redirect('/login');
+  }
+};
+```
+
+The middleware context exposes the leaf route’s local metadata. Ancestor metadata is not automatically merged into it.
+
+Attach branch-wide middleware to the relevant parent route or perform explicit metadata-chain processing when inherited policy is intentional.
+
+## Generated metadata contracts
+
+The CLI generates route-local metadata contracts in:
+
+```text
+.cookbook-router/contracts.ts
+```
+
+Given:
+
+```ts
+meta: {
+  access: 'private',
+  requiresAuth: true,
+  priority: 10,
+  seo: {
+    index: false,
+  },
+}
+```
+
+generation produces a route entry resembling:
+
+```ts
+{
+  access?: string;
+  requiresAuth?: boolean;
+  priority?: number;
+  seo?: object;
+}
+```
+
+Generated metadata typing is intentionally shallow:
+
+* Every property is optional.
+* String literals become `string`.
+* Number literals become `number`.
+* Boolean literals become `boolean`.
+* Arrays, plain objects, and `null` become `object`.
+* Nested object structure is not generated.
+* Ancestor metadata is not added to the child route contract.
+
+Application code reads one registered route contract with:
+
+```ts
+import type { RegisteredRouteMeta } from '@cookbook/router';
+
+type LoginMeta = RegisteredRouteMeta<'login'>;
+```
+
+The authored metadata object type exported for route configuration is `RouteMeta`.
+
+The generated route selector is exported as `RegisteredRouteMeta` to distinguish the two.
+
+## Merged metadata and generated types
+
+Ancestor merging happens at runtime.
+
+The generated metadata contract remains local to each route.
+
+For example:
+
+```ts
+// root metadata
+{
+  headerHeight: 16,
+}
+
+// users.details metadata
+{
+  title: 'User details',
+}
+```
+
+This call returns both values at runtime:
+
+```tsx
+const meta = useRouteMeta(
+  'users.details',
+  {
+    includeAncestors: true,
+    merge: 'leaf',
+  },
+);
+```
+
+Runtime result:
+
+```ts
+{
+  headerHeight: 16,
+  title: 'User details',
+}
+```
+
+However, the registered `users.details` metadata type only describes its local generated keys. It does not automatically add `headerHeight`.
+
+When consuming a dynamically merged chain, use the core helper’s `Record<string, unknown>` result and narrow application-owned values:
+
+```ts
+const chain = getRouteMetaChain(
+  router.routes,
+  'users.details',
+  {
+    includeAncestors: true,
+  },
+);
+
+const meta = mergeRouteMetaChain(
+  chain,
+  'leaf',
+);
+
+const headerHeight =
+  typeof meta.headerHeight === 'number'
+    ? meta.headerHeight
+    : 12;
+```
+
+For a consistent application metadata model, define an application-owned interface and use `satisfies` at declaration sites:
+
+```ts
+interface AppRouteMeta {
+  readonly title?: string;
+
+  readonly headerHeight?: number;
+
+  readonly access?: 'public' | 'private';
+
+  readonly breadcrumb?: {
+    readonly label: string;
+    readonly route?: string;
+  };
+
+  readonly chrome?: {
+    readonly sidebar?: boolean;
+  };
+}
+```
+
+```ts
+meta: {
+  title: 'Users',
+  access: 'private',
+} satisfies AppRouteMeta
+```
+
+Cookbook Router does not impose one global metadata schema.
+
+## Static generation boundary
+
+For manually authored runtime route trees, metadata values may contain arbitrary application values because the runtime contract is:
+
+```ts
+Record<string, unknown>
+```
+
+The router only verifies that `meta` is an object and rejects unsafe top-level property names.
+
+When the CLI must statically inspect route files, metadata must remain statically extractable.
+
+Supported metadata should be composed from data values such as:
+
+* Strings
+* Numbers
+* Booleans
+* `null`
+* `undefined`
+* Arrays
+* Plain objects
+* Supported local or relative imported static constants
+
+Avoid runtime function calls or computed application state in CLI-consumed metadata:
+
+```ts
+// Not statically extractable
+meta: createMetadata();
+```
+
+Prefer:
+
+```ts
+const userMetadata = {
+  title: 'Users',
+  access: 'private',
+} as const;
+
+export const usersRoute = defineRoute({
+  id: 'users',
+  path: '/users',
+  meta: userMetadata,
+});
+```
+
+Codegen-relevant imported metadata must follow the CLI static import rules.
+
+See [Typed contracts](/docs/router/concepts/typed-contracts) for generated metadata typing and the CLI generation reference for extraction details.
+
+## Choose the correct read API
+
+| Need                                                     | API                              |
+| -------------------------------------------------------- | -------------------------------- |
+| Local metadata for one route ID                          | `getRouteMeta()`                 |
+| Static target route plus optional ancestors              | `getRouteMetaChain()`            |
+| Current matched route plus optional ancestors and params | `getActiveRouteMetaChain()`      |
+| Merge an existing chain                                  | `mergeRouteMetaChain()`          |
+| Read metadata inside React                               | `useRouteMeta()`                 |
+| Read unmerged React metadata objects                     | `useRouteMeta({ merge: false })` |
+
+## Where this bites
+
+### Parent metadata is missing from a child
+
+Metadata is local. Request `includeAncestors: true` and choose a merge strategy.
+
+### `leaf` removes too little
+
+`leaf` selects the leaf-most value per duplicated key. Ancestor-only keys remain.
+
+### Arrays disappear during deep merge
+
+`deep` only recursively merges plain objects. Arrays are replaced. Use `append` or `prepend` when arrays should be collected.
+
+### `undefined` does not clear an ancestor value
+
+Undefined entries are skipped. Use `null` when an explicit cleared value is required.
+
+### `useRouteMeta()` returns parent metadata in a layout
+
+Without a route ID, the hook prefers the nearest local route render context. Pass a route ID when another route is intended.
+
+### `includeAncestors` reads through the active leaf
+
+Without a route ID, `includeAncestors: true` uses the complete active match branch. Pass a target route ID when the chain should stop earlier.
+
+### `merge: false` has no route IDs
+
+The React hook returns metadata objects only. Use a core chain helper for IDs, params, normalized routes, and active match entries.
+
+### Merged ancestor keys are missing from TypeScript
+
+Generated metadata contracts describe local route metadata. Runtime ancestor merging can add keys that are not present in the selected route’s generated type.
+
+### Metadata does not protect a route
+
+Metadata only describes application intent. Middleware or other application logic must enforce it.
+
+### Metadata generation loses nested types
+
+The current generator uses top-level JavaScript `typeof` categories. Nested objects are represented as `object`, not deeply generated interfaces.

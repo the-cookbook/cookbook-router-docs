@@ -1,0 +1,99 @@
+---
+title: "Vite plugin"
+description: "Configure the named Vite adapter, its dev-server watcher, debounce behavior, and production failure semantics."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Install
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab value="pnpm">
+
+```bash
+pnpm add -D @cookbook/router-vite-plugin
+```
+
+  </Tab>
+  <Tab value="npm">
+
+```bash
+npm install --save-dev @cookbook/router-vite-plugin
+```
+
+  </Tab>
+  <Tab value="yarn">
+
+```bash
+yarn add -D @cookbook/router-vite-plugin
+```
+
+  </Tab>
+  <Tab value="bun">
+
+```bash
+bun add -d @cookbook/router-vite-plugin
+```
+
+  </Tab>
+</Tabs>
+
+## Configure
+
+```ts title="vite.config.ts"
+import { defineConfig } from 'vite';
+import { cookbookRouterVitePlugin } from '@cookbook/router-vite-plugin';
+
+export default defineConfig({
+  plugins: [cookbookRouterVitePlugin()],
+});
+```
+
+There is no default export in the current package. Import the named factory.
+
+## Signature
+
+```ts
+interface CookbookRouterVitePluginOptions {
+  readonly configFile?: string;
+  readonly routeFiles?: string | readonly string[];
+  readonly outDir?: string;
+  readonly debounceMs?: number;
+  readonly fs?: CliFileSystem;
+}
+
+function cookbookRouterVitePlugin(
+  options?: CookbookRouterVitePluginOptions,
+): Plugin;
+```
+
+<TypeTable
+  type={{
+    configFile: { description: 'Explicit config path, resolved from the Vite root.', type: 'string' },
+    routeFiles: { description: 'Route source override.', type: 'string | readonly string[]' },
+    outDir: { description: 'Generated directory override.', type: 'string', default: "'.cookbook-router'" },
+    debounceMs: { description: 'Dev-server regeneration debounce.', type: 'number', default: '50' },
+    fs: { description: 'Injected filesystem.', type: 'CliFileSystem' },
+  }}
+/>
+
+Vite does not expose `cwd` because the adapter uses the resolved Vite `root`.
+
+## Lifecycle
+
+- `enforce: 'pre'` makes generation run before normal application transformation.
+- `buildStart` generates before production compilation and throws when generation fails in build mode.
+- `configureServer` performs an initial generation before application modules are transformed.
+- The watcher tracks config candidates, resolved config, route roots/files, and the output directory.
+- Deleting a generated file triggers regeneration; successful recovery sends a full reload.
+- Output changes produced by the plugin are ignored to prevent self-triggered loops.
+
+## Error recovery
+
+During development, failures are reported through the Vite logger. Watch paths are recalculated with fallback candidates, so fixing or creating the missing input triggers another run. A successful retry reloads the page.
+
+## Where this bites
+
+Do not add the generated output directory as a separate application watch trigger. The plugin already watches it narrowly for deletion recovery and ignores normal generated writes.

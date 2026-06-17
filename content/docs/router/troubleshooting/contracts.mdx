@@ -1,0 +1,116 @@
+---
+title: "Contract troubleshooting"
+description: "Fix stale generated contracts, unexpected path-param types, broad hovers, and lost inference."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Slot fallback IDs are missing from contracts
+
+That is expected. Slot fallbacks are render defaults, not navigable routes.
+
+Use generic outlet context typing in fallback components:
+
+```tsx
+const context = useOutletContext<{ user: string }>();
+```
+
+Slot route IDs under `layout.slots.<name>.routes` are generated because they are real route definitions.
+
+## Generated contracts are stale
+
+Regenerate:
+
+```sh
+cookbook-router generate --routes src/routes.tsx --out-dir .cookbook-router
+```
+
+In development, use watch mode. It generates once, keeps running, and regenerates when the route file changes:
+
+```sh
+cookbook-router generate --routes src/routes.tsx --out-dir .cookbook-router --watch
+```
+
+## `useParams()` returns `number` for numeric path constraints
+
+This is expected URLKit-backed behavior.
+
+```tsx
+{
+  id: 'users.show',
+  path: '/users/{id:int}',
+}
+```
+
+```ts
+const params = useParams('users.show');
+params.id; // number
+```
+
+Use numeric params in links, hrefs, navigation, tests, middleware assumptions, and generated-contract assertions:
+
+```tsx
+<Link to="users.show" params={{ id: 42 }} />
+```
+
+`{value:range(1,10)}`, `{value:min(1)}`, and `{value:max(10)}` also parse to `number`.
+
+## `uuid`, `minlength`, `maxlength`, `list`, and `regex` params remain `string`
+
+These constraints validate string shape or length. They do not make the parsed value numeric:
+
+```tsx
+{
+  id: 'articles.show',
+  path: '/articles/{slug:minlength(3):maxlength(50)}',
+}
+```
+
+```ts
+const params = useParams('articles.show');
+params.slug; // string
+```
+
+Use `min(...)` and `max(...)` for numeric bounds. Use `minlength(...)` and `maxlength(...)` for string length.
+
+## Custom constraint params remain `string`
+
+Custom constraints validate shape but generate and expose `string` params unless the same constraint chain also includes a numeric built-in constraint.
+
+```tsx
+{
+  id: 'posts.show',
+  path: '/posts/{slug:slug}',
+}
+```
+
+```ts
+const params = useParams('posts.show');
+params.slug; // string
+```
+
+## Generated contracts do not match expected URL state
+
+Regenerate after changing `path`, `search`, `hash`, custom constraints, or route-level `url` options:
+
+```sh
+cookbook-router generate --routes src/routes.tsx --out-dir .cookbook-router
+```
+
+Generated contracts should show `{id:int}`, `{price:decimal}`, `{value:range(1,10)}`, `{value:min(1)}`, and `{value:max(10)}` params as `number`, `uuid`, `minlength`, `maxlength`, `list`, `regex`, and custom constraints as `string`, URLKit-compatible search descriptors as parsed types, and route-level `url` options in `manifest.json` when configured.
+
+## JSDoc hovers are broad with generic `defineRoutes`
+
+Generic `defineRoutes([...])` calls can show broad hover text because TypeScript displays the generic route-definition surface instead of the narrowed generated contract. Run the CLI and include `.cookbook-router` directory in `tsconfig.json`; use generated `RouteParams`, `RouteSearch`, and hook/router call sites for precise app-specific types.
+
+## Type inference does not work
+
+Check:
+
+- `.cookbook-router/register.d.ts` exists
+- `.cookbook-router/contracts.ts` exists
+- both files are included by `tsconfig.json`
+- your editor TypeScript server has restarted
+- imports come from package roots, not deep paths

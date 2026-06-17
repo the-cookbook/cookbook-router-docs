@@ -1,0 +1,19 @@
+{
+  "title": "Error Catalog",
+  "pages": [
+    "---Overview---",
+    "index",
+    "---Routes and URL State---",
+    "route-definition-validation",
+    "route-tree-composition",
+    "path-and-url-state",
+    "---Runtime and Rendering---",
+    "navigation-and-middleware",
+    "serialization-history-and-ssr",
+    "slots-intercepts-and-react",
+    "---Tooling---",
+    "cli-config-and-commands",
+    "cli-static-extraction",
+    "output-safety-and-build-plugins"
+  ]
+}

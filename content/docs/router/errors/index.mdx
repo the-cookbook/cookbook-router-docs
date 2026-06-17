@@ -1,0 +1,25 @@
+---
+title: "Error Reference"
+description: "Exact Cookbook Router error messages, why they occur, and how to remove the cause rather than the evidence."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Use the exact message
+
+Errors are contracts. Search the text you received, including the route ID or field when useful. Each entry explains the symptom, the source condition, and the repair.
+
+<Cards>
+  <Card title="Route definitions" href="/docs/router/errors/route-definition-validation" description="Shape, IDs, paths, redirects, metadata, and route-local fields." />
+  <Card title="Route-tree composition" href="/docs/router/errors/route-tree-composition" description="Parents, cycles, absolute children, and modular declarations." />
+  <Card title="Path and URL state" href="/docs/router/errors/path-and-url-state" description="Constraints, descriptors, hashes, and unsupported matching options." />
+  <Card title="Navigation and middleware" href="/docs/router/errors/navigation-and-middleware" description="Href generation, redirects, disposal, and internal navigation." />
+  <Card title="React, slots, and intercepts" href="/docs/router/errors/slots-intercepts-and-react" description="Provider context, slot declarations, intercept targets, and fallbacks." />
+  <Card title="CLI and plugins" href="/docs/router/errors/cli-config-and-commands" description="Configuration, extraction, output safety, and build adapters." />
+</Cards>
+
+## Dynamic values
+
+The catalog uses `...` where the runtime message inserts a route ID, path, parameter, slot, export, or target. Do not remove that context when reporting a bug. It is usually the shortest path back to the bad declaration.

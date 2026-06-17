@@ -1,0 +1,146 @@
+---
+title: "CLI commands and command APIs"
+description: "Exact commands, flags, programmatic options, result behavior, and embedding APIs."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Shared command-line flags
+
+`init`, `generate`, `manifest`, and `validate` all receive:
+
+| Flag | Meaning |
+| --- | --- |
+| `--config <file>` | Explicit config path. Otherwise discovery checks `cookbook-router.config.*`. |
+| `--routes <file>` | Route file or glob. Repeatable. Overrides config `routeFiles`. |
+| `--out-dir <dir>` | Output directory override. |
+| `--cwd <dir>` | Base directory for config, route inputs, and output. |
+| `--json` | Print the `CommandResult` as JSON. |
+| `--verbose` | Include additional error causes where supported. |
+
+`generate` additionally accepts `--watch`.
+
+## `initCommand(options?)`
+
+```ts
+interface InitOptions {
+  readonly cwd?: string;
+  readonly fs?: CliFileSystem;
+  readonly routeFiles?: string | readonly string[];
+  readonly outDir?: string;
+  readonly configFile?: string;
+  readonly starterRouteFile?: string;
+  readonly skipGenerate?: boolean;
+  readonly verbose?: boolean;
+}
+
+function initCommand(options?: InitOptions): Promise<CommandResult>;
+```
+
+It creates config, an inferred starter route when appropriate, route scripts in an existing `package.json`, TypeScript includes in an existing `tsconfig.json`, the output directory, and generated artifacts unless `skipGenerate` is true. It refuses to overwrite an existing discovered config.
+
+The command-line `init` exposes the shared flags. `starterRouteFile` and `skipGenerate` are programmatic options, not current CLI flags.
+
+## `generateCommand(options)`
+
+```ts
+interface GenerateOptions extends CliRouteOptions {}
+function generateCommand(options: GenerateOptions): Promise<CommandResult>;
+```
+
+Runs aggregate generation. Successful `files` contains the artifacts applicable to the route source. `routes.ts` is conditional; contracts, register, and manifest are not.
+
+## `manifestCommand(options)`
+
+```ts
+interface ManifestOptions extends CliRouteOptions {}
+function manifestCommand(options: ManifestOptions): Promise<CommandResult>;
+```
+
+Loads and validates the same effective route input, registers route path constraints, and writes only `manifest.json`. `changedFiles` is empty when the stable serialized output was already identical.
+
+## `validateCommand(options)`
+
+```ts
+interface ValidateOptions extends CliRouteOptions {}
+function validateCommand(options: ValidateOptions): Promise<CommandResult>;
+```
+
+Loads the route graph, registers custom path constraints, and validates without writing artifacts.
+
+## `watchCommand(options)`
+
+```ts
+interface WatchCommandOptions extends WatchOptions {}
+function watchCommand(options: WatchCommandOptions): WatchHandle;
+```
+
+This function is synchronous. It returns a handle immediately; `handle.initial` represents the initial generation. After every debounced run, `onChange` receives a `CommandResult`. Failed runs preserve previous valid artifacts because validation completes before writes begin.
+
+Watch mode requires `fs.watch`. Glob discovery still requires `readdir` and `stat`.
+
+## `resolveRoutes(options)`
+
+```ts
+function resolveRoutes(
+  options: CliRouteOptions,
+): Promise<readonly RouteDefinition[]>;
+```
+
+Returns only the resolved route array. Use `resolveRouteInput()` when route options, exports, or source metadata matter.
+
+## `createCliProgram(options?)`
+
+```ts
+function createCliProgram(options?: {
+  readonly stdout?: (message: string) => void;
+  readonly stderr?: (message: string) => void;
+  readonly version?: string;
+  readonly setExitCode?: (code: number) => void;
+}): Command;
+```
+
+Creates the Commander program without parsing. The option shape is part of the emitted function declaration but its named source interface is not re-exported from the package root.
+
+## `runCli(argv, runnerOptions?)`
+
+```ts
+interface CliRunnerOptions {
+  readonly stdout?: (message: string) => void;
+  readonly stderr?: (message: string) => void;
+  readonly version?: string;
+}
+
+function runCli(
+  argv: readonly string[],
+  runnerOptions?: CliRunnerOptions,
+): Promise<number>;
+```
+
+No arguments prints help and returns `0`. Commander failures return their exit code. Unexpected failures are written to stderr and return `1`.
+
+## `shouldRunCli(moduleUrl?, argv?)`
+
+```ts
+function shouldRunCli(
+  moduleUrl?: string,
+  argv?: readonly string[],
+): boolean;
+```
+
+Compares the current module file URL with `argv[1]`. It exists so importing the package as a library does not execute the binary.
+
+## `CommandResult`
+
+```ts
+interface CommandResult {
+  readonly ok: boolean;
+  readonly files: readonly string[];
+  readonly errors: readonly string[];
+  readonly changedFiles?: readonly string[];
+}
+```
+
+`files` means applicable output files for a successful command. `changedFiles` is the subset whose contents were actually rewritten. Do not use `files.length` as the success check; use `ok`.

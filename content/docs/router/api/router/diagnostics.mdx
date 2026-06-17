@@ -1,0 +1,170 @@
+---
+title: "Diagnostics API"
+description: "Exact public error factories for href generation, provider context, hydration, and middleware targets."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+The factories return `Error` objects with stable, contextual messages. They do not log, mutate state, or throw by themselves.
+
+## `createUnknownRouteError(routeId)`
+
+```ts
+function createUnknownRouteError(routeId: string): Error;
+```
+
+Message:
+
+```text
+Cannot generate href because route "..." is not registered. Check the route id or regenerate .cookbook-router/contracts.ts.
+```
+
+Used when a route-ID operation cannot find the requested route. The generated-contract hint is deliberate: stale declarations can make an invalid ID compile.
+
+## `createMissingPathError(routeId)`
+
+```ts
+function createMissingPathError(routeId: string): Error;
+```
+
+Message:
+
+```text
+Cannot generate href for route "..." because it does not resolve to a URL path. Use a path or index route, or navigate to a concrete child route.
+```
+
+Pathless layout/group routes can participate in a branch, but they cannot produce a standalone href.
+
+## `createMissingParamError(...)`
+
+```ts
+function createMissingParamError(
+  routeId: string,
+  paramName: string,
+  token: string,
+  value: unknown,
+): Error;
+```
+
+## `createInvalidParamError(...)`
+
+```ts
+function createInvalidParamError(
+  routeId: string,
+  paramName: string,
+  token: string,
+  value: unknown,
+): Error;
+```
+
+Both currently produce the same diagnostic shape:
+
+```text
+Route "..." expected param "..." to satisfy "...", but received ... .
+```
+
+`token` is the declared path token/constraint description. `value` is formatted as JSON where possible; strings are quoted and `undefined`/`null` remain explicit.
+
+The factories are separate because “absent” and “present but invalid” are different call-site conditions even when users need the same repair: provide a value accepted by the route token.
+
+## `createGeneratedHrefMismatchError(...)`
+
+```ts
+function createGeneratedHrefMismatchError(
+  routeId: string,
+  href: string,
+  routePath: string,
+): Error;
+```
+
+Message:
+
+```text
+Generated href "..." for route "..." does not satisfy route path "...". Check params, basename, and path constraints.
+```
+
+This catches build/match asymmetry after an href is assembled. Custom path constraints should parse and compile consistently.
+
+## `createMissingProviderError(hookName)`
+
+```ts
+function createMissingProviderError(hookName: string): Error;
+```
+
+Message:
+
+```text
+... must be used inside <RouterProvider> or <StaticRouterProvider>.
+```
+
+React hooks pass their own API name so the failure points to the exact consumer.
+
+## `createMissingOutletContextError(routeId?)`
+
+```ts
+function createMissingOutletContextError(routeId: string | undefined): Error;
+```
+
+Message without a route ID:
+
+```text
+Outlet context was requested in strict mode, but no context was provided by the parent Outlet or Slot.
+```
+
+With a route ID, the message inserts `for route "..."` after `Outlet context`.
+
+## `createHydrationMismatchError(serverHref, clientHref)`
+
+```ts
+function createHydrationMismatchError(
+  serverHref: string,
+  clientHref: string,
+): Error;
+```
+
+Message:
+
+```text
+Hydration data was created for "...", but the client history is currently at "...". Recreate the router with matching hydration data or omit hydrationData for client-only rendering.
+```
+
+Hydration matching compares pathname and search. A hash-only difference is treated separately because fragments do not reach the server.
+
+## `createMalformedRedirectError(to)`
+
+```ts
+function createMalformedRedirectError(to: unknown): Error;
+```
+
+Message:
+
+```text
+Middleware redirect target must be a non-empty string, but received ... .
+```
+
+It covers both the `redirect()`/`rewrite()` helpers and malformed structured middleware results.
+
+## Message-value formatting
+
+The internal formatter is not exported, but its behavior is observable:
+
+- strings are JSON-quoted;
+- `undefined` and `null` are printed literally;
+- objects/arrays use `JSON.stringify()` when possible;
+- otherwise the value is converted with `String()`.
+
+## Testing
+
+```ts
+expect(() => router.href('missing.route')).toThrow(
+  'Cannot generate href because route "missing.route" is not registered.',
+);
+```
+
+Assert the meaningful stable fragment unless your test specifically owns the complete diagnostic contract.
+
+## Scope
+
+These nine factories are the complete public diagnostics factory surface. Route-definition errors, static-extraction errors, and build-plugin failures are direct errors documented in the [Error Reference](/docs/router/errors).

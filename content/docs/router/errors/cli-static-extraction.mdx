@@ -1,0 +1,34 @@
+---
+title: "CLI static-extraction errors"
+description: "Failures produced when route modules cannot be statically evaluated into safe build-time artifacts."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## `Route file "..." contains an unterminated static object.`
+
+## `Route file "..." contains an unterminated routes array.`
+
+The static scanner reached end-of-file before the declaration closed. Fix the syntax first; the extractor is not a TypeScript recovery parser.
+
+## Unsupported computed route values
+
+Static extraction accepts the supported `defineRoute`, `defineRoutes`, `defineRouteTree`, `defineSearch`, `defineHash`, and `mergeSearch` declaration forms. Values that require arbitrary runtime execution are rejected.
+
+**Fix:** keep route structure and static descriptors declarative. Move runtime behavior into referenced views, middleware, preloads, or runtime-safe config imports.
+
+## Runtime URLKit builders are rejected
+
+Date codecs and other runtime builder calls cannot be reconstructed safely by static extraction when embedded as executable values.
+
+**Fix:** use the router's static descriptor grammar in route modules. Reserve runtime codec objects for userland code that is not statically extracted.
+
+## `defineRouteTree()` must define a routes array
+
+A detected call omitted its route array or supplied a form the extractor cannot statically read.
+
+## Route options cannot be reconstructed
+
+`pathConstraints` used by generated route modules must be expressible through runtime-safe import references. Inline closures and computed constraint registries cannot be serialized into `routes.ts`.

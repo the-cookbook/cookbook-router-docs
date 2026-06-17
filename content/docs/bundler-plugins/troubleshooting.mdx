@@ -1,0 +1,58 @@
+---
+title: "Bundler plugin troubleshooting"
+description: "Symptoms, causes, and source-grounded fixes for build-time generation and watch recovery."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Generated files do not exist on the first compile
+
+**Cause:** the plugin is registered after a consumer that resolves generated imports during its own early hook, or it is not registered at all.
+
+**Fix:** place Cookbook Router in the bundler plugin list and keep Vite's adapter in its default `enforce: 'pre'` mode. Do not import a generated file from the bundler configuration itself before plugins run.
+
+## A fixed route error never clears
+
+**Cause:** the host is only watching currently resolved files, not the config candidate or route root that can repair discovery.
+
+**Fix:** use the native Vite, Webpack, Rspack, or Rollup adapter. For esbuild/Bun, run `cbr generate --watch` alongside the host watcher.
+
+## Creating a new route does nothing
+
+**Cause:** new files are outside the host module graph. This is the expected limitation of the current esbuild and Bun adapters.
+
+**Fix:** add the CLI watcher. For other bundlers, confirm the `routeFiles` glob resolves under `cwd`/project root and is not excluded by the host watcher.
+
+## Build loops after every generated write
+
+**Cause:** the generated directory was added as a normal watch dependency by another plugin or custom configuration.
+
+**Fix:** exclude `outDir` from ordinary watching. Cookbook Router handles its own required deletion recovery.
+
+## Route files from config are ignored
+
+**Cause:** an explicit plugin `routeFiles` option overrides the config value.
+
+**Fix:** remove the plugin override or include the complete intended set there. The two values are not merged.
+
+## Vite default import fails
+
+**Cause:** `@cookbook/router-vite-plugin` currently exports only `cookbookRouterVitePlugin` by name.
+
+**Fix:**
+
+```ts
+import { cookbookRouterVitePlugin } from '@cookbook/router-vite-plugin';
+```
+
+## Glob expansion fails with a custom filesystem
+
+**Cause:** the adapter provides `readFile` but not `readdir` and `stat`.
+
+**Fix:** implement the optional directory APIs or use explicit route filenames. `watch` is additionally required by CLI watch mode.
+
+## A production build continues after generation failure
+
+That is a defect or a custom integration mistake. Vite build, Webpack/Rspack normal build, Rollup non-watch build, esbuild, and Bun all surface generation failure as a build failure. Watch mode is the place where recovery takes priority over termination.

@@ -1,0 +1,21 @@
+---
+title: "Troubleshooting"
+description: "Symptom-first diagnosis for routes, contracts, URL state, React rendering, SSR, and code generation."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Start with the symptom
+
+Troubleshooting is organized by what the application does wrong. The [error reference](/docs/router/errors) is organized by exact message. Use the one that matches the evidence you actually have.
+
+<Cards>
+  <Card title="Routing" href="/docs/router/troubleshooting/routing" description="Matching, redirects, basename, constraints, slots, and intercepts." />
+  <Card title="Contracts" href="/docs/router/troubleshooting/contracts" description="Stale generation and TypeScript inference." />
+  <Card title="URL state" href="/docs/router/troubleshooting/url-state" description="Search, hash, defaults, dates, arrays, and unknown values." />
+  <Card title="React" href="/docs/router/troubleshooting/react" description="Provider, hooks, fallbacks, and test warnings." />
+  <Card title="SSR" href="/docs/router/troubleshooting/ssr" description="Startup, hydration, styles, and response mapping." />
+  <Card title="CLI and codegen" href="/docs/router/troubleshooting/cli-and-codegen" description="Extraction, path constraints, generated files, and stale builds." />
+</Cards>

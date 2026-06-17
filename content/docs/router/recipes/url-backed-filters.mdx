@@ -1,0 +1,94 @@
+---
+title: "URL-backed filters and pagination"
+description: "Model shareable filters with typed search descriptors and controlled history updates."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## URL-backed filters and pagination
+
+Filters belong in the URL when users need links, refreshes, and browser history to keep their place. Define search params once and let navigation stay typed.
+
+```ts
+import { defineRoute, defineSearch, mergeSearch } from '@cookbook/router';
+
+const paginationSearch = defineSearch({
+  page: { type: 'int', default: 1 },
+  pageSize: { type: 'int', default: 25 },
+} as const);
+
+const usersSearch = defineSearch({
+  status: { type: 'string', default: 'all' },
+  role: { type: 'string', optional: true },
+  q: { type: 'string', optional: true },
+} as const);
+
+export const usersRoute = defineRoute({
+  id: 'users',
+  path: '/users',
+  search: mergeSearch(usersSearch, paginationSearch),
+} as const);
+```
+
+Update filters by navigating to the same route with new search state:
+
+```tsx
+function UsersFilters() {
+  const search = useSearchParams('users');
+  const navigate = useNavigate();
+
+  return (
+    <button
+      onClick={() =>
+        navigate.to('users', {
+          search: {
+            ...search,
+            role: 'admin',
+            page: 1,
+          },
+        })
+      }
+    >
+      Admins
+    </button>
+  );
+}
+```
+
+Use `NavLink` `end` options when active matching should ignore selected URL parts, such as search params used for filters.
+
+## Hash-backed tabs and sections
+
+Use the hash for lightweight page state that feels local to the page, such as active tabs or jump sections.
+
+```ts
+export const settingsRoute = defineRoute({
+  id: 'settings',
+  path: '/settings',
+  hash: {
+    type: 'enum',
+    values: ['profile', 'billing', 'security'],
+    optional: true,
+  },
+} as const);
+```
+
+```tsx
+function SettingsTabs() {
+  const navigate = useNavigate();
+  const activeTab = useHashParams('settings') ?? 'profile';
+
+  return (
+    <Tabs
+      value={activeTab}
+      onValueChange={(hash) => {
+        void navigate.to('settings', { hash });
+      }}
+    />
+  );
+}
+```
+
+`useHashParams()` returns the parsed hash value without the leading `#`, or `null` when no hash is present.

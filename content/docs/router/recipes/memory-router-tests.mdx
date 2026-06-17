@@ -1,0 +1,37 @@
+---
+title: "Memory-router component tests"
+description: "Test navigation and rendering without a browser history or global singleton router."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Memory-router component tests
+
+A component test should not need a browser to prove routing behavior. Use `createMemoryRouter()` for React component tests.
+
+```tsx
+import { render, screen } from '@testing-library/react';
+import { createMemoryRouter, defineRoutes } from '@cookbook/router';
+import { RouterProvider } from '@cookbook/router-react';
+
+it('renders user details', async () => {
+  const router = createMemoryRouter({
+    initialEntries: ['/users/42'],
+    routes: defineRoutes([
+      {
+        id: 'users.details',
+        path: '/users/{id:int}',
+        view: UserDetailsPage,
+      },
+    ] as const),
+  });
+
+  render(<RouterProvider router={router} />);
+
+  expect(await screen.findByText('User 42')).toBeInTheDocument();
+});
+```
+
+Do not call `router.start()` first when testing through `RouterProvider`; the provider starts the router.

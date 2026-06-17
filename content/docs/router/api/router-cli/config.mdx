@@ -1,0 +1,113 @@
+---
+title: "Configuration API"
+description: "Router config shape, six-file discovery, parsing restrictions, loading behavior, and effective option precedence."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## `defineRouterConfig(config)`
+
+```ts
+function defineRouterConfig<const Config extends RouterCliConfig>(
+  config: Config,
+): Config;
+```
+
+Identity helper for contextual typing and literal preservation.
+
+```ts title="cookbook-router.config.ts"
+import { defineRouterConfig } from '@cookbook/router-cli';
+
+export default defineRouterConfig({
+  routeFiles: 'src/**/*.route.{ts,tsx}',
+  outDir: '.cookbook-router',
+  pathOptions: { prune: true },
+});
+```
+
+## `RouterCliConfig`
+
+```ts
+interface RouterCliConfig extends DefineRoutesOptions {
+  readonly routeFiles?: string | readonly string[];
+  readonly outDir?: string;
+}
+```
+
+Because it extends `DefineRoutesOptions`, the config also accepts `pathOptions` and `pathConstraints`. Runtime-safe path constraint imports are preserved separately when generation needs to emit `routes.ts`.
+
+## Discovery
+
+```ts
+const ROUTER_CONFIG_FILENAMES = [
+  'cookbook-router.config.ts',
+  'cookbook-router.config.mts',
+  'cookbook-router.config.cts',
+  'cookbook-router.config.js',
+  'cookbook-router.config.mjs',
+  'cookbook-router.config.cjs',
+] as const;
+
+type RouterConfigFilename = (typeof ROUTER_CONFIG_FILENAMES)[number];
+function getRouterConfigFilenames(): readonly RouterConfigFilename[];
+function getRouterConfigWatchCandidates(cwd?: string): readonly string[];
+```
+
+Watch candidates return every standard filename scoped to `cwd`, not just the file that exists now. That is how creating a previously missing config can recover a watcher.
+
+## `loadRouterConfig(options?)`
+
+```ts
+function loadRouterConfig(options?: {
+  readonly configFile?: string;
+  readonly cwd?: string;
+  readonly fs?: CliFileSystem;
+  readonly optional?: boolean;
+}): Promise<LoadedRouterConfig | undefined>;
+```
+
+An explicit `configFile` is scoped under `cwd` unless absolute. Without it, discovery checks the six names. `optional: true` converts “not found/unreadable” into `undefined`; malformed contents still fail parsing.
+
+```ts
+interface LoadedRouterConfig {
+  readonly config: RouterCliConfig;
+  readonly configFile: string;
+  readonly rootDir: string;
+  readonly runtimeRouteOptions?: GeneratedRouteTreeRuntimeOptions;
+}
+```
+
+## `parseRouterConfig(path, contents)`
+
+```ts
+function parseRouterConfig(path: string, contents: string): RouterCliConfig;
+```
+
+Parses the supported static config forms. It does not execute arbitrary TypeScript. Static parsing is a security and determinism boundary, not a half-built module loader.
+
+## `resolveEffectiveRouteOptions(options)`
+
+```ts
+function resolveEffectiveRouteOptions(
+  options: CliRouteOptions,
+): Promise<CliRouteOptions>;
+```
+
+Precedence:
+
+1. Direct `routes`
+2. Explicit command/plugin `routeFiles`, `outDir`, and config path
+3. Loaded config values
+4. Defaults
+
+It expands globs, derives stable `routeFileWatchPaths`, resolves the output directory relative to the correct root, and carries runtime-safe config references forward.
+
+## Path safety
+
+Config, route, and output paths pass CLI safety checks before reading or writing. Relative paths are allowed; traversal that escapes the intended project/output boundary is not.
+
+## Where this bites
+
+An explicit empty `routeFiles` array does not magically mean “use config.” APIs test whether the first entry exists. Pass no override when you want config discovery.

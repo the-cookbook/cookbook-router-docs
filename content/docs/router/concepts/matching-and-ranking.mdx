@@ -1,0 +1,720 @@
+---
+title: "Matching and ranking"
+description: "How route declarations become normalized, ranked candidates and typed location matches."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Cookbook Router does not match routes by walking the declaration tree until something looks close.
+
+It validates the complete tree, resolves every matchable path, ranks candidates by specificity, and then asks URLKit whether each candidate accepts the current location.
+
+The first candidate that survives the complete process becomes the match.
+
+## Matching pipeline
+
+<Steps>
+  <Step>
+    Validate the declared route tree.
+  </Step>
+  <Step>
+    Normalize local route paths into complete paths and inherit ancestor parameters.
+  </Step>
+  <Step>
+    Flatten matchable routes and rank them by path specificity.
+  </Step>
+  <Step>
+    Try candidates in ranked order and parse their path parameters.
+  </Step>
+  <Step>
+    Parse search and hash state according to the effective URL policies.
+  </Step>
+  <Step>
+    Build the matched branch and resolve slots for the accepted candidate.
+  </Step>
+</Steps>
+
+Validation happens before matching. Exact duplicate paths, invalid path patterns, duplicate IDs, missing custom constraints, and invalid route-tree shapes fail before the router starts choosing candidates.
+
+## Normalization resolves complete paths
+
+Nested routes usually declare paths relative to their parent:
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'organizations',
+    path: '/organizations/{organizationId}',
+    children: [
+      {
+        id: 'organizations.users.show',
+        path: 'users/{userId:int}',
+      },
+    ],
+  },
+] as const);
+````
+
+Normalization produces the complete child path:
+
+```text
+/organizations/{organizationId}/users/{userId:int}
+```
+
+The child also inherits the parent parameter. A successful match contains both:
+
+```ts
+{
+  organizationId: 'acme',
+  userId: 42,
+}
+```
+
+Normalization also resolves:
+
+* Parent and child paths
+* Inherited path parameters
+* Path pruning
+* Index-route paths
+* Pathless route ancestry
+* Slot route trees
+* Configured intercepts
+* Stable declaration order
+
+Matching operates on this normalized representation, not on the original nested objects.
+
+## How routes are ranked
+
+Each complete route path receives a specificity score.
+
+| Segment           |                         Score |
+| ----------------- | ----------------------------: |
+| Static segment    |                           `5` |
+| Parameter segment |                           `3` |
+| Wildcard segment  |                           `1` |
+| Index route       | `2` added to the parent score |
+
+The scores accumulate across the complete path.
+
+Given these routes:
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'users.catch',
+    path: '/users/{*path}',
+  },
+  {
+    id: 'users.show',
+    path: '/users/{id:int}',
+  },
+  {
+    id: 'users.new',
+    path: '/users/new',
+  },
+] as const);
+```
+
+their scores are:
+
+| Route             | Score |
+| ----------------- | ----: |
+| `/users/new`      |  `10` |
+| `/users/{id:int}` |   `8` |
+| `/users/{*path}`  |   `6` |
+
+The resulting order is:
+
+```text
+/users/new
+/users/{id:int}
+/users/{*path}
+```
+
+This is why `/users/new` matches the static route instead of treating `new` as an `id`.
+
+## Ranking tie-breakers
+
+Candidates are sorted by:
+
+1. Higher path score
+2. Greater path depth
+3. Earlier normalized declaration order
+
+Declaration order is the final tie-breaker. It is not the primary matching strategy.
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'first',
+    path: '/{first}',
+  },
+  {
+    id: 'second',
+    path: '/{second}',
+  },
+] as const);
+```
+
+Both routes have the same score and depth. The first declaration wins for every matching one-segment pathname.
+
+The filesystem does not participate. File names, directory depth, and glob order do not create path specificity.
+
+For generated modular routes, explicit modular `order` determines the composed declaration order before normalization.
+
+## Constraints filter candidates
+
+A constraint controls whether a parameter accepts and parses a value.
+
+```ts
+{
+  id: 'users.show',
+  path: '/users/{id:int}',
+}
+```
+
+This route accepts:
+
+```text
+/users/42
+```
+
+and exposes:
+
+```ts
+{
+  id: 42,
+}
+```
+
+It rejects:
+
+```text
+/users/alice
+```
+
+A rejected path candidate does not stop matching. Cookbook Router continues to the next ranked candidate.
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'users.show',
+    path: '/users/{id:int}',
+  },
+  {
+    id: 'users.named',
+    path: '/users/{name}',
+  },
+] as const);
+```
+
+For `/users/42`, both patterns can match. For `/users/alice`, the integer route fails and the unconstrained route can be tried next.
+
+### Constraints do not increase rank
+
+These two routes receive the same score:
+
+```text
+/users/{id:int}
+/users/{name}
+```
+
+A constrained parameter and an unconstrained parameter are both parameter segments worth `3`.
+
+The earlier declaration is attempted first.
+
+Therefore, place the narrower route first when overlapping dynamic patterns are intentional:
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'users.by-id',
+    path: '/users/{id:int}',
+  },
+  {
+    id: 'users.by-name',
+    path: '/users/{name}',
+  },
+] as const);
+```
+
+Do not assume that adding a constraint automatically moves a route ahead of another parameter route.
+
+## Static routes outrank dynamic routes
+
+Prefer static route segments for reserved URLs:
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'users.new',
+    path: '/users/new',
+  },
+  {
+    id: 'users.show',
+    path: '/users/{id}',
+  },
+] as const);
+```
+
+The static route wins regardless of declaration order because its score is higher.
+
+This is the preferred way to distinguish fixed application pages from dynamic resources.
+
+## Wildcards are fallbacks
+
+Wildcards receive the lowest segment score:
+
+```ts
+{
+  id: 'not-found',
+  path: '/{*path}',
+}
+```
+
+A wildcard is attempted after more specific static and parameter routes.
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'overview',
+    path: '/overview',
+  },
+  {
+    id: 'not-found',
+    path: '/{*path}',
+  },
+] as const);
+```
+
+`/overview` matches `overview`. An unknown pathname such as `/missing/page` reaches `not-found`.
+
+Wildcard parameters are parsed as path segments:
+
+```ts
+{
+  path: ['missing', 'page'],
+}
+```
+
+A wildcard does not replace route validation or error handling. It is an ordinary ranked route whose pattern happens to accept the remaining pathname.
+
+## Index routes match the parent path
+
+An index route has no local path:
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'dashboard',
+    path: '/dashboard',
+    children: [
+      {
+        id: 'dashboard.index',
+        index: true,
+      },
+    ],
+  },
+] as const);
+```
+
+Both the parent and index route resolve to:
+
+```text
+/dashboard
+```
+
+The index route receives an additional score of `2`, so it wins at the parent pathname.
+
+The matched branch still includes both routes:
+
+```text
+dashboard
+dashboard.index
+```
+
+Index routes represent the default child at a parent location. They are not redirects and do not add a URL segment.
+
+## Pathless routes preserve branch context
+
+A pathless route omits `path`:
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'authenticated',
+    children: [
+      {
+        id: 'dashboard',
+        path: '/dashboard',
+      },
+    ],
+  },
+] as const);
+```
+
+The pathless route contributes no pathname segment. When `/dashboard` matches, the active branch can still contain:
+
+```text
+authenticated
+dashboard
+```
+
+This lets pathless groups and layouts contribute:
+
+* Layout rendering
+* Middleware
+* Lifecycle behavior
+* Metadata
+* Error and loading boundaries
+* Outlet context
+
+without changing the URL.
+
+A root pathless group does not become its own pathname destination. Navigate to a concrete descendant instead.
+
+## Path matching happens before URL-state matching
+
+A pathname match is only the first stage.
+
+After path parameters are accepted, Cookbook Router parses:
+
+* Declared search parameters
+* Unknown search parameters
+* The hash value
+
+through the route’s URL contract.
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'products',
+    path: '/products',
+    search: {
+      page: {
+        type: 'int',
+        default: 1,
+      },
+    },
+    hash: {
+      type: 'enum',
+      values: ['grid', 'list'],
+      optional: true,
+    },
+  },
+] as const);
+```
+
+Matching:
+
+```text
+/products?page=2#grid
+```
+
+produces typed state:
+
+```ts
+{
+  params: {},
+  search: {
+    page: 2,
+  },
+  hash: 'grid',
+}
+```
+
+The pathname may match while the search or hash does not satisfy its descriptor. The effective URL policies decide what happens next.
+
+## Invalid search and hash policies
+
+`invalidSearch` and `invalidHash` control malformed declared URL state.
+
+```ts
+{
+  id: 'products',
+  path: '/products',
+  search: {
+    page: {
+      type: 'int',
+      optional: true,
+    },
+  },
+  url: {
+    invalidSearch: 'no-match',
+  },
+}
+```
+
+The available behaviors are:
+
+| Policy       | Result                                                                           |
+| ------------ | -------------------------------------------------------------------------------- |
+| `'recover'`  | Keep the path candidate and omit recoverable invalid optional or defaulted state |
+| `'no-match'` | Reject this candidate and continue to the next ranked route                      |
+| `'error'`    | Keep the candidate and expose the parsing failure as route error state           |
+
+The default is `'recover'`.
+
+Required invalid values can still produce an error because they cannot be omitted while preserving the route contract.
+
+The same model applies to invalid hash values through `invalidHash`.
+
+## Candidate fallback includes URL state
+
+A candidate rejected by a `no-match` URL policy does not end matching.
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'dashboard',
+    path: '/dashboard/{id:int}',
+    search: {
+      tab: {
+        type: 'enum',
+        values: ['overview'],
+      },
+    },
+    url: {
+      invalidSearch: 'no-match',
+    },
+  },
+  {
+    id: 'fallback',
+    path: '/{*path}',
+  },
+] as const);
+```
+
+This location has a valid dashboard pathname but an invalid search value:
+
+```text
+/dashboard/1?tab=settings
+```
+
+The dashboard candidate is rejected, and matching continues. The wildcard route can then become the accepted match.
+
+Slots are resolved only after the candidate survives path, search, and hash processing. Rejected candidates do not perform unnecessary slot matching.
+
+## Unknown search parameters
+
+Undeclared query parameters are controlled separately by `unknownSearch`.
+
+```text
+/products?page=2&utm_source=newsletter
+```
+
+When only `page` is declared, `utm_source` is unknown.
+
+| Policy       | Result                                                |
+| ------------ | ----------------------------------------------------- |
+| `'strip'`    | Ignore unknown keys                                   |
+| `'preserve'` | Expose them separately as `unknownSearch`             |
+| `'error'`    | Keep the path candidate and produce route error state |
+
+Unknown keys are never merged into the typed declared search object.
+
+See [Search and hash](/docs/router/concepts/search-and-hash) for descriptor and policy details.
+
+## The matched branch
+
+A successful match contains the complete active route branch.
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'organizations',
+    path: '/organizations/{organizationId}',
+    children: [
+      {
+        id: 'organizations.users',
+        path: 'users',
+        children: [
+          {
+            id: 'organizations.users.show',
+            path: '{userId:int}',
+          },
+        ],
+      },
+    ],
+  },
+] as const);
+```
+
+Matching:
+
+```text
+/organizations/acme/users/42
+```
+
+produces this branch:
+
+```text
+organizations
+organizations.users
+organizations.users.show
+```
+
+Each branch entry receives the parameters visible at that level.
+
+The leaf match contains the complete parameter set:
+
+```ts
+{
+  organizationId: 'acme',
+  userId: 42,
+}
+```
+
+The branch drives nested rendering, middleware, lifecycle execution, metadata, layouts, and outlets.
+
+## `matchRoutes()` and `matchLocation()`
+
+The matching APIs have different scopes.
+
+### `matchRoutes()`
+
+Matches a pathname against normalized routes:
+
+```ts
+const match = matchRoutes(routes, '/users/42');
+```
+
+It resolves:
+
+* Ranked path candidates
+* Parsed path parameters
+* The matched branch
+* Slots
+
+It does not parse a location search string or hash. Its returned search and hash fields are empty placeholders.
+
+Use it for path-focused matching.
+
+### `matchLocation()`
+
+Matches a complete `RouterLocation`:
+
+```ts
+const match = matchLocation({
+  routes,
+  location,
+});
+```
+
+It resolves:
+
+* Basename removal
+* Path candidates
+* Path parameters
+* Search state
+* Unknown search state
+* Hash state
+* URL-state policies
+* The matched branch
+* Slots
+
+`matchLocation()` returns the accepted match or `null`.
+
+### `matchLocationResult()`
+
+Use `matchLocationResult()` when the caller must distinguish:
+
+```ts
+type MatchLocationResult =
+  | {
+      status: 'matched';
+      match: RouteMatch;
+    }
+  | {
+      status: 'no-match';
+    }
+  | {
+      status: 'error';
+      match: RouteMatch;
+      error: unknown;
+    };
+```
+
+The router runtime uses this distinction to render error fallbacks without pretending the pathname was unknown.
+
+## Exact duplicates and overlapping patterns
+
+Exact normalized paths in the same route scope are validation errors:
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'users.first',
+    path: '/users/{id}',
+  },
+  {
+    id: 'users.second',
+    path: '/users/{id}',
+  },
+] as const);
+```
+
+There is no reason to rank two identical route patterns.
+
+Overlapping but non-identical patterns can still be valid:
+
+```text
+/users/{id:int}
+/users/{name}
+```
+
+These patterns have different contracts even though some URLs satisfy both.
+
+Their order must be intentional because constraints do not change ranking score.
+
+Deterministic matching means the result is stable. It does not mean every overlapping route model is automatically a good one.
+
+## Design routes for clear precedence
+
+Prefer this:
+
+```text
+/users/new
+/users/{id:int}
+/users/{*path}
+```
+
+over several equally ranked parameter routes whose meaning depends on declaration order.
+
+Use:
+
+* Static segments for reserved pages
+* Constraints to validate and parse parameter values
+* Wildcards as broad fallbacks
+* Index routes for default children
+* `order` only when modular sibling precedence must be explicit
+
+Ranking should confirm the route model, not carry all of its meaning.
+
+## Where this bites
+
+### A constrained route does not win automatically
+
+`{id:int}` and `{name}` have the same score. Put the intended first candidate earlier or redesign the paths to avoid the overlap.
+
+### An invalid parameter becomes a non-match
+
+`/users/abc` does not match `/users/{id:int}`. The next candidate is tried.
+
+### An invalid search value can select another route
+
+With `invalidSearch: 'no-match'`, the pathname candidate is rejected and matching continues.
+
+### An error is not the same as no match
+
+With an `'error'` policy, the route remains selected and receives error state. A not-found route should not replace it.
+
+### A pathless layout is absent from the URL
+
+Pathless routes contribute branch behavior, not path segments.
+
+### Declaration order is deciding too much
+
+Equal score and equal depth fall back to declaration order. When that order carries important business meaning, make the distinction explicit in the path model.

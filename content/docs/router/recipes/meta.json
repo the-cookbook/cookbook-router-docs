@@ -1,0 +1,32 @@
+{
+  "title": "Practical Patterns",
+  "pages": [
+    "index",
+    "---Access and Navigation---",
+    "protected-routes",
+    "login-return-url",
+    "typed-links",
+    "unsaved-changes",
+    "current-route-refresh",
+    "---URL State---",
+    "url-backed-filters",
+    "date-search-params",
+    "preserve-unknown-search",
+    "custom-path-constraints",
+    "---Routes and Rendering---",
+    "modular-route-files",
+    "lazy-routes-and-prefetch",
+    "route-and-layout-fallbacks",
+    "slot-error-isolation",
+    "routed-modal-slot",
+    "intercepted-modal",
+    "breadcrumbs-and-titles",
+    "---Testing and Production---",
+    "memory-router-tests",
+    "static-router-ssr",
+    "hydration-state",
+    "ci-route-validation",
+    "plugin-generated-routes",
+    "esbuild-bun-watch-fallback"
+  ]
+}

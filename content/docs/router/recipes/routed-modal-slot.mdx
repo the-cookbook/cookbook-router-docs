@@ -1,0 +1,86 @@
+---
+title: "Routed modal slot"
+description: "Declare a named layout slot and let matched child routes fill it."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Configured modal routes
+
+Use configured intercepts when a source route should consistently open a target route in a slot during client navigation.
+
+```tsx
+const CreateModal = lazyRouteView(() => import('./create-modal'));
+
+export const overviewRoute = defineRoute({
+  id: 'overview',
+  parent: 'root',
+  path: 'overview',
+  view: OverviewPage,
+  intercepts: {
+    modal: {
+      to: 'create',
+      view: CreateModal,
+    },
+  },
+} as const);
+```
+
+The source layout must define and render the slot:
+
+```tsx
+function DashboardLayout() {
+  return (
+    <>
+      <Outlet />
+      <Slot name="modal" />
+    </>
+  );
+}
+```
+
+Client navigation from the configured source route renders the target through the slot. Direct visits to the target route render the canonical page.
+
+## Route-driven slots and layout UI
+
+Give the layout named places to work with. Use slots for dashboard UI such as sidebars, headers, modals, and panels.
+
+```ts
+export const rootRoute = defineRoute({
+  id: 'root',
+  path: '/',
+  layout: {
+    view: DashboardLayout,
+    slots: {
+      header: true,
+      sidebar: true,
+      modal: true,
+    },
+  },
+} as const);
+```
+
+Render slots from the layout view:
+
+```tsx
+function DashboardLayout() {
+  return (
+    <>
+      <aside>
+        <Slot name="sidebar" />
+      </aside>
+      <header>
+        <Slot name="header" />
+      </header>
+      <main>
+        <Outlet />
+      </main>
+      <Slot name="modal" />
+    </>
+  );
+}
+```
+
+Route children can provide route-specific slot content through their layout config.

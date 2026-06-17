@@ -1,0 +1,1016 @@
+---
+title: "Intercepting routes"
+description: "Render a canonical destination inside a source-owned slot while preserving the source branch."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Intercepting routes let client navigation display a destination inside a named slot while keeping the source page rendered behind it.
+
+This is useful for:
+
+- Modal details
+- Quick previews
+- Drawers
+- Inspectors
+- Compose views
+- Contextual editors
+
+The destination remains a normal canonical route. Interception only changes how that navigation is rendered.
+
+## The interception model
+
+Suppose the user is viewing:
+
+```text
+/gallery
+````
+
+and selects a photo whose canonical route is:
+
+```text
+/photos/42
+```
+
+With interception:
+
+| State                   | Result                         |
+| ----------------------- | ------------------------------ |
+| Address bar             | `/photos/42`                   |
+| Router location         | `/photos/42`                   |
+| Router match            | `photos.show`                  |
+| Primary rendered branch | The previous `/gallery` branch |
+| Named slot              | The photo intercept view       |
+| Previous location       | `/gallery`                     |
+
+The router performs a real navigation to the destination. The React provider then reconstructs the previous source branch and renders the destination through one of that source branch’s slots.
+
+Interception is therefore not a rewrite:
+
+* A rewrite suppresses the history write.
+* An intercept commits the destination URL and changes how it is rendered.
+
+## Complete example
+
+Declare a modal slot in the source layout:
+
+```tsx title="src/gallery/gallery-layout.tsx"
+import {
+  Outlet,
+  Slot,
+} from '@cookbook/router-react';
+
+export function GalleryLayout() {
+  return (
+    <section>
+      <header>
+        <h1>Gallery</h1>
+      </header>
+
+      <main>
+        <Outlet />
+      </main>
+
+      <Slot
+        name="modal"
+        errorFallback={PhotoModalError}
+      />
+    </section>
+  );
+}
+```
+
+Configure the source route to intercept the photo destination:
+
+```tsx title="src/routes.tsx"
+import { defineRoutes } from '@cookbook/router';
+
+export const routes = defineRoutes([
+  {
+    id: 'gallery',
+    path: '/gallery',
+
+    layout: {
+      view: GalleryLayout,
+      slots: {
+        modal: true,
+      },
+    },
+
+    intercepts: {
+      modal: {
+        to: 'photos.show',
+        view: PhotoModal,
+      },
+    },
+
+    children: [
+      {
+        id: 'gallery.index',
+        index: true,
+        view: GalleryPage,
+      },
+    ],
+  },
+
+  {
+    id: 'photos.show',
+    path: '/photos/{photoId:int}',
+    view: PhotoPage,
+  },
+] as const);
+```
+
+Navigate normally from the gallery:
+
+```tsx title="src/gallery/gallery-page.tsx"
+import { Link } from '@cookbook/router-react';
+
+export function GalleryPage() {
+  return (
+    <Link
+      route="photos.show"
+      params={{
+        photoId: 42,
+      }}
+    >
+      Open photo
+    </Link>
+  );
+}
+```
+
+The configured intercept is automatic. The link does not need an `intercept` prop.
+
+Client navigation from `/gallery` to `/photos/42` renders `PhotoModal` in the gallery’s `modal` slot.
+
+A direct visit to `/photos/42` renders the canonical `PhotoPage`.
+
+## Source, destination, and intercept view
+
+Interception involves three separate pieces.
+
+### Source route
+
+The route branch currently rendered before navigation:
+
+```text
+gallery
+gallery.index
+```
+
+The source branch owns the slot and declares which destinations it can intercept.
+
+### Destination route
+
+The canonical route selected by the target URL:
+
+```text
+photos.show
+```
+
+The destination still owns:
+
+* URL matching
+* Path params
+* Search state
+* Hash state
+* Metadata
+* Middleware
+* Lifecycle
+* Canonical page rendering
+
+### Intercept view
+
+The alternate view rendered inside the source slot:
+
+```tsx
+function PhotoModal() {
+  const params = useParams('photos.show');
+
+  return (
+    <Dialog>
+      Photo {params.photoId}
+    </Dialog>
+  );
+}
+```
+
+The intercept view receives the destination route render context. Route hooks therefore read destination state.
+
+## Render the canonical destination inside the intercept
+
+The intercept view receives the rendered destination branch as its outlet.
+
+Use `<Outlet />` when the modal or drawer should wrap the canonical destination UI:
+
+```tsx
+import {
+  Outlet,
+  useRouter,
+} from '@cookbook/router-react';
+
+export function PhotoModal() {
+  const router = useRouter();
+
+  return (
+    <Dialog
+      onDismiss={() => {
+        router.navigate.back();
+      }}
+    >
+      <Outlet />
+    </Dialog>
+  );
+}
+```
+
+In this example, `<Outlet />` renders the resolved `photos.show` destination branch inside the dialog.
+
+The intercept view can also ignore the outlet and render purpose-built modal UI:
+
+```tsx
+import {
+  useParams,
+  useRouter,
+} from '@cookbook/router-react';
+
+export function PhotoModal() {
+  const router = useRouter();
+  const params = useParams('photos.show');
+
+  return (
+    <Dialog>
+      <PhotoSummary
+        photoId={params.photoId}
+      />
+
+      <button
+        type="button"
+        onClick={() => {
+          router.navigate.back();
+        }}
+      >
+        Close
+      </button>
+    </Dialog>
+  );
+}
+```
+
+Use a custom intercept view when the modal experience should differ from the full canonical page.
+
+## Configured intercepts
+
+Configured intercepts belong to the source route:
+
+```tsx
+{
+  id: 'gallery',
+  path: '/gallery',
+
+  layout: {
+    view: GalleryLayout,
+    slots: {
+      modal: true,
+    },
+  },
+
+  intercepts: {
+    modal: {
+      to: 'photos.show',
+      view: PhotoModal,
+    },
+  },
+}
+```
+
+The configuration is keyed by slot name.
+
+```ts
+interface RouteInterceptConfig {
+  readonly to:
+    | string
+    | readonly string[];
+
+  readonly view: RouteView;
+}
+```
+
+One intercept can handle multiple destinations:
+
+```tsx
+intercepts: {
+  modal: {
+    to: [
+      'photos.show',
+      'videos.show',
+    ],
+    view: MediaModal,
+  },
+}
+```
+
+The intercept applies only while its source route belongs to the active branch.
+
+Navigating to the same target from another part of the application renders the canonical route unless that source branch declares its own intercept.
+
+## Slot ownership
+
+The named slot belongs to the source rendering branch, not the destination.
+
+The slot may be declared:
+
+* On the source route’s own layout
+* By an active ancestor layout
+
+For example:
+
+```tsx
+{
+  id: 'app',
+  path: '/',
+
+  layout: {
+    view: AppLayout,
+    slots: {
+      modal: true,
+    },
+  },
+
+  children: [
+    {
+      id: 'gallery',
+      path: 'gallery',
+
+      intercepts: {
+        modal: {
+          to: 'photos.show',
+          view: PhotoModal,
+        },
+      },
+    },
+  ],
+}
+```
+
+`gallery` can configure the intercept because its active `app` ancestor declares the `modal` slot.
+
+The layout must also render the slot:
+
+```tsx
+function AppLayout() {
+  return (
+    <>
+      <Outlet />
+      <Slot name="modal" />
+    </>
+  );
+}
+```
+
+Route validation can verify that the slot is declared. It cannot inspect the layout component to prove that `<Slot name="modal" />` is present.
+
+A declared but unrendered slot produces no visible intercept UI.
+
+## Automatic interception
+
+Configured intercepts are automatic during client navigation.
+
+```tsx
+<Link
+  route="photos.show"
+  params={{ photoId: 42 }}
+>
+  Open photo
+</Link>
+```
+
+When the active source branch contains a configured intercept for `photos.show`, the router applies it.
+
+The router searches the active source branch from leaf to root. A configuration closer to the active leaf takes precedence over an ancestor configuration.
+
+When more than one configured slot can intercept the same destination, specify the intended slot at the call site.
+
+## Select a configured slot
+
+A string `intercept` value selects an existing configured intercept:
+
+```tsx
+<Link
+  route="photos.show"
+  params={{ photoId: 42 }}
+  intercept="modal"
+>
+  Open in modal
+</Link>
+```
+
+The string does not create a new intercept view.
+
+This only works when the active source branch already declares a matching configuration:
+
+```tsx
+intercepts: {
+  modal: {
+    to: 'photos.show',
+    view: PhotoModal,
+  },
+}
+```
+
+This does not provide a view by itself:
+
+```tsx
+<Link
+  route="photos.show"
+  params={{ photoId: 42 }}
+  intercept="drawer"
+>
+  Open
+</Link>
+```
+
+If no configured `drawer` intercept targets `photos.show`, navigation continues canonically.
+
+Use the string form to:
+
+* Disambiguate multiple configured slots
+* Make the intended slot explicit
+* Reapply a configured intercept from a special call site
+
+## Declare an intercept at the call site
+
+Use object form when one navigation needs a custom view that is not declared in route configuration:
+
+```tsx
+<Link
+  route="photos.show"
+  params={{ photoId: 42 }}
+  intercept={{
+    slot: 'modal',
+    view: CompactPhotoPreview,
+  }}
+>
+  Quick preview
+</Link>
+```
+
+Object form requires:
+
+```ts
+interface CallSiteInterceptInput {
+  readonly slot: string;
+  readonly view: RouteView;
+}
+```
+
+The source branch still needs to own the named slot.
+
+A call-site object does not require a configured `intercepts` entry for that destination.
+
+The same option is available programmatically:
+
+```ts
+await router.navigate.to(
+  'photos.show',
+  {
+    params: {
+      photoId: 42,
+    },
+
+    intercept: {
+      slot: 'modal',
+      view: CompactPhotoPreview,
+    },
+  },
+);
+```
+
+## Bypass a configured intercept
+
+Pass `false` when one navigation should open the canonical destination:
+
+```tsx
+<Link
+  route="photos.show"
+  params={{ photoId: 42 }}
+  intercept={false}
+>
+  Open full page
+</Link>
+```
+
+This is useful inside an active modal:
+
+```tsx
+function PhotoModal() {
+  const params = useParams('photos.show');
+
+  return (
+    <Link
+      route="photos.show"
+      params={{
+        photoId: params.photoId,
+      }}
+      intercept={false}
+    >
+      Open full page
+    </Link>
+  );
+}
+```
+
+The source branch is replaced by the canonical destination branch, and the modal closes.
+
+## Navigation from an active intercept
+
+Configured interception is not automatically reapplied from an already intercepted destination.
+
+For example:
+
+1. `/gallery` intercepts `/photos/42` into `modal`.
+2. A link inside the modal navigates to `/photos/42?mode=full`.
+3. That navigation renders the canonical page unless it explicitly supplies another intercept option.
+
+This prevents the destination from becoming trapped inside the current modal.
+
+Use:
+
+```tsx
+intercept={false}
+```
+
+when canonical navigation should be explicit.
+
+Use:
+
+```tsx
+intercept="modal"
+```
+
+when another configured modal interception is deliberately required.
+
+## URL and router state
+
+An intercepted navigation commits the destination URL:
+
+```ts
+await router.navigate.to(
+  'photos.show',
+  {
+    params: {
+      photoId: 42,
+    },
+  },
+);
+```
+
+The resulting state resembles:
+
+```ts
+router.state.location.href;
+// '/photos/42'
+
+router.state.match?.route.id;
+// 'photos.show'
+
+router.state.previousLocation?.href;
+// '/gallery'
+
+router.state.match?.intercepted;
+// {
+//   slot: 'modal',
+//   sourceRouteId: 'gallery',
+//   targetRouteId: 'photos.show',
+//   previousHref: '/gallery',
+//   match: destinationMatch,
+//   view: PhotoModal,
+// }
+```
+
+The core router state describes the destination.
+
+`RouterProvider` uses `previousLocation` to reconstruct and render the source branch, then places the intercept view into the resolved source slot.
+
+This means global state hooks still observe the destination:
+
+```tsx
+const location = useLocation();
+// /photos/42
+
+const matches = useMatches();
+// destination branch
+```
+
+Inside the intercept view, local route hooks also read the destination:
+
+```tsx
+const params = useParams('photos.show');
+
+const search = useSearchParams('photos.show');
+
+const hash = useHashParams('photos.show');
+```
+
+The source remains visually rendered, but the accepted router destination is the target.
+
+## Middleware and lifecycle still run
+
+Interception does not bypass the navigation pipeline.
+
+The destination still goes through:
+
+* Matching
+* Path, search, and hash parsing
+* Blockers
+* Lifecycle hooks
+* Middleware
+* History commit
+* Error handling
+
+Lifecycle processes the normal source-to-destination transition.
+
+That means source `beforeLeave` and destination `beforeEnter` hooks can run even though React later preserves the source branch visually.
+
+Interception is a rendering decision after the destination transition has been accepted. Do not treat it as proof that the source route never left router state.
+
+## Back and forward behavior
+
+Default link and `router.navigate.to()` navigation pushes a destination history entry containing intercept metadata.
+
+```text
+History entry 1: /gallery
+History entry 2: /photos/42 + intercept state
+```
+
+Going back closes the intercepted UI:
+
+```ts
+router.navigate.back();
+```
+
+The router returns to:
+
+```text
+/gallery
+```
+
+Going forward restores the intercepted destination while its required history state and view remain available.
+
+This gives modal navigation normal browser behavior:
+
+* Back closes
+* Forward reopens
+* The destination URL can be copied
+* The canonical route remains directly addressable
+
+### Replace navigation
+
+A replaced intercept does not preserve the source as a separate history entry:
+
+```tsx
+<Link
+  route="photos.show"
+  params={{ photoId: 42 }}
+  replace
+>
+  Open photo
+</Link>
+```
+
+The renderer can still preserve the source branch for the active intercept, but browser Back may navigate to an entry before the source rather than merely closing the modal.
+
+Use normal push navigation for dismissible overlays whose expected close action is Back.
+
+## Direct visits and native navigation
+
+Interception requires:
+
+* An active source match
+* A client-side router navigation
+* A valid destination match
+* A usable source-owned slot
+
+A direct visit with no intercept history state renders the canonical destination:
+
+```text
+GET /photos/42
+    ↓
+PhotoPage
+```
+
+The same applies to native link behavior such as:
+
+* Open in new tab
+* Open in new window
+* Modifier-click
+* Copy link and open elsewhere
+* Server/static rendering without an active source branch
+
+`Link` renders the canonical destination href into its anchor. Interception only occurs when the router handles the client-side click.
+
+This preserves progressive URL behavior: the link always points to a real page.
+
+## Intercept context
+
+Pass navigation-specific data through `context`:
+
+```tsx
+<Link
+  route="photos.show"
+  params={{ photoId: 42 }}
+  context={{
+    source: 'featured-grid',
+    position: 3,
+  }}
+>
+  Open photo
+</Link>
+```
+
+Read it from the intercept view:
+
+```tsx
+interface PhotoInterceptContext {
+  readonly source: string;
+  readonly position: number;
+}
+
+function PhotoModal() {
+  const context = useOutletContext<PhotoInterceptContext>();
+
+  return (
+    <p>
+      Opened from {context.source}
+    </p>
+  );
+}
+```
+
+Navigation context takes precedence over context supplied directly by `<Slot>` for the intercepted render.
+
+Without navigation context, the intercept view can receive the slot context normally.
+
+## Context must be history-safe
+
+Intercept context is stored in browser history state so Back and Forward can restore it.
+
+Use structured-clone-safe data:
+
+```tsx
+context={{
+  source: 'gallery',
+  photoId: 42,
+  filters: ['featured'],
+}}
+```
+
+Do not pass:
+
+* Functions
+* React elements
+* DOM nodes
+* Closures
+* Other runtime-only objects that browser history cannot clone
+
+The call-site intercept view itself is not written into browser history. Cookbook Router stores an in-memory key for the view and keeps the history state cloneable.
+
+Because that view registry is in memory, an inline call-site intercept view should not be expected to survive a full document reload. When it cannot be restored, the canonical destination renders.
+
+Configured intercept views are recoverable from route configuration when matching intercept history state is available.
+
+## Slot rendering precedence
+
+While an intercept is active, its view takes priority in the selected slot.
+
+The slot does not simultaneously render:
+
+* Its normal fallback view
+* Its matched slot route
+* Its disabled or empty output
+* The intercepted view
+
+The intercepted view replaces the slot’s normal output for that render.
+
+The main source outlet remains rendered separately.
+
+## Loading and errors
+
+An intercept view uses the destination route’s render context and route boundaries.
+
+A destination route can provide:
+
+```tsx
+{
+  id: 'photos.show',
+  path: '/photos/{photoId:int}',
+  view: PhotoPage,
+  loading: PhotoLoading,
+  error: PhotoError,
+}
+```
+
+The source slot can also isolate render errors:
+
+```tsx
+<Slot
+  name="modal"
+  errorFallback={PhotoModalError}
+/>
+```
+
+When a slot-local error fallback is provided, it owns render errors for the intercepted slot subtree.
+
+Pass `null` to catch the failure and render nothing:
+
+```tsx
+<Slot
+  name="modal"
+  errorFallback={null}
+/>
+```
+
+See [Loading and errors](/docs/router/concepts/loading-and-errors) for fallback precedence.
+
+## Preloading
+
+Normal route preloading warms the canonical destination branch:
+
+```tsx
+<Link
+  route="photos.show"
+  params={{ photoId: 42 }}
+  prefetch="interaction"
+>
+  Open photo
+</Link>
+```
+
+Link prefetch does not automatically preload a configured or inline intercept view.
+
+Warm a lazy intercept view explicitly when necessary:
+
+```tsx
+const PhotoModal = lazyRouteView(() => import('./photo-modal'));
+
+export const galleryRoute = defineRoute({
+  id: 'gallery',
+  path: '/gallery',
+
+  preload: async () => {
+    await PhotoModal.preload();
+  },
+
+  intercepts: {
+    modal: {
+      to: 'photos.show',
+      view: PhotoModal,
+    },
+  },
+});
+```
+
+Only do this when the intercept is likely to be used. Preloading every modal removes the benefit of code splitting.
+
+## Validation
+
+Configured intercepts are validated with the route tree.
+
+Cookbook Router rejects:
+
+* An empty slot name
+* A non-object intercept configuration
+* A configuration without `view`
+* A configuration without at least one target ID
+* An empty target route ID
+* A target route ID that does not exist
+* A slot not declared by the source route or an active ancestor layout
+
+Valid:
+
+```tsx
+intercepts: {
+  modal: {
+    to: 'photos.show',
+    view: PhotoModal,
+  },
+}
+```
+
+Invalid:
+
+```tsx
+intercepts: {
+  modal: {
+    to: 'missing.route',
+    view: PhotoModal,
+  },
+}
+```
+
+Call-site intercepts are validated at navigation time.
+
+An object call-site intercept without a view throws:
+
+```tsx
+intercept={{
+  slot: 'modal',
+}}
+```
+
+A call-site request for an unavailable slot throws in development. Production falls back to canonical navigation instead of breaking the transition.
+
+## Choose configured or call-site interception
+
+### Use a configured intercept when
+
+* A source route consistently presents a target in one slot
+* The behavior should apply automatically
+* Back and Forward should restore the same configured view
+* The interaction is part of the route architecture
+
+```tsx
+intercepts: {
+  modal: {
+    to: 'photos.show',
+    view: PhotoModal,
+  },
+}
+```
+
+### Use a string call-site option when
+
+* Multiple configured slots can handle the destination
+* One navigation must explicitly select a configured slot
+
+```tsx
+intercept="modal"
+```
+
+### Use an object call-site intercept when
+
+* One link needs a unique preview
+* The route configuration should not own the alternate view
+* The destination should use a different slot for one interaction
+
+```tsx
+intercept={{
+  slot: 'drawer',
+  view: CompactPreview,
+}}
+```
+
+### Use `false` when
+
+* The canonical page must open
+* A link inside a modal should leave interception
+* One interaction must bypass automatic source configuration
+
+```tsx
+intercept={false}
+```
+
+## Where this bites
+
+### The URL changes even though the source page remains visible
+
+That is expected. Interception commits the canonical destination URL and preserves the source only for rendering.
+
+### `router.state.match` is the destination
+
+The React provider renders the source from `previousLocation`. Core router state still describes the canonical target.
+
+### A direct visit does not open the modal
+
+There is no active source branch to own the slot. The canonical destination renders.
+
+### `intercept="modal"` renders the canonical page
+
+The string form only selects an existing configured intercept. It does not provide a view.
+
+### The route declares a slot but no modal appears
+
+The active layout component must render `<Slot name="modal" />`.
+
+### A link inside the modal opens the full page
+
+Automatic interception is deliberately not reapplied from an active intercepted destination. Supply an explicit intercept when another intercepted navigation is intended.
+
+### Back does not only close the modal
+
+The intercepted navigation used replace semantics, so the source does not have its own immediately preceding history entry.
+
+### Inline interception disappears after a full reload
+
+Call-site views are retained in memory and referenced from history state by key. Use configured intercepts when reload restoration matters.
+
+### Source lifecycle hooks run even though the source UI stays visible
+
+The router performs a real source-to-destination transition. Source preservation is a rendering behavior, not lifecycle retention.
+
+### Context causes a browser history error
+
+Use structured-clone-safe values. Do not place functions, components, or DOM objects in navigation context.

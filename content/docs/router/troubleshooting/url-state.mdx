@@ -1,0 +1,423 @@
+---
+title: "URL-state troubleshooting"
+description: "Fix search, hash, arrays, dates, defaults, unknown values, and URLKit-backed validation."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Regex path constraints with `/.../` delimiters fail
+
+PathKit expects a raw regex source inside `regex(...)`, not a JavaScript regex literal.
+
+```txt
+/posts/{slug:regex(/[a-z0-9-]+/)}  // invalid
+/posts/{slug:regex([a-z0-9-]+)}    // valid
+```
+
+Escape backslashes in TypeScript string literals when needed:
+
+```ts
+path: '/scores/{id:regex(\\d):min(1)}';
+```
+
+## Invalid path params fail during URLKit-backed validation
+
+Href generation, matching, resolving, and navigation now pass path params through URLKit-backed route URL contracts. Invalid values fail before the route is committed.
+
+```ts
+router.href('users.show', { params: { id: 'abc' } }); // throws for {id:int}
+router.match('/users/abc'); // null for {id:int}
+```
+
+If the path uses a custom constraint, confirm the constraint is registered before route validation and router creation.
+
+## Search params parse differently after URLKit integration
+
+Search values now follow the route's URLKit-backed Router static descriptors.
+
+```ts
+search: {
+  page: { type: 'int', default: 1 },
+  tags: { type: 'string', many: true, optional: true },
+}
+```
+
+`page` is a `number`, and `tags` is a `readonly string[]` when present. Update UI code that previously normalized every search value as `string | readonly string[]`.
+
+## Invalid optional search params break a page
+
+Use `invalidSearch` when optional query-string state should not take down a route. This is usually the right behavior for dashboards, tables, filters, and pagination.
+
+```ts
+const router = createRouter({
+  routes,
+  url: {
+    arrayFormat: 'repeat',
+    invalidSearch: 'recover',
+  },
+});
+```
+
+For this route:
+
+```ts
+search: {
+  page: { type: 'number', default: 1 },
+  pageSize: { type: 'number', optional: true },
+}
+```
+
+`/overview?page=a&pageSize=10` parses as `{ page: 1, pageSize: 10 }` with the default `invalidSearch: 'recover'`, because `page` has a descriptor default. Invalid required fields still surface as errors.
+
+Use `invalidSearch: 'error'` for strict apps that should render route error fallbacks for malformed declared search params. Use `invalidSearch: 'no-match'` when malformed search should reject that route candidate and continue fallback/not-found matching.
+
+## Repeated search params and `arrayFormat`
+
+`arrayFormat` controls repeated values.
+
+```ts
+createRouter({ routes, url: { arrayFormat: 'repeat' } });
+```
+
+`repeat` reads and writes `?tags=a&tags=b`. `comma` reads `?tags=a,b` and writes `?tags=a%2Cb`. For URL building, precedence is call-site `url`, then route-level `url`, then router-level `url`, then URLKit defaults. State-reading hooks consume already-resolved router state and do not accept `url` options.
+
+## Unknown search params behavior
+
+Only declared route `search` keys are part of generated contracts. Unknown keys are query-string keys that are not declared by the matched route. The effective `unknownSearch` policy controls them.
+
+```ts
+createRouter({
+  routes,
+  url: {
+    unknownSearch: 'strip',
+  },
+});
+```
+
+Supported modes are:
+
+| Mode         | Behavior                                                                                     |
+| ------------ | -------------------------------------------------------------------------------------------- |
+| `'strip'`    | Default. Route matches and unknown keys are omitted from router state.                       |
+| `'preserve'` | Route matches and unknown keys are exposed separately as `unknownSearch`.                    |
+| `'error'`    | Path route remains matched and the unknown-key failure is exposed through route error state. |
+
+For `/overview?page=0&utm_source=website`, with `unknownSearch: 'preserve'`, declared search and unknown search are separate:
+
+```ts
+match.search;
+// { page: 0 }
+
+match.unknownSearch;
+// { utm_source: 'website' }
+```
+
+## `useSearchParams()` does not show unknown query params
+
+`useSearchParams()` returns only declared, typed route search. It does not merge preserved unknown keys into the declared search contract.
+
+```tsx
+const search = useSearchParams('overview');
+const unknownSearch = useUnknownSearchParams();
+
+search;
+// { page: 0 }
+
+unknownSearch;
+// { utm_source: 'website' }
+```
+
+Declare a key in the route `search` descriptor when it is application state. Use `useUnknownSearchParams()` for URLKit-preserved pass-through keys.
+
+## Hook-level URL options do not change matching
+
+State-reading hooks such as `useParams()`, `useSearchParams()`, and `useHashParams()` consume already-resolved router state. They do not accept `url` options and cannot change route matching, error fallback behavior, or not-found behavior.
+
+Configure route-resolution policies on the router, route definition, explicit match calls, or static router creation:
+
+```ts
+createRouter({
+  routes,
+  url: {
+    invalidSearch: 'recover',
+    unknownSearch: 'preserve',
+    invalidHash: 'recover',
+  },
+});
+```
+
+## Required search params still fail with `invalidSearch: 'recover'`
+
+`invalidSearch: 'recover'` maps to URLKit's invalid-field omit behavior. It can omit invalid optional/defaulted fields, but it does not turn required fields into optional fields.
+
+```ts
+search: {
+  page: { type: 'int' },
+}
+```
+
+This URL still fails because `page` is required:
+
+```txt
+/reports?page=abc
+```
+
+Choose the route contract you actually want:
+
+```ts
+// Missing or invalid page can be omitted.
+search: {
+  page: { type: 'int', optional: true },
+}
+```
+
+```ts
+// Missing or invalid page can fall back to a normalized default.
+search: {
+  page: { type: 'int', default: 1 },
+}
+```
+
+Use `invalidSearch: 'error'` when malformed required search state should render route error UI. Use `invalidSearch: 'no-match'` when that route candidate should be rejected.
+
+## Required `many` search params fail when missing
+
+A repeated search field is still required unless it declares `optional: true` or `default`.
+
+```ts
+search: {
+  tags: { type: 'string', many: true },
+}
+```
+
+This requires at least one `tags` value in the URL or structured build input. For optional filters, declare the field as optional:
+
+```ts
+search: {
+  tags: { type: 'string', many: true, optional: true },
+}
+```
+
+For default filters, provide an array default:
+
+```ts
+search: {
+  tags: { type: 'string', many: true, default: ['typescript'] },
+}
+```
+
+## Boolean search values like `1` or `yes` are rejected
+
+URLKit parses boolean search fields strictly. Only serialized `true` and `false` are valid.
+
+```ts
+search: {
+  featured: { type: 'boolean', optional: true },
+}
+```
+
+Valid URLs:
+
+```txt
+/products?featured=true
+/products?featured=false
+```
+
+Invalid URLs:
+
+```txt
+/products?featured=1
+/products?featured=yes
+/products?featured=on
+```
+
+Use an enum if the public URL must accept other words:
+
+```ts
+search: {
+  featured: { type: 'enum', values: ['yes', 'no'], optional: true },
+}
+```
+
+## Date or date-time values look shifted
+
+Router search descriptors delegate date parsing to URLKit. Static `date` and `date-time` values parse into JavaScript `Date` objects using UTC fields.
+
+```ts
+search: {
+  publishedOn: { type: 'date', format: 'dd-MM-yyyy', optional: true },
+  startsAt: {
+    type: 'date-time',
+    format: "dd-MM-yyyy'T'HH:mm:ss'Z'",
+    optional: true,
+  },
+}
+```
+
+If a value looks one day or a few hours off, the problem is usually local-time display, not URL parsing. Avoid assertions such as:
+
+```ts
+search.startsAt?.getHours();
+search.startsAt?.toString();
+```
+
+Use UTC-safe checks instead:
+
+```ts
+search.startsAt?.toISOString();
+search.startsAt?.getUTCHours();
+search.publishedOn?.getUTCDate();
+```
+
+`date` fields represent UTC calendar dates. `date-time` fields represent strict UTC instants. Custom static format strings also parse and serialize with UTC fields.
+
+## Date or date-time format is rejected
+
+URLKit validates static format strings before Router uses the route. Unsupported, ambiguous, or local-time-like tokens fail with an `invalid-descriptor` URLKit error.
+
+Common mistakes:
+
+```ts
+search: {
+  from: { type: 'date', format: 'DD-MM-yyyy', optional: true },
+  at: { type: 'date-time', format: 'yyyy-MM-dd hh:mm:ss', optional: true },
+}
+```
+
+Use URLKit's strict UTC token subset:
+
+```ts
+search: {
+  from: { type: 'date', format: 'dd-MM-yyyy', optional: true },
+  at: {
+    type: 'date-time',
+    format: "yyyy-MM-dd'T'HH:mm:ss'Z'",
+    optional: true,
+  },
+}
+```
+
+Rules to check:
+
+- `date` formats require `yyyy`, `MM`, and `dd` and cannot include time tokens.
+- `date-time` formats require `yyyy`, `MM`, `dd`, `HH`, `mm`, and `ss`; `SSS` is optional.
+- Literal letters such as `T` and `Z` must be single-quoted.
+- Tokens such as `YY`, `YYYY`, `D`, `DD`, `h`, `a`, timezone names, and locale month names are not supported.
+- If a `date-time` format omits `SSS`, URLKit rejects serializing a `Date` with non-zero milliseconds to avoid precision loss.
+
+## Runtime date codecs are rejected in route definitions
+
+Router route definitions are Static descriptors. They must be plain data so validation, matching, URL generation, and CLI extraction can analyze them without executing app code.
+
+This is invalid in Router route definitions:
+
+```ts
+search: {
+  from: date({ format: 'dd-MM-yyyy' }),
+}
+```
+
+This is also invalid:
+
+```ts
+search: {
+  from: {
+    type: 'date',
+    format: {
+      parse(value) {
+        return new Date(value);
+      },
+      serialize(value) {
+        return value.toISOString();
+      },
+    },
+  },
+}
+```
+
+Use a static format string instead:
+
+```ts
+search: {
+  from: { type: 'date', format: 'dd-MM-yyyy', optional: true },
+}
+```
+
+Custom runtime codecs belong in direct URLKit runtime contracts, not Router route definitions.
+
+## Defaulted search or hash values appear or disappear in generated hrefs
+
+URLKit build options control whether values equal to descriptor defaults are serialized.
+
+```ts
+search: {
+  page: { type: 'int', default: 1 },
+}
+
+hash: {
+  type: 'enum',
+  values: ['overview', 'details'],
+  default: 'overview',
+}
+```
+
+By default, URLKit includes defaulted values during build:
+
+```ts
+router.href({ route: 'products', search: { page: 1 }, hash: 'overview' });
+// '/products?page=1#overview'
+```
+
+Use `defaults: 'omit'` at the router, route, or call site to omit values equal to normalized defaults:
+
+```ts
+router.href({
+  route: 'products',
+  search: { page: 1 },
+  hash: 'overview',
+  url: { defaults: 'omit' },
+});
+// '/products'
+```
+
+If an expected default is still present, check the effective `url.defaults` precedence: call-site, then route-level, then router-level, then URLKit default.
+
+## Hash validation failures
+
+When a route declares hash values, generated hrefs and route state are URLKit-backed.
+
+```ts
+hash: { type: 'enum', values: ['comments', 'share'], optional: true };
+```
+
+Use `hash: 'comments'` or `hash: '#comments'` when building hrefs or navigating. Router normalizes either input to one leading `#` in the generated URL.
+
+A hash outside the declared descriptor fails through URLKit-backed validation or does not match the route's declared hash contract. Configure `invalidHash` where the route should recover, surface an error, or no-match on malformed hash state.
+
+## Hash descriptor values with `#` fail validation
+
+Hash descriptor values are bare hash values. They must not include the leading number sign.
+
+Invalid route definition:
+
+```ts
+hash: {
+  type: 'enum',
+  values: ['#comments', '#share'],
+  optional: true,
+}
+```
+
+Valid route definition:
+
+```ts
+hash: {
+  type: 'enum',
+  values: ['comments', 'share'],
+  optional: true,
+}
+```
+
+The leading `#` belongs in the serialized URL only. Router adds it while building hrefs.

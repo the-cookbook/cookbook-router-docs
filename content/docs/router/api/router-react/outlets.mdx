@@ -1,0 +1,115 @@
+---
+title: "Outlets, slots, and lazy views"
+description: "Exact component contracts for nested branch output, outlet context, named slots, slot-local error isolation, and preloadable lazy route views."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## `Outlet`
+
+```ts
+interface OutletProps<T = unknown> {
+  readonly context?: T;
+  readonly children?: ReactNode;
+}
+
+function Outlet<T = unknown>(props: OutletProps<T>): ReactElement | null;
+```
+
+`Outlet` renders the next child output supplied by the current route-render boundary. Explicit `children` take precedence over router-provided output. `null`, `undefined`, and `false` render nothing; all other values are wrapped in `OutletContext.Provider` with the supplied context.
+
+```tsx
+function AccountLayout() {
+  return <Outlet context={{ organizationId: 'acme' }} />;
+}
+```
+
+Descendants consume that value with `useOutletContext()`. The context may be typed by generated `RouteOutletContext` contracts or a local generic.
+
+## `Slot`
+
+```ts
+interface SlotErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+}
+
+type SlotErrorFallback = ComponentType<SlotErrorFallbackProps> | null;
+
+interface SlotProps<T = unknown> {
+  readonly name: string;
+  readonly context?: T;
+  readonly errorFallback?: SlotErrorFallback;
+}
+
+function Slot<T = unknown>(props: SlotProps<T>): ReactElement | null;
+```
+
+`Slot` selects output already resolved for the named slot on the nearest active layout owner. It returns `null` outside a layout slot context, for an unknown name, or when that slot has no rendered output.
+
+The component provides its own outlet context to the slot subtree.
+
+### Slot error ownership
+
+The distinction is presence-based:
+
+- omit `errorFallback`: render errors bubble to the existing route/layout/provider boundary;
+- provide a component: isolate errors to the slot and render that component;
+- provide `null`: isolate errors and render nothing;
+- explicitly provide `undefined`: the prop is present, so the slot is isolated and renders nothing on error.
+
+```tsx
+<Slot
+  name="modal"
+  errorFallback={({ error, reset }) => (
+    <ModalError error={error} onRetry={reset} />
+  )}
+/>
+```
+
+The local boundary resets when `reset()` is called or when the rendered slot children change.
+
+`Slot` is not a global portal registry. Core route traversal owns slot matching, fallback selection, and interception; React only selects and isolates the resolved output.
+
+## `lazyRouteView`
+
+```ts
+interface LazyRouteViewComponent<
+  Component extends ComponentType<any> = ComponentType<any>,
+> extends LazyExoticComponent<Component> {
+  readonly preload: () => Promise<{
+    readonly default: Component;
+  }>;
+}
+
+function lazyRouteView<Component extends ComponentType<any>>(
+  load: () => Promise<{ readonly default: Component }>,
+): LazyRouteViewComponent<Component>;
+```
+
+The loader promise is memoized. `React.lazy` and every `preload()` call share the same promise, so hover prefetch, route preload, and first render do not issue duplicate imports.
+
+```tsx
+const SettingsPage = lazyRouteView(() => import('./settings-page'));
+
+export const routes = defineRoutes([
+  {
+    id: 'settings',
+    path: '/settings',
+    view: SettingsPage,
+    modulePreload: SettingsPage.preload,
+  },
+] as const);
+```
+
+`preload` is a non-enumerable, non-writable property. The module must resolve to an object with a React component under `default`.
+
+## Public context values
+
+`OutletContext`, `RouteRenderContext`, and `SlotRenderContext` are exported for adapter and design-system integration. Application routes should prefer `Outlet`, `Slot`, and hooks rather than manually constructing render contexts.
+
+## Where this bites
+
+A slot fallback defined in route configuration is not the same thing as `<Slot errorFallback>`. The former supplies route content when no slot route matches; the latter catches React render failures inside the selected slot output.

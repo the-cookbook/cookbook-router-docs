@@ -1,0 +1,18 @@
+{
+  "title": "@cookbook/router",
+  "pages": [
+    "---Overview---",
+    "index",
+    "---Route Model---",
+    "route-config",
+    "matching",
+    "path",
+    "url-state",
+    "---Runtime---",
+    "runtime",
+    "history",
+    "rendering",
+    "diagnostics",
+    "contracts"
+  ]
+}

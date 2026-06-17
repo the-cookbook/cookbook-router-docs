@@ -1,0 +1,380 @@
+---
+title: "URL state API"
+description: "Compile route URL contracts, resolve layered URL policy, and register custom path constraints."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Cookbook Router delegates URL parsing, validation, and serialization to URLKit, but it does not expose URLKit's entire runtime. This module documents the narrow, public Router bridge exported from `@cookbook/router`.
+
+There is no public `@cookbook/router/url-state` subpath in the current package. Import every API on this page from the package root.
+
+```ts
+import {
+  createRouteUrlContract,
+  registerUrlPathConstraints,
+  resolveUrlOptions,
+} from '@cookbook/router';
+```
+
+## `createRouteUrlContract(route, options?)`
+
+Compiles one static route URL descriptor into the contract used by route matching and href generation.
+
+```ts
+interface RouterRouteUrlDescriptor {
+  readonly path?: string;
+  readonly search?: RouteSearchSchema;
+  readonly hash?: RouteHashSchema;
+  readonly url?: RouterUrlOptions;
+}
+
+interface CreateRouterRouteUrlContractOptions {
+  readonly routerUrl?: RouterUrlOptions;
+  readonly callUrl?: RouterUrlOptions;
+  readonly pathConstraints?: RouterPathConstraints;
+  readonly routeId?: string;
+}
+
+function createRouteUrlContract(
+  route: RouterRouteUrlDescriptor,
+  options?: CreateRouterRouteUrlContractOptions,
+): RouterRouteUrlContract;
+```
+
+The compiler forwards the cleaned `path`, `search`, and `hash` descriptors directly to URLKit. Router does not maintain a second compatibility schema. Invalid descriptor shapes therefore fail while the contract is created, before matching starts.
+
+```ts
+const contract = createRouteUrlContract(
+  {
+    path: '/articles/{id:int}',
+    search: {
+      page: { type: 'int', default: 1 },
+      featured: { type: 'boolean', optional: true },
+      tags: { type: 'string', many: true },
+    },
+    hash: {
+      type: 'enum',
+      values: ['comments', 'share'],
+      optional: true,
+    },
+  },
+  { routeId: 'articles.show' },
+);
+
+const state = contract.parse('/articles/42?page=2&tags=router&tags=typescript#comments');
+const href = contract.build({
+  params: { id: 42 },
+  search: { page: 2, tags: ['router', 'typescript'] },
+  hash: 'comments',
+});
+```
+
+Path parameters are compiled in parsed mode. A constraint such as `{id:int}` produces a numeric `id`, not the source string `'42'`.
+
+### Option precedence
+
+The effective URL policy is merged in this order, from lowest to highest priority:
+
+1. `options.routerUrl`
+2. `route.url`
+3. `options.callUrl`
+
+Only explicitly supplied fields override lower layers. Omitted fields remain omitted so URLKit's defaults remain authoritative.
+
+```ts
+const contract = createRouteUrlContract(
+  {
+    path: '/products',
+    search: {
+      tags: { type: 'string', many: true },
+    },
+    url: { arrayFormat: 'comma' },
+  },
+  {
+    routerUrl: { arrayFormat: 'repeat' },
+    callUrl: { arrayFormat: 'repeat' },
+  },
+);
+
+contract.build({ search: { tags: ['router', 'typescript'] } });
+// /products?tags=router&tags=typescript
+```
+
+### Date and date-time descriptors
+
+Router forwards static date formats without rewriting them. Format tokens are case-sensitive because URLKit is the validator and formatter.
+
+```ts
+const contract = createRouteUrlContract({
+  path: '/reports',
+  search: {
+    from: {
+      type: 'date',
+      format: 'dd-MM-yyyy',
+      optional: true,
+    },
+    at: {
+      type: 'date-time',
+      format: 'dd-MM-yyyy HH:mm:ss',
+      optional: true,
+    },
+  },
+});
+```
+
+`DD-MM-yyyy` is not interchangeable with `dd-MM-yyyy`. An invalid format fails contract creation instead of silently disabling the route.
+
+### Diagnostic behavior
+
+When URLKit rejects a descriptor, Router preserves the original URLKit error code and path when available, attaches the original error as `cause`, and adds route context:
+
+```text
+Route "reports" has an invalid URL descriptor. ...
+```
+
+`routeId` affects diagnostics only. It does not alter matching, ranking, or generated hrefs.
+
+## `RouterRouteUrlContract`
+
+```ts
+interface RouterRouteUrlContract {
+  readonly pattern: string | undefined;
+
+  parse(
+    input: string | URL,
+    options?: RouterRouteSearchParseOptions,
+  ): unknown;
+
+  match(
+    input: string | URL,
+    options?: RouterRouteSearchParseOptions,
+  ): boolean;
+
+  build(
+    input: unknown,
+    options?: RouterUrlBuildOptions,
+  ): string;
+
+  parsePathname:
+    | ((pathname: string, options?: RouterPathMatchOptions) => unknown)
+    | never;
+
+  buildPath:
+    | ((params: unknown) => string)
+    | never;
+
+  parseSearch(
+    input: string | URLSearchParams,
+    options?: RouterRouteSearchParseOptions,
+  ): unknown;
+
+  buildSearch(
+    search: unknown,
+    options?: RouterUrlBuildOptions,
+  ): string;
+
+  parseHash(input: unknown): unknown;
+  buildHash(hash?: unknown, options?: RouterUrlBuildOptions): string;
+}
+```
+
+| Member | Responsibility |
+| --- | --- |
+| `pattern` | The compiled path pattern, or `undefined` for a pathless descriptor. |
+| `parse` | Parses pathname, declared search, unknown search policy, and declared hash as one URL state operation. |
+| `match` | Returns whether the complete input satisfies the contract under the supplied parse options. |
+| `build` | Serializes route params, search state, and hash into one href. |
+| `parsePathname` | Parses path parameters according to the route constraints and path-match options. |
+| `buildPath` | Serializes typed path parameters. |
+| `parseSearch` | Parses only the query string. |
+| `buildSearch` | Serializes only declared search state. |
+| `parseHash` | Parses only the declared hash descriptor. |
+| `buildHash` | Serializes only declared hash state. |
+
+Pathless descriptors expose path operations as `never` at the public contract boundary. Do not call `parsePathname` or `buildPath` unless the descriptor defines `path`.
+
+The return types are deliberately `unknown`. Route-specific types are supplied by generated Router contracts; this low-level API cannot infer a route ID from an arbitrary runtime descriptor.
+
+## URL policy contracts
+
+### `RouterUrlOptions`
+
+```ts
+interface RouterUrlOptions {
+  readonly arrayFormat?: 'repeat' | 'comma';
+  readonly defaults?: 'include' | 'omit';
+  readonly invalidSearch?: 'recover' | 'no-match' | 'error';
+  readonly invalidHash?: 'recover' | 'no-match' | 'error';
+  readonly unknownSearch?: 'strip' | 'preserve' | 'error';
+  readonly pathMatch?: RouterPathMatchOptions;
+}
+```
+
+<TypeTable
+  type={{
+    arrayFormat: {
+      description: 'How repeated search values are parsed and serialized.',
+      type: "'repeat' | 'comma'",
+      default: "'repeat'",
+    },
+    defaults: {
+      description: 'Whether values equal to descriptor defaults are emitted while building.',
+      type: "'include' | 'omit'",
+    },
+    invalidSearch: {
+      description: 'How invalid declared search state affects route resolution.',
+      type: "'recover' | 'no-match' | 'error'",
+      default: "'recover'",
+    },
+    invalidHash: {
+      description: 'How invalid declared hash state affects route resolution.',
+      type: "'recover' | 'no-match' | 'error'",
+      default: "'recover'",
+    },
+    unknownSearch: {
+      description: 'How undeclared query-string keys are handled.',
+      type: "'strip' | 'preserve' | 'error'",
+      default: "'strip'",
+    },
+    pathMatch: {
+      description: 'Supported path matching behavior for serialized URL input.',
+      type: 'RouterPathMatchOptions',
+    },
+  }}
+/>
+
+| Policy | Runtime effect |
+| --- | --- |
+| `invalidSearch: 'recover'` | Keeps the path candidate when URLKit can omit malformed optional or defaulted fields. Invalid required fields still fail. |
+| `invalidSearch: 'no-match'` | Rejects the candidate so normal route matching can continue. |
+| `invalidSearch: 'error'` | Keeps the path candidate and surfaces the parse failure through router error state. |
+| `invalidHash` | Applies the same three-way resolution policy to declared hash state. |
+| `unknownSearch: 'strip'` | Removes undeclared keys from typed parsed search. |
+| `unknownSearch: 'preserve'` | Keeps undeclared keys in the separate unknown-search contract. |
+| `unknownSearch: 'error'` | Rejects input containing undeclared keys. |
+| `defaults` | Controls whether descriptor-default values appear in generated query strings. |
+
+### `RouterRouteSearchParseOptions`
+
+```ts
+interface RouterRouteSearchParseOptions extends RouterPathMatchOptions {
+  readonly arrayFormat?: RouterUrlArrayFormat;
+  readonly unknownSearch?: RouterUnknownSearchPolicy;
+  readonly invalidSearch?: 'error' | 'omit';
+}
+```
+
+This is the lower-level contract parse shape after Router has mapped route-resolution policy to URLKit behavior. It is not the same as `RouterUrlOptions`: `recover` and `no-match` are router decisions, while the contract itself receives URLKit's `'error' | 'omit'` parse behavior.
+
+### `RouterUrlBuildOptions`
+
+```ts
+interface RouterUrlBuildOptions {
+  readonly arrayFormat?: 'repeat' | 'comma';
+  readonly defaults?: 'include' | 'omit';
+}
+```
+
+Build APIs intentionally exclude `invalidSearch`, `invalidHash`, `unknownSearch`, and `pathMatch`. Serialization does not decide which route candidate wins.
+
+## `resolveUrlOptions(input?)`
+
+```ts
+interface ResolveUrlOptionsInput {
+  readonly router?: RouterUrlOptions;
+  readonly route?: RouterUrlOptions;
+  readonly call?: RouterUrlOptions;
+}
+
+function resolveUrlOptions(
+  input?: ResolveUrlOptionsInput,
+): RouterUrlOptions;
+```
+
+This utility performs a shallow field merge:
+
+```ts
+const options = resolveUrlOptions({
+  router: {
+    arrayFormat: 'repeat',
+    unknownSearch: 'strip',
+  },
+  route: {
+    arrayFormat: 'comma',
+    unknownSearch: 'preserve',
+  },
+  call: {
+    unknownSearch: 'error',
+  },
+});
+
+// {
+//   arrayFormat: 'comma',
+//   unknownSearch: 'error',
+// }
+```
+
+It does not inject default values and does not validate the resulting policy. That work belongs to contract creation and the consuming runtime operation.
+
+## `registerUrlPathConstraints(constraints?)`
+
+```ts
+function registerUrlPathConstraints(
+  constraints?: RouterPathConstraints,
+): void;
+```
+
+Registers custom constraints in Router's shared PathKit registry. `createRouteUrlContract` also passes the same constraints directly into the compiled URLKit contract, so the operation does not depend on URLKit global registration.
+
+```ts
+const slug = createPathConstraint({
+  parse(paramName, value) {
+    if (typeof value !== 'string' || !/^[a-z0-9-]+$/.test(value)) {
+      throw new Error(`Parameter "${paramName}" must be a valid slug`);
+    }
+  },
+  verify(_paramName, params) {
+    if (params) throw new Error('slug does not accept parameters');
+  },
+  toRegExp() {
+    return '[a-z0-9-]+';
+  },
+});
+
+registerUrlPathConstraints({ slug });
+
+const contract = createRouteUrlContract({
+  path: '/posts/{slug:slug}',
+});
+```
+
+Passing `undefined` is a no-op. Registering a name affects later contracts that use that name; it does not retroactively rebuild contracts already compiled.
+
+## Where this bites
+
+<Accordions type="multiple">
+  <Accordion title="A route disappears when search state is malformed">
+    `invalidSearch: 'no-match'` deliberately rejects the route candidate. Use
+    `'error'` when the route must remain selected and render an error boundary,
+    or `'recover'` when malformed optional/defaulted values may be omitted.
+  </Accordion>
+
+  <Accordion title="An undeclared query parameter vanishes">
+    `unknownSearch` defaults to `'strip'`. Select `'preserve'` when attribution,
+    experiment, or partner parameters must survive without becoming part of the
+    declared typed schema.
+  </Accordion>
+
+  <Accordion title="A custom constraint works in one contract and not another">
+    Pass the same constraint map when contracts are created, or register it
+    before compiling any dependent contract. Existing contracts are immutable.
+  </Accordion>
+
+  <Accordion title="A date format crashes route setup">
+    The format is invalid according to URLKit. Correct the descriptor; Router
+    intentionally refuses to convert or guess date tokens.
+  </Accordion>
+</Accordions>

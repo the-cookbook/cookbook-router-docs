@@ -1,0 +1,29 @@
+---
+title: "Choose a plugin"
+description: "Choose the supported adapter that matches the build lifecycle and watch behavior you actually need."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Decision table
+
+| Environment | Use | New matching route files discovered in native watch mode? | Failure behavior |
+| --- | --- | --- | --- |
+| Vite dev/build | Vite plugin | Yes | Dev logs and remains recoverable; production build throws |
+| Webpack | Webpack plugin | Yes | Normal build throws; watch mode keeps previous valid output and retries |
+| Rspack | Rspack plugin | Yes | Same compiler-hook contract as Webpack |
+| Rollup/Rolldown | Rollup plugin | Yes, through `addWatchFile()` roots | Watch warns and retries; non-watch build fails |
+| esbuild | esbuild plugin | Not through this adapter | Returns an esbuild `errors` entry from `onStart` |
+| Bun bundler | Bun plugin | Not through this adapter | Throws from Bun `onStart` |
+
+## What “discovered” means
+
+Watching the files that already exist is not enough. A route plugin also has to watch stable glob roots and config candidates so that creating the first matching file, deleting the last one, or repairing a broken config triggers another run.
+
+Vite, Webpack, Rspack, and Rollup can register those roots with their host bundler. The current esbuild and Bun adapters only run at build start; they cannot add equivalent dynamic route-root watches through their plugin APIs. Pair them with `cbr generate --watch` during development when new route-file discovery matters.
+
+## Rolldown
+
+Use the Rollup package. Its public adapter is implemented against the Rollup-compatible plugin contract and is explicitly named for Rollup/Rolldown support.

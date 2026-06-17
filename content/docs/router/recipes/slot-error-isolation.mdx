@@ -1,0 +1,41 @@
+---
+title: "Isolate slot errors"
+description: "Keep a broken modal, sidebar, or header from replacing the full route boundary."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Default bubbling
+
+A slot view error bubbles to the nearest route/provider error boundary unless the rendered `<Slot />` opts into isolation.
+
+## Render nothing for a failed slot
+
+```tsx
+<Slot name="modal" errorFallback={null} />
+```
+
+## Render a retry UI
+
+```tsx
+<Slot
+  name="modal"
+  errorFallback={({ error, reset }) => (
+    <ModalError error={error} onRetry={reset} />
+  )}
+/>
+```
+
+A component reference is also accepted:
+
+```tsx
+<Slot name="modal" errorFallback={ModalError} />
+```
+
+The fallback receives `error` and `reset`. Reset remounts the slot boundary; it does not mutate route state or promise the underlying bug has disappeared.
+
+## Where this bites
+
+Route-definition slot `fallback` and slot IDs are no longer supported. `errorFallback` exists on the React `<Slot />` component, not in `layout.slots` route configuration.

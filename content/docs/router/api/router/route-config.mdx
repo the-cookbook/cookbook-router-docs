@@ -1,0 +1,358 @@
+---
+title: "Route configuration API"
+description: "Deep reference for route declarations, modular composition, URL descriptors, validation, and normalization."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## `defineRoute(route)`
+
+Preserves literal fields in one modular declaration. It does not attach the route to a parent or validate the complete graph.
+
+```ts
+function defineRoute<const Route extends RouteDeclaration>(route: Route): Route;
+```
+
+`parent` names a route ID. `order` sorts siblings numerically; declaration order breaks ties.
+
+## `defineRouteTree(options)`
+
+Composes declarations, registers supplied custom constraints, validates parent relationships, sorts siblings, validates the final route tree, and returns runtime `RouteDefinition[]` values with composition-only fields removed.
+
+```ts
+interface DefineRouteTreeOptions {
+  readonly pathOptions?: RouterPathOptions;
+  readonly pathConstraints?: RouterPathConstraints;
+}
+
+function defineRouteTree<const Routes extends readonly RouteDeclaration[]>(
+  options: DefineRouteTreeOptions & { readonly routes: Routes },
+): readonly RouteDefinition[];
+```
+
+Composition rejects duplicate IDs, missing parents, cycles, absolute child paths, children under redirect routes, conflicting inline `parent` values, non-numeric `order`, unknown intercept targets, and undeclared intercept slots.
+
+## Descriptor helpers
+
+```ts
+function defineSearch<const Search extends RouteSearchSchema>(search: Search): Search;
+function mergeSearch<const Descriptors extends readonly RouteSearchSchema[]>(
+  ...descriptors: Descriptors
+): MergedSearchDescriptors<Descriptors>;
+function defineHash<const Hash extends RouteHashSchema>(hash: Hash): Hash;
+```
+
+These helpers preserve literal static data for inference and CLI extraction. `mergeSearch()` throws when descriptors repeat a key; silent overrides would make generated contracts lie.
+
+## `defineRoutes(routes, options?)`
+
+Validates one tree immediately and preserves its literal type.
+
+```ts
+interface DefineRoutesOptions {
+  readonly pathOptions?: RouterPathOptions;
+  readonly pathConstraints?: RouterPathConstraints;
+}
+
+function defineRoutes<const Routes extends readonly RouteDefinition[]>(
+  routes: Routes,
+  options?: DefineRoutesOptions,
+): Routes;
+```
+
+Custom constraints used by paths must be supplied here or registered before this call.
+
+## `RouteDeclaration` and `RouteDefinition`
+
+```ts
+interface RouteDeclaration extends Omit<RouteDefinition, 'children'> {
+  readonly parent?: string;
+  readonly order?: number;
+  readonly children?: readonly RouteDeclaration[];
+}
+
+interface RouteDefinition {
+  readonly id: string;
+  readonly path?: string;
+  readonly index?: boolean;
+  readonly view?: RouteView;
+  readonly layout?: RouteLayoutDefinition;
+  readonly children?: readonly RouteDefinition[];
+  readonly intercepts?: RouteIntercepts;
+  readonly redirect?: RouteRedirect;
+  readonly search?: RouteSearchSchema;
+  readonly url?: RouterUrlOptions;
+  readonly hash?: RouteHashSchema;
+  readonly meta?: RouteMeta;
+  readonly preload?: RoutePreload;
+  readonly modulePreload?: RouteModulePreload;
+  readonly loading?: RouteView;
+  readonly error?: RouteView;
+  readonly lifecycle?: RouteLifecycle;
+  readonly middleware?: readonly Middleware[];
+}
+```
+
+<TypeTable
+  type={{
+    id: { description: 'Stable unique ID used by contracts, navigation, redirects, metadata, and diagnostics.', type: 'string' },
+    path: { description: 'Local PathKit pattern. Omit for a pathless layout/group. Modular child declarations must remain relative.', type: 'string', optional: true },
+    index: { description: 'Marks the default child at the parent path. Index routes cannot define path or children.', type: 'boolean', optional: true },
+    view: { description: 'Renderer-owned route view. The core treats it as unknown.', type: 'RouteView', optional: true },
+    layout: { description: 'Persistent shell, shared descendant fallbacks, and named slots.', type: 'RouteLayoutDefinition', optional: true },
+    children: { description: 'Nested runtime definitions or nested modular declarations.', type: 'readonly RouteDefinition[]', optional: true },
+    intercepts: { description: 'Automatic slot intercepts keyed by slot name.', type: 'RouteIntercepts', optional: true },
+    redirect: { description: 'Literal href or route-ID redirect target.', type: 'RouteRedirect', optional: true },
+    search: { description: 'URLKit static search schema.', type: 'RouteSearchSchema', optional: true },
+    url: { description: 'Route-level URL parsing/build policy overrides.', type: 'RouterUrlOptions', optional: true },
+    hash: { description: 'URLKit static hash descriptor.', type: 'RouteHashSchema', optional: true },
+    meta: { description: 'Application-owned data copied into normalized routes and matches.', type: 'RouteMeta', optional: true },
+    preload: { description: 'Application-owned route warming hook with resolved state and AbortSignal.', type: 'RoutePreload', optional: true },
+    modulePreload: { description: 'Internal/generated module warming hook. Prefer preload or adapter helpers.', type: 'RouteModulePreload', optional: true },
+    loading: { description: "Fallback for this route's own pending view. It is not inherited.", type: 'RouteView', optional: true },
+    error: { description: "Fallback for errors from this route's own view.", type: 'RouteView', optional: true },
+    lifecycle: { description: 'Route-local enter, leave, and error hooks.', type: 'RouteLifecycle', optional: true },
+    middleware: { description: 'Route-local middleware run before commit.', type: 'readonly Middleware[]', optional: true },
+  }}
+/>
+
+<Callout type="warn" title="Two fallback scopes">
+  `route.loading` and `route.error` own only the route view. `layout.loading` and `layout.error` are shared by descendants inside the layout shell.
+</Callout>
+
+`search` uses URLKit-backed Router Static descriptors. Route definitions must stay analyzable by the CLI, so use plain data instead of URLKit runtime builders.
+
+```ts
+search: {
+  query: { type: 'string', optional: true },
+  page: { type: 'int', default: 1 },
+  score: { type: 'number', optional: true },
+  featured: { type: 'boolean', optional: true },
+  tags: { type: 'string', many: true, optional: true },
+  sort: {
+    type: 'enum',
+    values: ['newest', 'popular'],
+    default: 'newest',
+  },
+  publishedOn: {
+    type: 'date',
+    format: 'dd-MM-yyyy',
+    optional: true,
+  },
+  startsAt: {
+    type: 'date-time',
+    format: "dd-MM-yyyy'T'HH:mm:ss'Z'",
+    optional: true,
+  },
+  createdAt: {
+    type: 'date',
+    format: 'unix-seconds',
+    optional: true,
+  },
+}
+```
+
+Every search field is an object with a value `type`. `type` always means the parsed value kind. Repeated values use `many: true`.
+
+```ts
+interface RouteSearchSchema {
+  readonly [key: string]: RouteSearchField;
+}
+
+type RouteSearchField =
+  | RouteStringSearchField
+  | RouteNumberSearchField
+  | RouteIntSearchField
+  | RouteBooleanSearchField
+  | RouteDateSearchField
+  | RouteDateTimeSearchField
+  | RouteEnumSearchField;
+
+interface RouteSearchFieldBase {
+  readonly many?: true;
+  readonly optional?: true;
+  readonly default?: unknown;
+}
+
+interface RouteStringSearchField extends RouteSearchFieldBase {
+  readonly type: 'string';
+}
+
+interface RouteNumberSearchField extends RouteSearchFieldBase {
+  readonly type: 'number';
+}
+
+interface RouteIntSearchField extends RouteSearchFieldBase {
+  readonly type: 'int';
+}
+
+interface RouteBooleanSearchField extends RouteSearchFieldBase {
+  readonly type: 'boolean';
+}
+
+interface RouteDateSearchField extends RouteSearchFieldBase {
+  readonly type: 'date';
+  readonly format?: 'date' | 'date-time' | 'unix-seconds' | 'unix-ms' | string;
+}
+
+interface RouteDateTimeSearchField extends RouteSearchFieldBase {
+  readonly type: 'date-time';
+  readonly format?: 'date-time' | string;
+}
+
+interface RouteEnumSearchField extends RouteSearchFieldBase {
+  readonly type: 'enum';
+  readonly values: readonly string[];
+}
+```
+
+Supported forms:
+
+| Descriptor                                                  | Parsed value                | Build value                 | Notes                                                                                        |
+| ----------------------------------------------------------- | --------------------------- | --------------------------- | -------------------------------------------------------------------------------------------- |
+| `{ type: 'string' }`                                        | `string`                    | `string`                    | Required exact string.                                                                       |
+| `{ type: 'string', optional: true }`                        | `string \| undefined`       | `string \| undefined`       | Missing value is valid.                                                                      |
+| `{ type: 'string', default: 'all' }`                        | `string`                    | `string \| undefined`       | Missing value normalizes to the default.                                                     |
+| `{ type: 'number' }`                                        | `number`                    | `number`                    | Finite decimal number.                                                                       |
+| `{ type: 'int' }`                                           | `number`                    | `number`                    | Finite integer.                                                                              |
+| `{ type: 'boolean' }`                                       | `boolean`                   | `boolean`                   | Serialized values must be exactly `true` or `false`.                                         |
+| `{ type: 'date' }`                                          | `Date`                      | `Date`                      | UTC date-only, serialized as `YYYY-MM-DD`.                                                   |
+| `{ type: 'date', format: 'date-time' }`                     | `Date`                      | `Date`                      | Strict UTC instant using the built-in date-time serializer.                                  |
+| `{ type: 'date', format: 'unix-seconds' }`                  | `Date`                      | `Date`                      | Unix epoch seconds.                                                                          |
+| `{ type: 'date', format: 'unix-ms' }`                       | `Date`                      | `Date`                      | Unix epoch milliseconds.                                                                     |
+| `{ type: 'date', format: 'dd-MM-yyyy' }`                    | `Date`                      | `Date`                      | Static format string using URLKit's UTC token subset.                                        |
+| `{ type: 'date-time' }`                                     | `Date`                      | `Date`                      | Strict UTC instant, serialized as `YYYY-MM-DDTHH:mm:ss.sssZ`.                                |
+| `{ type: 'date-time', format: "dd-MM-yyyy'T'HH:mm:ss'Z'" }` | `Date`                      | `Date`                      | Static date-time format string using UTC fields.                                             |
+| `{ type: 'enum', values: ['newest', 'popular'] }`           | `'newest' \| 'popular'`     | `'newest' \| 'popular'`     | `values` must be a non-empty readonly string array.                                          |
+| `{ type: T, many: true }`                                   | `readonly T[]`              | `readonly T[]`              | Repeated query params. Missing values are invalid unless the field is optional or defaulted. |
+| `{ type: T, many: true, optional: true }`                   | `readonly T[] \| undefined` | `readonly T[] \| undefined` | Optional repeated query params.                                                              |
+| `{ type: T, many: true, default: [...] }`                   | `readonly T[]`              | `readonly T[] \| undefined` | Missing values normalize to the default array.                                               |
+
+Properties:
+
+| Property   | Applies to          | Required | Description                                                                                                                                                |
+| ---------- | ------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`     | All search fields   | Yes      | Parsed value kind. Supported values are `string`, `number`, `int`, `boolean`, `date`, `date-time`, and `enum`.                                             |
+| `many`     | All search fields   | No       | Use literal `true` for repeated query params. Omit it for single-value fields. `false` is invalid.                                                         |
+| `optional` | All search fields   | No       | Use literal `true` when a missing value is valid. Omit it for required/defaulted fields. `false` is invalid.                                               |
+| `default`  | All search fields   | No       | Normalized value used when the field is missing. Cannot be combined with `optional: true`. Defaults are validated by URLKit during descriptor compilation. |
+| `values`   | `enum`              | Yes      | Non-empty readonly string array. Defaults must be one of these values.                                                                                     |
+| `format`   | `date`, `date-time` | No       | Built-in format or static format string. Runtime codec objects are invalid in Router route definitions.                                                    |
+
+Validation rules:
+
+- `type` always means value kind; it is not cardinality.
+- `many: true` is the only supported repeated-value marker.
+- `optional: true` and `default` are mutually exclusive because a defaulted field is present after parse/normalize.
+- Static descriptors reject runtime URLKit builders such as `int().default(1)`.
+- Static descriptors reject runtime date codecs such as `{ parse, serialize }`.
+- Static date defaults must be serialized values, not `Date` instances.
+- Unknown search keys are controlled by `unknownSearch`, not by the descriptor itself.
+
+Date and date-time descriptors support static format strings. URLKit parses and serializes date/date-time fields with UTC semantics: `date` is a UTC calendar date, `date-time` is a strict UTC instant, Unix formats use epoch seconds/milliseconds, and custom static format strings read/write UTC fields. Unsupported, ambiguous, and unquoted format tokens are rejected by URLKit and reported with Router route/search-param context. For example, `DD-MM-yyyy` is invalid; use `dd-MM-yyyy` for a two-digit UTC day. Use `toISOString()` or UTC getters when asserting parsed `Date` values because local display methods can show timezone-adjusted values.
+
+```ts
+// Bad for router route definitions: runtime builder, not static data.
+search: {
+  from: date({ format: 'dd-MM-yyyy' }),
+}
+```
+
+```ts
+// Bad for router route definitions: runtime codec object.
+search: {
+  from: {
+    type: 'date',
+    format: {
+      parse(value) {
+        return new Date(value);
+      },
+      serialize(value) {
+        return value.toISOString();
+      },
+    },
+  },
+}
+```
+
+Router forwards supported static descriptors to URLKit. URLKit owns strict format-string parsing, default validation, and descriptor validation.
+
+## Static hash descriptors
+
+`hash` uses URLKit-backed Static hash object descriptors. Do not use array shorthand.
+
+```ts
+hash: {
+  type: 'enum',
+  values: ['comments', 'share'],
+  optional: true,
+}
+```
+
+```ts
+interface RouteHashDescriptorBase {
+  readonly optional?: true;
+}
+
+interface RouteStringHashDescriptor extends RouteHashDescriptorBase {
+  readonly type: 'string';
+  readonly default?: string;
+}
+
+interface RouteEnumHashDescriptor extends RouteHashDescriptorBase {
+  readonly type: 'enum';
+  readonly values: readonly string[];
+  readonly default?: string;
+}
+
+type RouteHashSchema = RouteStringHashDescriptor | RouteEnumHashDescriptor;
+```
+
+Supported forms:
+
+| Descriptor                                                                | Parsed value                         | Build value                             | Notes                                        |
+| ------------------------------------------------------------------------- | ------------------------------------ | --------------------------------------- | -------------------------------------------- |
+| `{ type: 'string' }`                                                      | `string`                             | `string`                                | Required hash value without the leading `#`. |
+| `{ type: 'string', optional: true }`                                      | `string \| undefined`                | `string \| undefined`                   | Missing hash is valid.                       |
+| `{ type: 'string', default: 'overview' }`                                 | `string`                             | `string \| undefined`                   | Missing hash normalizes to the default.      |
+| `{ type: 'enum', values: ['comments', 'share'] }`                         | `'comments' \| 'share'`              | `'comments' \| 'share'`                 | Hash must be one of the declared values.     |
+| `{ type: 'enum', values: ['comments', 'share'], optional: true }`         | `'comments' \| 'share' \| undefined` | `'comments' \| 'share' \| undefined`    | Missing hash is valid.                       |
+| `{ type: 'enum', values: ['overview', 'comments'], default: 'overview' }` | `'overview' \| 'comments'`           | `'overview' \| 'comments' \| undefined` | Default must be in `values`.                 |
+
+Properties:
+
+| Property   | Applies to           | Required | Description                                                                                                    |
+| ---------- | -------------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
+| `type`     | All hash descriptors | Yes      | Hash value kind. Supported values are `string` and `enum`.                                                     |
+| `optional` | All hash descriptors | No       | Use literal `true` when missing hash is valid. Omit it for required/defaulted hash values. `false` is invalid. |
+| `default`  | All hash descriptors | No       | Normalized value used when the hash is missing. Cannot be combined with `optional: true`.                      |
+| `values`   | `enum`               | Yes      | Non-empty readonly string array. Defaults must be one of these values.                                         |
+
+Descriptor values must be bare values such as `'comments'`, not `'#comments'`. Router normalizes generated URLs to include one leading `#`. `defaults: 'omit'` also applies to defaulted hashes when building URLs.
+
+## Normalization and validation
+
+```ts
+function validateRoutes(
+  routes: readonly RouteDefinition[],
+  pathOptions?: RouterPathOptions,
+): void;
+
+function normalizeRoutes(
+  routes: readonly RouteDefinition[],
+  pathOptions?: RouterPathOptions,
+): readonly NormalizedRoute[];
+
+function validateResolvedRouteTree(
+  routes: readonly RouteDefinition[],
+  pathOptions?: RouterPathOptions,
+): readonly NormalizedRoute[];
+```
+
+`normalizeRoutes()` derives full paths, inherited params, scores, order, slots, and intercept metadata. It is not complete validation by itself. `validateResolvedRouteTree()` validates first and then returns normalized routes.
+
+## Where this bites
+
+`defineRoute()` is a literal-preserving helper, not a graph validator. A missing parent is not visible until `defineRouteTree()`, generation, or validation composes declarations.

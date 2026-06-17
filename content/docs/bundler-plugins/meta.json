@@ -1,0 +1,21 @@
+{
+  "title": "Bundler Plugins",
+  "description": "Build-time route generation for supported bundlers.",
+  "root": true,
+  "pages": [
+    "---Overview---",
+    "index",
+    "choose-a-plugin",
+    "shared-options",
+    "---Plugins---",
+    "vite",
+    "webpack",
+    "rspack",
+    "rollup-and-rolldown",
+    "esbuild",
+    "bun",
+    "---Operations---",
+    "watch-and-recovery",
+    "troubleshooting"
+  ]
+}

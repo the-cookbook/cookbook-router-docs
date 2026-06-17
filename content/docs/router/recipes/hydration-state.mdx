@@ -1,0 +1,40 @@
+---
+title: "Hydration state"
+description: "Serialize a started request router and hydrate a client router at the matching URL."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Server
+
+```ts
+import { createStaticRouter, stringifyRouterState } from '@cookbook/router';
+
+const router = createStaticRouter({ routes, url: request.url });
+await router.start();
+
+const hydrationJson = stringifyRouterState(router);
+```
+
+Escape/embed the JSON using the security rules of your server framework. Serialized router state is data, not markup.
+
+## Client
+
+```ts
+import { createRouter, deserializeRouterState } from '@cookbook/router';
+
+const hydrationData = deserializeRouterState(window.__ROUTER_STATE__);
+const router = createRouter({ routes, hydrationData });
+```
+
+The client history pathname and search must match the serialized location. The router rejects mismatched hydration instead of quietly rendering the wrong branch.
+
+## Hash behavior
+
+Fragments are not sent in HTTP requests. A client-only hash difference is handled separately from pathname/search mismatch; do not try to reconstruct a server fragment that never existed.
+
+## Where this bites
+
+Do not share a static router across requests. Router state, middleware results, and serialized location are request-scoped.

@@ -1,0 +1,191 @@
+---
+title: "CLI contract types"
+description: "Complete public CLI data contracts for filesystems, route inputs, config loading, command results, manifests, watch handles, and build integration."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Registration placeholders
+
+```ts
+interface Register {}
+interface RouterContracts {}
+```
+
+Generated `register.d.ts` augments `Register`. `RouterContracts` is a placeholder shape re-exported for generated files.
+
+## Configuration and runtime references
+
+```ts
+interface RouterCliConfig extends DefineRoutesOptions {
+  readonly routeFiles?: string | readonly string[];
+  readonly outDir?: string;
+}
+
+interface RuntimeImportReference {
+  readonly path: string;
+  readonly exportName: string;
+}
+
+interface GeneratedRouteTreeRuntimeOptions {
+  readonly pathConstraints?: RuntimeImportReference;
+}
+
+interface LoadedRouterConfig {
+  readonly config: RouterCliConfig;
+  readonly configFile: string;
+  readonly rootDir: string;
+  readonly runtimeRouteOptions?: GeneratedRouteTreeRuntimeOptions;
+}
+```
+
+## Filesystem
+
+```ts
+interface CliFileSystem {
+  readFile(path: string): Promise<string>;
+  writeFile(path: string, contents: string): Promise<void>;
+  mkdir(path: string, options?: { readonly recursive?: boolean }): Promise<void>;
+  readdir?(path: string, options?: { readonly withFileTypes?: false }): Promise<readonly string[]>;
+  stat?(path: string): Promise<{
+    readonly mtimeMs?: number;
+    readonly isDirectory?: () => boolean;
+    readonly isFile?: () => boolean;
+  }>;
+  watch?(
+    path: string,
+    listener: (event: 'rename' | 'change', filename: string | null) => void,
+  ): { close: () => void };
+}
+```
+
+Required capabilities depend on the operation: explicit reads need the first three methods; globs need `readdir`/`stat`; watch mode needs `watch`.
+
+## Route source model
+
+```ts
+interface RouteFileExport {
+  readonly exportName: string;
+  readonly kind: 'route' | 'routes' | 'routeTree';
+}
+
+interface CliRouteSource {
+  readonly path: string;
+  readonly routes: readonly RouteDefinition[];
+  readonly routeOptions?: DefineRoutesOptions;
+  readonly routeExports?: readonly RouteFileExport[];
+}
+
+interface RouteFile {
+  readonly routes: readonly RouteDefinition[];
+  readonly routeOptions?: DefineRoutesOptions;
+  readonly routeExports?: readonly RouteFileExport[];
+  readonly routeSources?: readonly CliRouteSource[];
+}
+
+interface LoadRouteFilesOptions {
+  readonly routeFiles: readonly string[];
+  readonly fs?: CliFileSystem;
+}
+```
+
+## Command option model
+
+```ts
+interface CliOutputOptions {
+  readonly outDir?: string;
+  readonly fs?: CliFileSystem;
+}
+
+interface CliRouteOptions extends CliOutputOptions {
+  readonly routes?: readonly RouteDefinition[];
+  readonly routeFiles?: readonly string[];
+  readonly routeFileWatchPaths?: readonly string[];
+  readonly routeOptions?: DefineRoutesOptions;
+  readonly configFile?: string;
+  readonly cwd?: string;
+  readonly verbose?: boolean;
+  readonly allowEmptyRouteFiles?: boolean;
+  readonly runtimeRouteOptions?: GeneratedRouteTreeRuntimeOptions;
+}
+```
+
+`allowEmptyRouteFiles` and `runtimeRouteOptions` are exported because the shared engines carry them, but they primarily support watchers and generated runtime imports rather than ordinary application calls.
+
+## Results and watch
+
+```ts
+interface CommandResult {
+  readonly ok: boolean;
+  readonly files: readonly string[];
+  readonly errors: readonly string[];
+  readonly changedFiles?: readonly string[];
+}
+
+interface WatchOptions extends CliRouteOptions {
+  readonly debounceMs?: number;
+  readonly onChange?: (result: CommandResult) => void | Promise<void>;
+}
+
+interface WatchHandle {
+  readonly initial: Promise<CommandResult>;
+  close: () => void;
+}
+```
+
+## Manifest
+
+```ts
+interface ManifestRoute {
+  readonly id: string;
+  readonly path?: string;
+  readonly parentId?: string;
+  readonly index: boolean;
+  readonly url?: RouterUrlOptions;
+}
+
+interface RouteManifest {
+  readonly routes: readonly ManifestRoute[];
+}
+```
+
+## Build contracts
+
+```ts
+interface CookbookRouterBuilderPluginOptions {
+  readonly cwd?: string;
+  readonly configFile?: string;
+  readonly routeFiles?: string | readonly string[];
+  readonly outDir?: string;
+  readonly fs?: CliFileSystem;
+}
+
+interface RouterBuildRunnerOptions
+  extends CookbookRouterBuilderPluginOptions {}
+
+interface RouterBuildRunnerResult extends CommandResult {
+  readonly watchPaths: readonly string[];
+  readonly outDir: string;
+  readonly error?: Error;
+}
+
+interface RouterBuildRunner {
+  run(): Promise<RouterBuildRunnerResult>;
+}
+
+interface RouterBuildWatchState {
+  readonly watchPaths: readonly string[];
+  readonly outDir: string;
+}
+
+interface RouterCompilerBuildHooksOptions
+  extends RouterBuildRunnerOptions {
+  readonly pluginName?: string;
+}
+```
+
+## Additional exported option types
+
+The root also exports `GenerateOptions`, `InitOptions`, `ManifestOptions`, `ValidateOptions`, `WatchCommandOptions`, `ResolvedRouteInput`, `CliRunnerOptions`, and `RouterConfigFilename`. Their complete shapes and behavior are documented on the command, configuration, loading, and build pages rather than duplicated here.

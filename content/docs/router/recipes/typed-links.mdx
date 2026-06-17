@@ -1,0 +1,55 @@
+---
+title: "Typed links"
+description: "Use generated route contracts for route IDs, path params, search, hash, and navigation."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Generated contracts in TypeScript projects
+
+Generated contracts only help TypeScript when TypeScript can see them. Include the generated contract and registration files in `tsconfig.json`.
+
+```json
+{
+  "include": ["src", ".cookbook-router/contracts.ts", ".cookbook-router/register.d.ts"]
+}
+```
+
+If your app source root is not `src`, include that root instead:
+
+```json
+{
+  "include": ["app", ".cookbook-router/contracts.ts", ".cookbook-router/register.d.ts"]
+}
+```
+
+The route tree module can still be imported normally from application code:
+
+```ts
+import { routes } from '../.cookbook-router/routes';
+```
+
+The explicit `contracts.ts` and `register.d.ts` includes make route ids, params, search, hash, metadata, and hook narrowing visible to TypeScript.
+
+## Build links from route identity
+
+```tsx
+import { Link } from '@cookbook/router-react';
+
+<Link
+  route="users.details"
+  params={{ userId: 42 }}
+  search={{ tab: 'activity' }}
+  hash="summary"
+>
+  Open user
+</Link>
+```
+
+The generated register augments package contracts. It does not replace runtime validation: stale declarations can make TypeScript optimistic while the live route tree rejects the ID or value. Keep generation in the build and CI path.
+
+## Prefer route targets over assembled strings
+
+Raw internal hrefs are supported when the string is already complete. Do not combine a raw `to="/users/42"` with route-only `params`, `search`, or `hash` options; the router rejects that ambiguous input.

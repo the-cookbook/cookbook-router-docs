@@ -1,0 +1,44 @@
+---
+title: "CLI config and command errors"
+description: "Exact configuration discovery, option-shape, command-input, and filesystem capability failures."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## `Router config "..." could not be found or read.`
+
+The explicit `configFile` does not exist, cannot be read, or failed before a valid module value could be loaded. Fix the path or the underlying read/import failure. With no explicit path, discovery checks the six supported `cookbook-router.config.*` filenames.
+
+## `Router config "..." routeFiles must not be empty.`
+
+## `Router config "..." routeFiles must be a string or string array.`
+
+## `Router config "..." routeFiles entries must be non-empty strings.`
+
+The config parser validates route inputs before glob expansion. Use one non-empty string or an array containing only non-empty strings.
+
+## `Router config "..." outDir must be a string when provided.`
+
+Use a project-relative or absolute string. Output safety checks run later; passing an object or array never reaches them.
+
+## `routeFiles patterns must be non-empty strings.`
+
+An explicit CLI/programmatic glob list contains an empty or non-string value.
+
+## `Glob routeFiles require a file system with readdir and stat support.`
+
+A custom `CliFileSystem` can read explicit files with `readFile`, but glob expansion needs directory enumeration and file type checks.
+
+## `Route file "..." contains invalid JSON.`
+
+The `.json` source could not be parsed. The original parser failure is attached as the error cause.
+
+## `Route file "..." must provide a routes array.`
+
+The loaded JSON/static module did not expose the required array shape.
+
+## `cbr init` refuses to overwrite an existing config
+
+Initialization checks standard config candidates and fails rather than silently replacing declated configuration. Choose the existing file, remove it deliberately, or pass the supported force option when that is truly intended.

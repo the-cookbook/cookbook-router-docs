@@ -1,0 +1,15 @@
+{
+  "title": "@cookbook/router-cli",
+  "pages": [
+    "---Overview---",
+    "index",
+    "---Commands and Configuration---",
+    "commands",
+    "config",
+    "---Generation Pipeline---",
+    "generation",
+    "route-loading",
+    "build-integration",
+    "contracts"
+  ]
+}

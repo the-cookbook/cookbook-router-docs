@@ -1,0 +1,272 @@
+---
+title: "Configuration file"
+description: "Configure route discovery, generated output, path normalization, and custom constraints."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+`cookbook-router.config.*` is shared by the CLI and bundler plugins. It tells Cookbook Router where route definitions live, where generated artifacts belong, and which path rules apply to the route tree.
+
+If you ran `cbr init`, the configuration file already exists. Most projects only need `routeFiles` and `outDir`.
+
+## Basic configuration
+
+```ts title="cookbook-router.config.ts"
+import { defineRouterConfig } from '@cookbook/router-cli';
+
+export default defineRouterConfig({
+  routeFiles: 'src/**/*.route.{ts,tsx}',
+  outDir: '.cookbook-router',
+});
+````
+
+Paths declared in the config are resolved relative to the configuration file.
+
+<TypeTable
+type={{
+routeFiles: {
+description:
+'The route definition file, glob pattern, or collection of files and patterns that Cookbook Router should inspect.',
+type: 'string | readonly string[]',
+optional: true,
+},
+outDir: {
+description:
+'The directory where generated contracts, declarations, manifests, and optional route modules are written.',
+type: 'string',
+default: "'.cookbook-router'",
+optional: true,
+},
+pathOptions: {
+description:
+'Controls slash normalization during validation, matching, and URL generation.',
+type: 'RouterPathOptions',
+optional: true,
+},
+pathConstraints: {
+description:
+'Registers custom named constraints for route path parameters.',
+type: 'RouterPathConstraints',
+optional: true,
+},
+}}
+/>
+
+## Accepted configuration files
+
+Cookbook Router checks these filenames in order:
+
+```text
+cookbook-router.config.ts
+cookbook-router.config.mts
+cookbook-router.config.cts
+cookbook-router.config.js
+cookbook-router.config.mjs
+cookbook-router.config.cjs
+```
+
+Discovery starts from the current project directory and moves upward until a supported file is found.
+
+Select a specific file when automatic discovery is not appropriate:
+
+```bash
+cbr generate --config config/cookbook-router.config.ts
+```
+
+Bundler plugins expose the same behavior through their `configFile` option.
+
+## Route inputs
+
+Use `routeFiles` to identify the modules containing route declarations that the generator should inspect.
+
+### One file or pattern
+
+Use a string:
+
+```ts title="cookbook-router.config.ts"
+export default defineRouterConfig({
+  routeFiles: 'src/**/*.route.{ts,tsx}',
+});
+```
+
+### Multiple files or patterns
+
+Use an array with two or more entries:
+
+```ts title="cookbook-router.config.ts"
+export default defineRouterConfig({
+  routeFiles: [
+    'src/**/*.route.{ts,tsx}',
+    'features/**/*.route.{ts,tsx}',
+  ],
+});
+```
+
+Route files may export `defineRoute(...)`, `defineRoutes(...)`, `defineRouteTree(...)`, or statically inspectable route arrays.
+
+Folder structure does not define route hierarchy. Nesting comes from the route declarations and their explicit parent relationships.
+
+## Generated output
+
+`outDir` controls where Cookbook Router writes generated artifacts:
+
+```ts title="cookbook-router.config.ts"
+export default defineRouterConfig({
+  routeFiles: 'src/**/*.route.{ts,tsx}',
+  outDir: '.generated/router',
+});
+```
+
+The default directory is:
+
+```text
+.cookbook-router
+```
+
+A successful aggregate generation writes:
+
+```text
+contracts.ts
+register.d.ts
+manifest.json
+```
+
+It also writes `routes.ts` when the selected route exports can be composed into a static generated route module.
+
+Keep the output directory in the project and add its contract files to the `include` array in `tsconfig.json`.
+
+See [Generated artifacts](/docs/router/getting-started/generated-artifacts) for the purpose and lifecycle of each file.
+
+## Path normalization
+
+`pathOptions.prune` controls **slash normalization**.
+
+It does not remove route definitions, path segments, parameters, or constraints. It only determines whether duplicate and trailing slashes are removed.
+
+```ts title="cookbook-router.config.ts"
+export default defineRouterConfig({
+  routeFiles: 'src/**/*.route.{ts,tsx}',
+  pathOptions: {
+    prune: 'all',
+  },
+});
+```
+
+Given this pathname:
+
+```text
+/users//42/
+```
+
+the available values behave as follows:
+
+| Value           | Result        | Behavior                                                   |
+| --------------- | ------------- | ---------------------------------------------------------- |
+| `'all'`         | `/users/42`   | Removes duplicate and trailing slashes                     |
+| `'duplication'` | `/users/42/`  | Removes duplicate slashes and preserves the trailing slash |
+| `'trailing'`    | `/users//42`  | Removes the trailing slash and preserves duplicate slashes |
+| `false`         | `/users//42/` | Preserves the pathname as written                          |
+
+The default is:
+
+```ts
+{
+  prune: 'all',
+}
+```
+
+The root path remains `/` in every mode.
+
+The same normalization must be used during validation, matching, and URL generation. Define it once in the config instead of letting different route sources disagree about what a path means.
+
+See [Path routes and constraints](/docs/router/concepts/path-routes-and-constraints) for the complete path model.
+
+## Custom path constraints
+
+If any route path uses a custom constraint, register it in `pathConstraints`.
+
+This is required for route validation and generation. Without the constraint definition, Cookbook Router cannot validate the path pattern, generate the route tree, or keep generated contracts aligned with runtime behavior.
+
+```ts title="cookbook-router.config.ts"
+import { defineRouterConfig } from '@cookbook/router-cli';
+import { pathConstraints } from './src/path-constraints';
+
+export default defineRouterConfig({
+  routeFiles: 'src/**/*.route.{ts,tsx}',
+  pathConstraints,
+});
+```
+
+A route can then use the registered name:
+
+```ts
+{
+  id: 'posts.show',
+  path: '/posts/{slug:slug}',
+}
+```
+
+Use the same constraint object at runtime and during generation. Two implementations with the same name can validate differently and produce contracts that lie.
+
+Keep custom constraints in a regular application module that both the router and the config can import.
+
+## Static configuration
+
+Cookbook Router statically inspects configuration files. It does not execute arbitrary project code to discover route inputs.
+
+Recommended:
+
+```ts
+const routeFiles = [
+  'src/**/*.route.tsx',
+  'features/**/*.route.tsx',
+] as const;
+
+export default defineRouterConfig({
+  routeFiles,
+  outDir: '.cookbook-router',
+});
+```
+
+Not supported:
+
+```ts
+export default defineRouterConfig({
+  routeFiles: discoverRouteFiles(),
+});
+```
+
+Configuration values such as `routeFiles`, `outDir`, and `pathOptions` must remain statically inspectable.
+
+Static means predictable. Generation should not need to run the application to find the application.
+
+## Command-line overrides
+
+Command options take precedence over matching configuration values:
+
+```bash
+cbr generate \
+  --config cookbook-router.config.ts \
+  --routes src/routes.ts \
+  --out-dir .generated/router
+```
+
+Be careful with `--routes`: when route files are supplied without `--config`, automatic config discovery is skipped. Configured `pathOptions` and `pathConstraints` will not be loaded.
+
+Provide both options when overriding route inputs while keeping the remaining project configuration:
+
+```bash
+cbr generate \
+  --config cookbook-router.config.ts \
+  --routes src/routes.ts
+```
+
+## Where this bites
+
+Use a string for one `routeFiles` entry and an array for two or more. A single-item array is rejected.
+
+Keep route discovery static. A TypeScript configuration file can contain TypeScript syntax, but that does not make computed route inputs statically inspectable.
+
+Keep one authoritative configuration for the CLI and bundler plugin. Two configurations do not create flexibility. They create two definitions of the same build.

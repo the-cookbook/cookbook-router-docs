@@ -1,0 +1,31 @@
+---
+title: "Block unsaved changes"
+description: "Use a navigation blocker for dirty forms without hijacking every browser event."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Navigation blocking for dirty forms
+
+Protect unfinished work at the navigation layer. `useBlocker()` covers unsaved changes and other client-side leave guards.
+
+```tsx
+function NewMessage() {
+  const [formData, setFormData] = React.useState({
+    name: '',
+    email: '',
+    message: '',
+  });
+
+  useBlocker({
+    when: Boolean(formData.name || formData.email || formData.message),
+    message: 'Your message has not been sent. Leave and discard your draft?',
+  });
+
+  // ...
+}
+```
+
+The blocker applies whether the route is rendered canonically or through an intercepted slot.

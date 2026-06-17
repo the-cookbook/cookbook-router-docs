@@ -1,0 +1,283 @@
+---
+title: "Rendering API"
+description: "Complete renderer-neutral traversal contract for branches, layouts, slots, intercepts, empty states, and fallback boundaries."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+`@cookbook/router` resolves what should render but does not know how a framework renders it. `renderRouteMatch()` traverses a resolved `RouteMatch` and delegates conversion of opaque `RouteView` values to callbacks.
+
+React uses this API internally. Other adapters can use it without reimplementing branch, layout, slot, intercept, or fallback ownership.
+
+## `renderRouteMatch()`
+
+```ts
+function renderRouteMatch<View = RouteView, Output = unknown>(
+  match: RouteMatch | null | undefined,
+  options: RenderRouteMatchOptions<View, Output>,
+): Output;
+```
+
+A falsy match produces `renderEmpty({ reason: 'not-found' })` when provided, otherwise `options.fallback`.
+
+```ts
+interface RenderRouteMatchOptions<View = RouteView, Output = unknown> {
+  readonly error?: unknown;
+  readonly fallback: Output;
+  readonly renderView: (
+    view: View,
+    context: RouteViewContext<Output>,
+  ) => Output;
+  readonly renderLayout?: (
+    view: View,
+    context: RouteLayoutViewContext<Output>,
+  ) => Output;
+  readonly renderLoading?: (
+    view: View,
+    context: RouteLoadingViewContext<Output>,
+  ) => Output;
+  readonly renderError?: (
+    view: View,
+    context: RouteErrorViewContext<Output>,
+  ) => Output;
+  readonly renderSlot?: (
+    view: View,
+    context: RouteSlotViewContext<Output>,
+  ) => Output;
+  readonly renderIntercept?: (
+    view: View,
+    context: RouteInterceptViewContext<Output>,
+  ) => Output;
+  readonly renderBoundary?: (
+    outlet: Output,
+    context: RouteBoundaryViewContext<View, Output>,
+  ) => Output;
+  readonly renderEmpty?: (
+    context: RouteEmptyViewContext,
+  ) => Output;
+}
+```
+
+<TypeTable
+  type={{
+    error: { description: 'Router-state error rendered at the leaf using the resolved route/layout error fallback.', type: 'unknown', optional: true },
+    fallback: { description: 'Default output for empty states when renderEmpty is absent.', type: 'Output' },
+    renderView: { description: 'Required conversion for ordinary route views and the fallback conversion for several specialized view kinds.', type: '(view, context) => Output' },
+    renderLayout: { description: 'Layout conversion. Falls back to renderView.', type: '(view, context) => Output', optional: true },
+    renderLoading: { description: 'Reserved loading-view callback in the public contract. Current traversal passes loading fallback metadata to renderBoundary rather than invoking this callback directly.', type: '(view, context) => Output', optional: true },
+    renderError: { description: 'Error-fallback conversion. Falls back to renderView.', type: '(view, context) => Output', optional: true },
+    renderSlot: { description: 'Slot fallback/view conversion. Falls back to renderView.', type: '(view, context) => Output', optional: true },
+    renderIntercept: { description: 'Intercept-shell conversion. Falls back to renderView.', type: '(view, context) => Output', optional: true },
+    renderBoundary: { description: 'Adapter-owned boundary wrapper receiving resolved loading/error ownership.', type: '(outlet, context) => Output', optional: true },
+    renderEmpty: { description: 'Adapter-specific empty-state conversion.', type: '(context) => Output', optional: true },
+  }}
+/>
+
+## Traversal model
+
+The branch is stored root-to-leaf but assembled leaf-to-root:
+
+<Steps>
+  <Step>
+    Resolve layout-level loading and error fallbacks inherited by the current branch entry.
+  </Step>
+  <Step>
+    Render the descendant branch into the current route's `outlet`.
+  </Step>
+  <Step>
+    Resolve and render every named slot owned by the current layout.
+  </Step>
+  <Step>
+    At the leaf, render `options.error` through the selected error fallback when one exists; otherwise render the route view or pass the outlet through.
+  </Step>
+  <Step>
+    Pass the result through `renderBoundary()` with route/layout fallback metadata.
+  </Step>
+  <Step>
+    Wrap the bounded output in the current layout view.
+  </Step>
+</Steps>
+
+A route without `view` passes its descendant outlet through. A layout without `view` also passes through. This is how pathless grouping routes remain renderer-neutral.
+
+## Shared view context
+
+```ts
+interface RouteViewContext<Output = unknown> {
+  readonly match: MatchedRoute;
+  readonly outlet: Output;
+  readonly slots: Readonly<Record<string, Output>>;
+}
+```
+
+- `match` is the branch entry whose view is being converted.
+- `outlet` is already-rendered descendant output.
+- `slots` contains already-rendered named slot output owned at this level.
+
+The renderer must not mutate these values.
+
+## Layout context
+
+```ts
+interface RouteLayoutViewContext<Output = unknown>
+  extends RouteViewContext<Output> {
+  readonly ownerRouteId: string;
+}
+```
+
+`ownerRouteId` identifies the route that owns the layout and its slot namespace. Layout conversion falls back to `renderView()` when `renderLayout` is absent.
+
+## Boundary and fallback contracts
+
+```ts
+interface ResolvedRouteFallback<View = RouteView> {
+  readonly view: View;
+  readonly match: MatchedRoute;
+  readonly source: 'route' | 'layout';
+}
+
+interface RouteBoundaryViewContext<
+  View = RouteView,
+  Output = unknown,
+> extends RouteViewContext<Output> {
+  readonly loading?: ResolvedRouteFallback<View>;
+  readonly error?: ResolvedRouteFallback<View>;
+  readonly isLeaf: boolean;
+}
+```
+
+`renderBoundary()` is where an adapter installs Suspense-like and error-boundary behavior. The selected fallback includes the match that owns it, which may differ from the leaf that suspended or threw.
+
+Route-level loading/error views belong to that route's own view. Layout loading/error views can be inherited by descendants. `isLeaf` lets adapters limit global boundaries or error handling to the active endpoint.
+
+When `renderBoundary` is omitted, content is returned without adapter boundaries.
+
+## Loading context
+
+```ts
+interface RouteLoadingViewContext<Output = unknown>
+  extends RouteViewContext<Output> {
+  readonly source: 'route' | 'layout';
+}
+```
+
+This type and `renderLoading` callback are public contract members. In the current implementation, `renderRouteMatch()` does not invoke `renderLoading` directly. It supplies `ResolvedRouteFallback` metadata to `renderBoundary()`, and the adapter decides when and how loading output is rendered.
+
+Do not build an adapter that relies on direct `renderLoading` invocation without first checking the implementation version.
+
+## Error context
+
+```ts
+interface RouteErrorViewContext<Output = unknown>
+  extends RouteViewContext<Output> {
+  readonly error: unknown;
+  readonly source: 'route' | 'layout';
+}
+```
+
+`options.error` is considered only at the leaf. When a selected route/layout error fallback exists, `renderError` converts it; otherwise `renderView` is used. When no error fallback exists, the renderer produces an `empty-route` result.
+
+## Slot context
+
+```ts
+interface RouteSlotViewContext<Output = unknown>
+  extends RouteViewContext<Output> {
+  readonly ownerRouteId: string;
+  readonly name: string;
+  readonly slot: ResolvedSlot;
+  readonly params: Record<string, unknown>;
+}
+```
+
+Slot behavior depends on the resolved status:
+
+| Status/shape | Rendering behavior |
+| --- | --- |
+| `disabled` | Empty state with `reason: 'disabled-slot'` |
+| `empty` | Empty state with `reason: 'empty-slot'` |
+| `not-found` | Empty state with `reason: 'not-found'` and the slot |
+| matched branch | Recursively renders that branch with no inherited primary-branch fallbacks |
+| fallback/view | Converts through `renderSlot` or `renderView` |
+
+A configured slot fallback without a real matched route receives a synthetic `MatchedRoute` ID of `${ownerRouteId}.${slotName}`. Its params come from the owner route, and its declared metadata is preserved. That gives adapters and hooks a stable context owner.
+
+## Intercept context
+
+```ts
+interface RouteInterceptViewContext<Output = unknown>
+  extends RouteViewContext<Output> {
+  readonly ownerRouteId: string;
+  readonly name: string;
+  readonly intercepted: ResolvedInterceptedRoute;
+  readonly context?: unknown;
+}
+```
+
+When active intercepted state targets a slot owned by the current source route, the target branch is recursively rendered as `outlet`. The intercept shell is then converted through `renderIntercept` or `renderView`, receives call-site context when present, and is wrapped in its own boundary.
+
+## Empty context
+
+```ts
+interface RouteEmptyViewContext {
+  readonly reason:
+    | 'empty-branch'
+    | 'empty-route'
+    | 'empty-slot'
+    | 'disabled-slot'
+    | 'not-found';
+  readonly match?: MatchedRoute;
+  readonly slot?: ResolvedSlot;
+}
+```
+
+When `renderEmpty` is absent, every empty case returns `options.fallback`. Adapters usually distinguish primary `not-found` from empty slots; React returns its supplied page fallback for the former and `null` for slot emptiness.
+
+## Minimal adapter example
+
+```ts
+interface Node {
+  readonly kind: string;
+  readonly value?: unknown;
+  readonly children?: readonly Node[];
+}
+
+const output = renderRouteMatch<RouteView, Node>(match, {
+  fallback: { kind: 'empty' },
+  renderView(view, context) {
+    return {
+      kind: 'route',
+      value: { view, routeId: context.match.id },
+      children: [context.outlet, ...Object.values(context.slots)],
+    };
+  },
+  renderLayout(view, context) {
+    return {
+      kind: 'layout',
+      value: { view, ownerRouteId: context.ownerRouteId },
+      children: [context.outlet],
+    };
+  },
+  renderBoundary(outlet, context) {
+    return {
+      kind: 'boundary',
+      value: {
+        routeId: context.match.id,
+        loadingOwner: context.loading?.match.id,
+        errorOwner: context.error?.match.id,
+      },
+      children: [outlet],
+    };
+  },
+  renderEmpty(context) {
+    return { kind: context.reason };
+  },
+});
+```
+
+The example is intentionally structural. `RouteView` is opaque; a real adapter decides whether it represents a component, template, render function, or another framework primitive.
+
+## Where this bites
+
+Do not call route views inside core traversal assumptions. Lazy wrappers, framework elements, server templates, and ordinary functions can all inhabit `RouteView`. Only the adapter knows what invocation means.

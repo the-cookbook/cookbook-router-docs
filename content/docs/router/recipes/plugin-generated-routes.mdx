@@ -1,0 +1,42 @@
+---
+title: "Generate routes with a bundler plugin"
+description: "Run route generation before compilation and keep configuration in one source of truth."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Vite example
+
+```ts title="vite.config.ts"
+import { cookbookRouterVitePlugin } from '@cookbook/router-vite-plugin';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [cookbookRouterVitePlugin()],
+});
+```
+
+```ts title="cookbook-router.config.ts"
+import { defineRouterConfig } from '@cookbook/router-cli';
+
+export default defineRouterConfig({
+  routeFiles: 'src/**/*.route.{ts,tsx}',
+  outDir: '.cookbook-router',
+});
+```
+
+Keep route discovery in the router config unless the bundler instance genuinely needs an override. Explicit plugin `routeFiles` and `outDir` replace config values; they are not merged.
+
+## Consume physical artifacts
+
+```ts
+import { routes } from '../.cookbook-router/routes';
+```
+
+`routes.ts` exists only for composable static exports. Always-generated successful outputs are `contracts.ts`, `register.d.ts`, and `manifest.json`.
+
+## Where this bites
+
+Do not combine the plugin with an unrelated second generator writing the same directory. One owner per output avoids races, stale overwrites, and watch loops.

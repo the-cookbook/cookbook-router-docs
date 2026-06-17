@@ -1,0 +1,41 @@
+---
+title: "Static-router SSR"
+description: "Create one read-only router per request, start it, render, and map response outcomes."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## SSR response mapping
+
+On the server, resolve first and respond with intent. A static router resolves the request URL before rendering.
+
+```tsx
+const router = createStaticRouter({
+  routes,
+  url: request.url,
+});
+
+const state = await router.start();
+```
+
+Map router state to your server framework response before rendering or sending headers:
+
+```ts
+if (!state.match) {
+  return new Response(renderNotFoundHtml(), { status: 404 });
+}
+
+if (state.error) {
+  return new Response(renderErrorHtml(state.error), { status: 500 });
+}
+```
+
+Cookbook Router does not force an HTTP server framework. Keep redirect, status, and header mapping in your SSR adapter.
+
+Client hydration uses serialized router state:
+
+```tsx
+const hydrationData = stringifyRouterState(router);
+```

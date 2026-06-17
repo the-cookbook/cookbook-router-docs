@@ -1,0 +1,56 @@
+---
+title: "Custom path constraints"
+description: "Register a path constraint for runtime matching and make generation aware of the same token."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Custom path constraints
+
+Use custom path constraints when a route parameter has a product rule worth naming and reusing.
+
+```ts
+import { createPathConstraint } from '@cookbook/router';
+
+export const pathConstraints = {
+  slug: createPathConstraint({
+    parse: (paramName, value) => {
+      if (typeof value !== 'string' || !/^[a-z0-9-]+$/.test(value)) {
+        throw new Error(`Parameter "${paramName}" must be a valid slug`);
+      }
+    },
+    verify: (paramName, params) => {
+      if (params.trim().length) {
+        throw new Error(`Constraint 'slug' for '${paramName}' does not accept parameters.`);
+      }
+    },
+    toRegExp: () => '[a-z0-9-]+',
+  }),
+};
+```
+
+Register custom constraints in router config so generation and runtime matching agree:
+
+```ts
+import { defineRouterConfig } from '@cookbook/router-cli';
+import { pathConstraints } from './app/lib/routes/path-constraints';
+
+export default defineRouterConfig({
+  routeFiles: 'app/**/*.route.{ts,tsx}',
+  pathConstraints,
+});
+```
+
+Then use the constraint in route paths:
+
+```ts
+export const userDetailsRoute = defineRoute({
+  id: 'users.details',
+  path: '/users/{slug:slug}',
+  view: UserDetailsPage,
+} as const);
+```
+
+Custom constraints currently produce string params in generated contracts unless they are composed with built-in numeric constraints.

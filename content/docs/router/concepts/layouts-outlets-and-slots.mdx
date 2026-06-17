@@ -1,0 +1,867 @@
+---
+title: "Layouts, outlets, and slots"
+description: "Render persistent shells, nested route content, named regions, and intercepted destinations in React."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+`@cookbook/router-react` renders the route match produced by `@cookbook/router`.
+
+The core router owns matching, route normalization, slots, intercepts, params, search, hash parsing, redirects, rewrites, middleware, and lifecycle. The React package turns that resolved state into React views, outlets, slots, Suspense boundaries, and error boundaries.
+
+The rendering model has three building blocks:
+
+- A **route view** renders the current route segment.
+- A **layout view** wraps route content and can render an `<Outlet />`.
+- A **slot** renders a named secondary branch such as a sidebar, header, drawer, or modal.
+
+## Mental model
+
+A matched branch is rendered from parent to leaf.
+
+```text 
+app
+  dashboard
+    dashboard.report
+````
+
+A layout wraps the content below it:
+
+```tsx 
+function DashboardLayout() {
+  return (
+    <section>
+      <DashboardNavigation />
+      <Outlet />
+    </section>
+  );
+}
+```
+
+`<Outlet />` renders the next primary child branch.
+
+`<Slot />` renders named content owned by the nearest active layout context.
+
+```tsx 
+function DashboardLayout() {
+  return (
+    <section>
+      <DashboardNavigation />
+
+      <main>
+        <Outlet />
+      </main>
+
+      <aside>
+        <Slot name="sidebar" />
+      </aside>
+
+      <Slot name="modal" />
+    </section>
+  );
+}
+```
+
+The filesystem does not decide this structure. The route tree does.
+
+## Route views
+
+A route view renders when its route appears in the active branch:
+
+```tsx 
+function DashboardHome() {
+  return <h1>Dashboard</h1>;
+}
+```
+
+```tsx 
+const routes = defineRoutes([
+  {
+    id: 'dashboard',
+    path: '/dashboard',
+    view: DashboardHome,
+  },
+] as const);
+```
+
+A route view can render an outlet when it also has children:
+
+```tsx 
+function DocumentsPage() {
+  return (
+    <section>
+      <h1>Documents</h1>
+      <Outlet />
+    </section>
+  );
+}
+```
+
+```tsx 
+{
+  id: 'documents',
+  path: '/documents',
+  view: DocumentsPage,
+  children: [
+    {
+      id: 'documents.index',
+      index: true,
+      view: DocumentList,
+    },
+    {
+      id: 'documents.details',
+      path: '{documentId:slug}',
+      view: DocumentDetails,
+    },
+  ],
+}
+```
+
+For `/documents/handbook`, `DocumentsPage` renders and its `<Outlet />` renders `DocumentDetails`.
+
+## Layout views
+
+A layout view is a persistent shell around route content.
+
+```tsx 
+function AppLayout() {
+  return (
+    <section>
+      <AppHeader />
+
+      <main>
+        <Outlet />
+      </main>
+    </section>
+  );
+}
+```
+
+```tsx 
+const routes = defineRoutes([
+  {
+    id: 'app',
+    path: '/',
+    layout: {
+      view: AppLayout,
+    },
+    children: [
+      {
+        id: 'overview',
+        path: 'overview',
+        view: OverviewPage,
+      },
+      {
+        id: 'reports',
+        path: 'reports',
+        view: ReportsPage,
+      },
+    ],
+  },
+] as const);
+```
+
+Navigating between `/overview` and `/reports` keeps `AppLayout` as the shell and swaps the content rendered through `<Outlet />`.
+
+Use a layout when the parent owns persistent UI:
+
+* Navigation
+* Page shell
+* Header or footer
+* Sidebars
+* Shared loading or error boundaries
+* Named slots
+
+## Route view and layout view together
+
+A route may have both `view` and `layout.view`.
+
+```tsx 
+{
+  id: 'dashboard',
+  path: '/dashboard',
+  view: DashboardPage,
+  layout: {
+    view: DashboardLayout,
+  },
+  children: [
+    {
+      id: 'dashboard.report',
+      path: 'reports/{reportId}',
+      view: ReportPage,
+    },
+  ],
+}
+```
+
+In that case:
+
+1. The child branch is prepared.
+2. The route view receives that child branch as its outlet.
+3. The layout wraps the route view.
+
+This is useful when the route has its own page component and also owns a shell around that page and its descendants.
+
+Most applications use either a route view or a layout view at a given level. Use both only when the ownership is deliberate.
+
+## Outlet
+
+`Outlet` renders the next primary child branch from the current route render context:
+
+```tsx 
+import { Outlet } from '@cookbook/router-react';
+
+function RootLayout() {
+  return (
+    <main>
+      <Outlet />
+    </main>
+  );
+}
+```
+
+When no child branch exists, `<Outlet />` renders nothing.
+
+You can pass explicit children to override the router-provided outlet:
+
+```tsx 
+<Outlet>
+  <CustomChild />
+</Outlet>
+```
+
+That is useful for custom shells, but normal route rendering should rely on the router-provided outlet.
+
+### Outlet context
+
+`Outlet` can provide context to descendants rendered through that outlet:
+
+```tsx 
+function DashboardLayout() {
+  const user = useCurrentUser();
+
+  return (
+    <section>
+      <Outlet context={{ user }} />
+    </section>
+  );
+}
+```
+
+Read it with `useOutletContext()`:
+
+```tsx
+import { useOutletContext } from '@cookbook/router-react';
+
+interface DashboardContext {
+  readonly user: User;
+}
+
+function DashboardHome() {
+  const { user } = useOutletContext<DashboardContext>();
+
+  return <h1>{user.name}</h1>;
+}
+```
+
+The nearest rendered `<Outlet />` or `<Slot />` wins.
+
+Context is intentionally local. It is not URL state, not global state, and not a replacement for params, search, or hash.
+
+Use `strict: true` when missing context should be an error:
+
+```tsx
+const context =  useOutletContext<DashboardContext>({
+    strict: true,
+  });
+```
+
+Generated route-ID overloads exist, but the current generator emits `{}` for outlet-context entries. Use the generic form for application-owned context shapes.
+
+## Slots
+
+### Named slots
+
+Slots let a layout render named secondary regions.
+
+Declare slots on a layout:
+
+```tsx
+function DashboardLayout() {
+  return (
+    <section>
+      <DashboardHeader />
+
+      <main>
+        <Outlet />
+      </main>
+
+      <aside>
+        <Slot name="sidebar" />
+      </aside>
+
+      <Slot name="modal" />
+    </section>
+  );
+}
+```
+
+```tsx
+const routes = defineRoutes([
+  {
+    id: 'dashboard',
+    path: '/dashboard',
+    layout: {
+      view: DashboardLayout,
+      slots: {
+        sidebar: SidebarFallback,
+        modal: true,
+      },
+    },
+    children: [
+      {
+        id: 'dashboard.index',
+        index: true,
+        view: DashboardHome,
+      },
+    ],
+  },
+] as const);
+```
+
+`sidebar: SidebarFallback` declares a slot with fallback content.
+
+`modal: true` declares an enabled slot with no fallback content.
+
+A layout must render the slot explicitly:
+
+```tsx
+<Slot name="sidebar" />
+```
+
+Declaring the slot makes it available. Rendering `<Slot />` chooses where it appears.
+
+### Slot configuration forms
+
+A slot can be declared with a view shorthand:
+
+```tsx 
+layout: {
+  view: DashboardLayout,
+  slots: {
+    sidebar: SidebarFallback,
+  },
+}
+```
+
+or with an object:
+
+```tsx 
+layout: {
+  view: DashboardLayout,
+  slots: {
+    sidebar: {
+      view: SidebarFallback,
+      meta: {
+        chrome: true,
+      },
+      routes: [
+        {
+          id: 'dashboard.sidebar.activity',
+          path: 'activity',
+          view: ActivitySidebar,
+        },
+      ],
+    },
+  },
+}
+```
+
+Supported object keys are:
+
+```text 
+view
+meta
+routes
+```
+
+There is no `fallback` key. The slot fallback view is declared with `view`.
+
+### Slot routes
+
+A slot can have its own route tree.
+
+```tsx 
+const routes = defineRoutes([
+  {
+    id: 'dashboard',
+    path: '/dashboard',
+    layout: {
+      view: DashboardLayout,
+      slots: {
+        sidebar: {
+          view: DashboardSidebarHome,
+          routes: [
+            {
+              id: 'dashboard.sidebar.reports',
+              path: 'reports',
+              view: ReportsSidebar,
+            },
+          ],
+        },
+      },
+    },
+    children: [
+      {
+        id: 'dashboard.index',
+        index: true,
+        view: DashboardHome,
+      },
+      {
+        id: 'dashboard.reports',
+        path: 'reports',
+        view: ReportsPage,
+      },
+    ],
+  },
+] as const);
+```
+
+For `/dashboard`, the sidebar renders `DashboardSidebarHome`.
+
+For `/dashboard/reports`, the main outlet renders `ReportsPage` and the sidebar renders `ReportsSidebar`.
+
+The main route branch and the slot route branch are matched from the same active pathname. The slot does not own a separate browser URL.
+
+### Slot context
+
+`Slot` can provide outlet context to the content it renders:
+
+```tsx 
+<Slot
+  name="sidebar"
+  context={{
+    source: 'dashboard',
+  }}
+/>
+```
+
+Slot content reads it with `useOutletContext()`:
+
+```tsx 
+interface SidebarContext {
+  readonly source: 'dashboard';
+}
+
+function ReportsSidebar() {
+  const context = useOutletContext<SidebarContext>();
+
+  return <p>{context.source}</p>;
+}
+```
+
+Slot context is local to that rendered slot subtree. It does not leak into the main outlet.
+
+### Slot overrides
+
+Descendants can override an ancestor slot declaration while staying in the same layout shell:
+
+```tsx
+{
+  id: 'dashboard',
+  path: '/dashboard',
+  layout: {
+    view: DashboardLayout,
+    slots: {
+      sidebar: DashboardSidebar,
+    },
+  },
+  children: [
+    {
+      id: 'dashboard.settings',
+      path: 'settings',
+      layout: {
+        slots: {
+          sidebar: SettingsSidebar,
+        },
+      },
+      view: SettingsPage,
+    },
+  ],
+}
+```
+
+When `/dashboard/settings` is active, the same `<Slot name="sidebar" />` rendered by `DashboardLayout` receives `SettingsSidebar`.
+
+A descendant that declares its own `layout.view` owns a new layout scope. Slot ownership does not silently cross into unrelated layout shells.
+
+### Empty and disabled slots
+
+A slot can render nothing.
+
+```tsx 
+layout: {
+  view: DashboardLayout,
+  slots: {
+    modal: true,
+  },
+}
+```
+
+```tsx 
+<Slot name="modal" />
+```
+
+If no fallback view, slot route, or intercept is active, the slot renders `null`.
+
+Use `true` when the slot should exist as a target for intercepts or descendant overrides but should not render default content.
+
+### Slot error isolation
+
+By default, a slot render error participates in the normal route/provider error-boundary chain.
+
+Pass `errorFallback` to isolate the error to that slot:
+
+```tsx 
+<Slot
+  name="modal"
+  errorFallback={ModalError}
+/>
+```
+
+The fallback receives:
+
+```ts 
+interface SlotErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+}
+```
+
+Pass `null` when the slot should catch the error and render nothing:
+
+```tsx 
+<Slot
+  name="notifications"
+  errorFallback={null}
+/>
+```
+
+Omitting the prop is different:
+
+```tsx 
+<Slot name="notifications" />
+```
+
+Without `errorFallback`, the slot error is allowed to bubble to the nearest route, layout, or provider error fallback.
+
+## Layout fallbacks and slots
+
+Layout fallbacks belong to the main outlet branch.
+
+They are not automatically inherited by named slot route trees.
+
+```tsx 
+layout: {
+  view: DashboardLayout,
+  loading: DashboardLoading,
+  error: DashboardError,
+  slots: {
+    sidebar: {
+      routes: [
+        {
+          id: 'dashboard.sidebar.reports',
+          path: 'reports',
+          view: ReportsSidebar,
+        },
+      ],
+    },
+  },
+}
+```
+
+`DashboardLoading` and `DashboardError` protect the main outlet rendered by `<Outlet />`.
+
+The sidebar uses its own route or layout fallbacks, slot-local error isolation, or provider defaults.
+
+There is no `<Slot loadingFallback>` prop.
+
+See [Loading and errors](/docs/router/concepts/loading-and-errors) for the complete fallback precedence model.
+
+## Intercepts in slots
+
+An intercept renders a destination route through a slot while preserving the source branch.
+
+```tsx 
+const routes = defineRoutes([
+  {
+    id: 'blog',
+    path: '/blog',
+    layout: {
+      view: BlogLayout,
+      slots: {
+        modal: true,
+      },
+    },
+    intercepts: {
+      modal: {
+        to: 'blog.posts.show',
+        view: BlogPostModal,
+      },
+    },
+    children: [
+      {
+        id: 'blog.index',
+        index: true,
+        view: BlogIndex,
+      },
+    ],
+  },
+  {
+    id: 'blog.posts.show',
+    path: '/blog/{slug}',
+    view: BlogPostPage,
+  },
+] as const);
+```
+
+The layout renders the slot:
+
+```tsx 
+function BlogLayout() {
+  return (
+    <>
+      <Outlet />
+      <Slot name="modal" />
+    </>
+  );
+}
+```
+
+When the active source route is `blog` and the user navigates to `blog.posts.show`, the router can keep the blog branch rendered and show `BlogPostModal` in the `modal` slot.
+
+```tsx 
+<Link
+  route="blog.posts.show"
+  params={{ slug }}
+>
+  Read in modal
+</Link>
+```
+
+Configured intercepts are automatic when the active source branch declares a matching intercept.
+
+Use `intercept={false}` to bypass a configured intercept for one navigation:
+
+```tsx 
+<Link
+  route="blog.posts.show"
+  params={{ slug }}
+  intercept={false}
+>
+  Open full page
+</Link>
+```
+
+Use an object form for an inline intercept:
+
+```tsx 
+<Link
+  route="blog.posts.show"
+  params={{ slug }}
+  intercept={{
+    slot: 'modal',
+    view: BlogPostPreview,
+  }}
+>
+  Preview
+</Link>
+```
+
+A string `intercept="modal"` only selects a configured slot. It does not provide a render view by itself.
+
+## Intercept render context
+
+Intercept views receive the destination route render context.
+
+Inside an intercepted `blog.posts.show` view, route hooks read the destination state:
+
+```tsx 
+function BlogPostModal() {
+  const params = useParams('blog.posts.show');
+
+  return (
+    <Modal>
+      Post: {params.slug}
+    </Modal>
+  );
+}
+```
+
+A link can also pass intercept context:
+
+```tsx 
+<Link
+  route="blog.posts.show"
+  params={{ slug }}
+  intercept={{
+    slot: 'modal',
+    view: BlogPostPreview,
+  }}
+  context={{
+    source: 'card',
+  }}
+>
+  Preview
+</Link>
+```
+
+The intercept view can read that value with `useOutletContext()`:
+
+```tsx 
+const context = useOutletContext<{ source: string }>();
+```
+
+## Provider fallbacks
+
+`RouterProvider` has three fallback props:
+
+```tsx 
+<RouterProvider
+  router={router}
+  fallback={<NotFoundPage />}
+  loadingFallback={<ApplicationLoading />}
+  errorFallback={ApplicationError}
+/>
+```
+
+They do different jobs:
+
+| Prop              | Purpose                                                                         |
+| ----------------- | ------------------------------------------------------------------------------- |
+| `fallback`        | Rendered when no route matches                                                  |
+| `loadingFallback` | Default Suspense fallback when no route or layout fallback owns pending content |
+| `errorFallback`   | Default error fallback when no route, layout, or slot fallback owns the failure |
+
+`fallback` is not an error fallback.
+
+Use a wildcard route when not-found should participate in layouts, metadata, middleware, or lifecycle:
+
+```tsx 
+{
+  id: 'not-found',
+  path: '/{*path}',
+  view: NotFoundPage,
+}
+```
+
+## Route-state errors
+
+Provider and route error fallbacks can render router-state errors as well as React render errors.
+
+Examples include:
+
+* Strict URL-state failures
+* Middleware errors
+* Lifecycle errors
+* Returned middleware `Response` values
+
+When no active match exists, only the provider `errorFallback` can render the error. Otherwise, the selected route, layout, or provider error fallback renders it.
+
+For router-state errors, `reset()` is not a universal retry. Use navigation or `router.refresh()` when the transition should be attempted again.
+
+## Rendering without a view
+
+A route with no `view` can still participate in rendering.
+
+```tsx 
+{
+  id: 'documents',
+  path: '/documents',
+  children: [
+    {
+      id: 'documents.index',
+      index: true,
+      view: DocumentList,
+    },
+  ],
+}
+```
+
+When `documents.index` is active, the parent route passes through to the child branch.
+
+This is useful for structural routes that affect matching, metadata, params, middleware, lifecycle, or generated contracts without adding React UI.
+
+When no match exists, `RouterProvider.fallback` renders.
+
+## Hooks in render context
+
+Route and slot views receive a local render context.
+
+```tsx 
+function DocumentDetails() {
+  const params = useParams('documents.details');
+
+  const meta = useRouteMeta('documents.details');
+
+  return <h1>{params.documentId}</h1>;
+}
+```
+
+`useParams()` without a route ID prefers the local route render context when one exists. Passing a route ID is clearer when a component can render in more than one branch or slot.
+
+For URL state and hook details, see [Typed contracts](/docs/router/concepts/typed-contracts).
+
+## What belongs elsewhere
+
+This page explains the rendering model.
+
+Use the dedicated pages for adjacent topics:
+
+| Topic                                  | Page                                                                                               |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Link props, active links, and prefetch | [React integration](/docs/router/api/router-react/links)                                           |
+| React hooks                            | [React hooks](/docs/router/api/router-react/hooks)                                                 |
+| Loading and error fallback precedence  | [Loading and errors](/docs/router/concepts/loading-and-errors)                                     |
+| Intercept rules                        | [Interception](/docs/router/concepts/intercepting-routes)                                          |
+| Navigation blockers                    | [Redirects, rewrites, and cancellation](/docs/router/concepts/redirects-rewrites-and-cancellation) |
+
+## Where this bites
+
+### A route view is not a layout shell
+
+Use `layout.view` when descendants should render inside persistent UI. A route `view` is local route content.
+
+### A parent route fallback does not protect every child
+
+Route loading and error fallbacks are leaf-local. Put shared fallback behavior on `layout.loading` and `layout.error`.
+
+### A layout fallback does not own slots
+
+Named slots are separate branches. Use slot route fallbacks or `<Slot errorFallback>` when a slot needs independent ownership.
+
+### A slot declaration does not render anything by itself
+
+The layout view must call `<Slot name="..." />`.
+
+### A slot with `true` renders nothing by default
+
+It only enables the slot for intercepts or descendant overrides.
+
+### `intercept="modal"` is not an inline view
+
+String intercepts select configured intercepts. Inline intercepts must provide `{ slot, view }`.
+
+### Outlet context is local
+
+The nearest `<Outlet />` or `<Slot />` provides the value. It is not global application state.
+
+### `useHash()` is not a public hook
+
+Use `useHashParams()`.
+
+### Provider middleware can miss startup
+
+When middleware is passed to `RouterProvider` after the router was already started, it only affects future transitions. Register startup-critical middleware before `router.start()` or let the provider auto-start the router.

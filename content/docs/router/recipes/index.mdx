@@ -1,0 +1,21 @@
+---
+title: "Recipes Overview"
+description: "Production patterns for access control, URL state, rendering, testing, SSR, and build-time generation."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Pick a problem, not a feature
+
+Recipes start from application work. Each one shows the route declaration, runtime integration, and the failure mode that usually arrives five minutes after the happy-path demo.
+
+<Cards>
+  <Card title="Protected routes" href="/docs/router/recipes/protected-routes" description="Route metadata plus middleware from first resolution." />
+  <Card title="Typed links" href="/docs/router/recipes/typed-links" description="Route IDs, params, search, hash, and generated contracts." />
+  <Card title="URL-backed filters" href="/docs/router/recipes/url-backed-filters" description="Make filters shareable without making the URL unreadable." />
+  <Card title="Lazy routes and prefetch" href="/docs/router/recipes/lazy-routes-and-prefetch" description="Warm modules without pretending the router owns your cache." />
+  <Card title="Routed modal slot" href="/docs/router/recipes/routed-modal-slot" description="Drive layout UI from the matched route tree." />
+  <Card title="Static-router SSR" href="/docs/router/recipes/static-router-ssr" description="Resolve one request, render once, map the response." />
+</Cards>

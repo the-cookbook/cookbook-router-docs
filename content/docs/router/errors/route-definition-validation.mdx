@@ -1,0 +1,316 @@
+---
+title: "Route-definition validation errors"
+description: "Exact validation failures for route arrays, route objects, IDs, paths, redirects, metadata, and route-local fields."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Router routes must be an array.
+
+**Symptom**
+Validation stops before route entries are checked.
+
+**Cause**
+The value passed to defineRoutes(), validateRoutes(), createRouter(), or CLI route loading is not an array.
+
+**Fix**
+Pass a readonly route array. For modular routes, make sure the generated or imported export is an array of route definitions.
+
+## Every route must be an object.
+
+**Symptom**
+Validation fails while walking the route tree.
+
+**Cause**
+A route entry is null, undefined, a primitive, or another non-object value.
+
+**Fix**
+Replace the entry with a route object containing at least id plus path/index or valid pathless group children.
+
+## Every route must define a non-empty string id.
+
+**Symptom**
+Validation cannot identify a route.
+
+**Cause**
+A route is missing id, has an empty id, or uses a non-string id.
+
+**Fix**
+Give every route a stable non-empty string id. Route IDs must be unique across primary and slot route trees.
+
+## Duplicate route id "...".
+
+**Symptom**
+Validation fails after a repeated route ID is found.
+
+**Cause**
+Two primary routes, slot routes, generated declarations, or fallback/internal routes use the same id.
+
+**Fix**
+Rename one route. Prefer namespaced IDs such as users.index and users.details.
+
+## Route "..." index must be a boolean when provided.
+
+**Symptom**
+Validation fails on the index field.
+
+**Cause**
+index was set to a non-boolean value such as "true", 1, or an object.
+
+**Fix**
+Use index: true for index routes or omit index for normal path routes.
+
+## Route "..." path must be a string when provided.
+
+**Symptom**
+Validation fails on the path field.
+
+**Cause**
+path was provided but is not a string.
+
+**Fix**
+Use a string path, omit path for pathless layout/group routes, or use index: true for index routes.
+
+## Route "..." is an index route and must not define path.
+
+**Symptom**
+An index route fails validation.
+
+**Cause**
+The route declares both index: true and path.
+
+**Fix**
+Remove path from the index route. Put the URL segment on the parent route.
+
+## Route "..." is an index route and must not define children.
+
+**Symptom**
+An index route fails validation.
+
+**Cause**
+Index routes cannot have child routes because they do not add a path segment or layout branch.
+
+**Fix**
+Move children to the parent route or make the route a non-index path route.
+
+## Route "..." children must be an array.
+
+**Symptom**
+Validation fails on children.
+
+**Cause**
+children was provided but is not an array.
+
+**Fix**
+Use children: [...] or omit children.
+
+## Route "..." preload must be a function when provided.
+
+**Symptom**
+Validation fails on preload.
+
+**Cause**
+preload was provided with a non-function value.
+
+**Fix**
+Use preload: `async (context) => { ... }` or remove preload. Route preload is optional and is not a data loader.
+
+## Route "..." modulePreload must be a function when provided.
+
+**Symptom**
+Validation fails on modulePreload.
+
+**Cause**
+modulePreload was provided with a non-function value.
+
+**Fix**
+Do not author modulePreload manually. It is an internal generated-route preload hook. Remove it or ensure generated artifacts are up to date.
+
+## Route "..." declares errorFallback, but route errorFallback is no longer supported. Use error instead.
+
+**Symptom**
+A route using an old fallback API fails validation.
+
+**Cause**
+The removed route-level errorFallback field is still present.
+
+**Fix**
+Rename errorFallback to error.
+
+## Route "..." layout must be an object.
+
+**Symptom**
+Validation fails on layout.
+
+**Cause**
+layout was provided but is null, an array, or another non-object value.
+
+**Fix**
+Use layout: `{ view, loading, error, slots }` or remove layout.
+
+## Route "..." search configuration must be an object.
+
+**Symptom**
+Validation fails on search before URLKit descriptor validation.
+
+**Cause**
+search was provided but is null, an array, or another non-object value.
+
+**Fix**
+Use a static search descriptor object, `defineSearch(...)`, `mergeSearch(...)`, or remove search.
+
+## Routes "..." and "..." are duplicate index routes under parent "...".
+
+**Symptom**
+Validation fails for sibling routes.
+
+**Cause**
+The same parent has more than one child with index: true.
+
+**Fix**
+Keep only one index child per parent or give one child a path.
+
+## Route "..." must define either path or index. Pathless routes are only supported as layout/group routes with children.
+
+**Symptom**
+Validation fails on a route with neither path nor index.
+
+**Cause**
+The route is pathless but is not a pure group/layout route with children, or it declares route-local render/navigation fields.
+
+**Fix**
+Add path, use index: true, or make it a pure pathless group with children and no route-local view, redirect, search, hash, intercepts, middleware, lifecycle, loading, or error.
+
+## Route "..." defines redirect and must not define children.
+
+**Symptom**
+Validation fails on a redirect route.
+
+**Cause**
+Redirect routes are terminal and cannot also own child routes.
+
+**Fix**
+Move the children to a non-redirect parent or remove redirect.
+
+## Route "..." redirect must be a non-empty string.
+
+**Symptom**
+Validation fails on string redirect.
+
+**Cause**
+redirect is an empty string.
+
+**Fix**
+Use a non-empty href string or a route target object.
+
+## Route "..." redirect must be a string or route target object.
+
+**Symptom**
+Validation fails on redirect.
+
+**Cause**
+redirect is present but is neither a string nor an object.
+
+**Fix**
+Use redirect: `"/target"` or redirect: `{ route: "target.id", params, search, hash }`.
+
+## Route "..." redirect.route must be a non-empty string.
+
+**Symptom**
+Validation fails on object redirect.
+
+**Cause**
+Object-form redirect is missing route, has an empty route, or route is not a string.
+
+**Fix**
+Set redirect.route to the target route id.
+
+## Route "..." redirect.params must be an object when provided.
+
+**Symptom**
+Validation fails on redirect params.
+
+**Cause**
+redirect.params is present but is not an object.
+
+**Fix**
+Use an object keyed by path param name or omit params.
+
+## Route "..." redirect.search must be an object when provided.
+
+**Symptom**
+Validation fails on redirect search.
+
+**Cause**
+redirect.search is present but is not an object.
+
+**Fix**
+Use an object keyed by search param name or omit search.
+
+## Route "..." redirect.hash must be a string or null when provided.
+
+**Symptom**
+Validation fails on redirect hash.
+
+**Cause**
+redirect.hash is present but is neither a string nor null.
+
+**Fix**
+Use a bare hash string without #, null to clear hash, or omit hash.
+
+## Route "..." search contains unsafe key "...".
+
+**Symptom**
+Validation fails on a search descriptor key.
+
+**Cause**
+search contains **proto**, constructor, or prototype, which would be unsafe to merge into plain objects.
+
+**Fix**
+Rename the key. Do not use prototype-polluting object keys in URL state descriptors.
+
+## Route "..." meta contains unsafe key "...".
+
+**Symptom**
+Validation fails on a metadata key.
+
+**Cause**
+meta contains **proto**, constructor, or prototype, which would be unsafe to merge into plain objects.
+
+**Fix**
+Rename the key. Do not use prototype-polluting object keys in route metadata.
+
+## Route "..." meta must be an object.
+
+**Symptom**
+Validation fails on meta.
+
+**Cause**
+meta was provided but is null, an array, or another non-object value.
+
+**Fix**
+Use a plain metadata object or omit meta.
+
+## Duplicate route path "..." declared by routes "..." and "...".
+
+**Symptom**
+Validation fails after path normalization.
+
+**Cause**
+Two routes in the same path scope normalize to the same full path.
+
+**Fix**
+Give one route a different path, make one an index route under a different parent, or move contextual UI into a slot route tree.
+
+## Route "..." defines an empty path.
+
+**Symptom**
+Validation fails on path.
+
+**Cause**
+path is an empty string.
+
+**Fix**
+Use / for the root route, a non-empty child segment, or omit path for a valid pathless group.

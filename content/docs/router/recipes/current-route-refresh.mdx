@@ -1,0 +1,25 @@
+---
+title: "Refresh the current route"
+description: "Re-run route resolution and lifecycle work without inventing a fake navigation."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Current-route re-resolution
+
+Startup happens once. Reality changes. Use `refresh()` when the current location should be resolved again after startup.
+
+```ts
+await router.refresh();
+```
+
+Use `refresh()` after runtime conditions change and should affect the current route, for example:
+
+- auth state changed
+- runtime middleware changed
+- feature flags changed
+- client-only URL state became available
+
+`start()` initializes the router once. `refresh()` re-runs the current-location resolution.

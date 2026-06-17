@@ -1,0 +1,595 @@
+---
+title: "Preloading"
+description: "Warm matched route modules, preloadable views, and application-owned resources without committing navigation."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Preloading prepares a destination before navigation.
+
+Cookbook Router resolves the target through the normal route matcher, walks the accepted branch from parent to leaf, and runs any preload work attached to those routes.
+
+It does not commit navigation, mutate history, or replace application-owned caching.
+
+## Preloading model
+
+<Steps>
+  <Step>
+    Build or receive the target href.
+  </Step>
+  <Step>
+    Match the href using the normal path, search, hash, and URL-policy rules.
+  </Step>
+  <Step>
+    Walk the accepted route branch from parent to leaf.
+  </Step>
+  <Step>
+    Warm generated route modules, preloadable layout views, preloadable route views, and route-level resources.
+  </Step>
+</Steps>
+
+Preloading is URL-driven.
+
+`router.preload()` starts with a typed route ID, but it first generates an href and then matches that href. The matched branch determines which preload work runs.
+
+This matters when multiple route IDs share a pathname, such as a parent and its index route. Ranking still chooses the accepted match.
+
+## Programmatic entry points
+
+The router exposes two preload methods.
+
+### Preload by route ID
+
+Use `router.preload()` when the destination is known by route ID:
+
+```ts
+await router.preload('users.details', {
+  params: {
+    id: 42,
+  },
+  search: {
+    tab: 'activity',
+  },
+});
+````
+
+Generated contracts provide typed params, search, and hash input for the selected route.
+
+The object form is also supported:
+
+```ts
+await router.preload({
+  route: 'users.details',
+  params: {
+    id: 42,
+  },
+});
+```
+
+The router generates the href, matches it, and preloads the resulting branch.
+
+### Preload by href
+
+Use `router.preloadHref()` when an internal href already exists:
+
+```ts
+await router.preloadHref(
+  '/users/42?tab=activity#profile',
+);
+```
+
+`preloadHref()` does not provide route-ID input inference. It parses the literal href using normal matching and URL-state policies.
+
+An href that does not resolve to any route throws an unknown-route error.
+
+## What runs
+
+For every route in the matched branch, Cookbook Router checks these stages in order:
+
+| Order | Stage                | Source                                                |
+| ----: | -------------------- | ----------------------------------------------------- |
+|     1 | Route-module preload | Internal `modulePreload`, usually added by generation |
+|     2 | Layout-view preload  | `route.layout.view.preload`, when present             |
+|     3 | Route-view preload   | `route.view.preload`, when present                    |
+|     4 | Application preload  | Authored `route.preload(context)`                     |
+
+The complete sequence is parent-first:
+
+```text
+parent module
+parent layout view
+parent route view
+parent preload hook
+child module
+child layout view
+child route view
+child preload hook
+```
+
+Each asynchronous stage is awaited before the next stage begins.
+
+If one stage fails, the preload promise rejects and the remaining branch work does not run.
+
+Pathless ancestors and index routes participate when they belong to the accepted branch.
+
+## Generated route-module preloading
+
+When generated `.cookbook-router/routes.ts` composes or wraps discovered route exports, it can attach an internal module preloader:
+
+```ts
+modulePreload: () =>
+  import('../routes/users.route')
+    .then(() => undefined)
+```
+
+This lets:
+
+```ts
+router.preload(...)
+router.preloadHref(...)
+```
+
+and React link prefetch trigger the generated route-module import without requiring an authored `preload` callback.
+
+`modulePreload` is an internal integration field. Do not add it manually to application route declarations.
+
+A compatible single static route tree may be re-exported directly by generated `routes.ts` instead of being wrapped with a module preloader. Use preloadable views for view-level code splitting in either route-declaration style.
+
+See [Generated artifacts](/docs/router/getting-started/generated-artifacts) for generated `routes.ts` behavior.
+
+## Preload React views
+
+The core router is renderer-neutral. It treats a route or layout view as preloadable when the value exposes a callable `preload` property.
+
+The React integration provides `lazyRouteView()` for this purpose:
+
+```tsx
+import { defineRoute } from '@cookbook/router';
+import {
+  lazyRouteView,
+} from '@cookbook/router-react';
+
+const UsersPage = lazyRouteView(() =>
+  import('./users-page').then(
+    ({ UsersPage }) => ({
+      default: UsersPage,
+    }),
+  ),
+);
+
+export const usersRoute = defineRoute({
+  id: 'users',
+  path: '/users',
+  view: UsersPage,
+});
+```
+
+`lazyRouteView()`:
+
+* Creates a React lazy component.
+* Exposes a `preload()` method.
+* Caches the import promise.
+* Reuses the same promise when React later renders the component.
+
+The route can therefore be warmed before rendering:
+
+```ts
+await router.preload('users');
+```
+
+### Lazy layouts
+
+Layout views use the same mechanism:
+
+```tsx
+const DashboardLayout = lazyRouteView(() =>
+  import('./dashboard-layout').then(
+    ({ DashboardLayout }) => ({
+      default: DashboardLayout,
+    }),
+  ),
+);
+
+const DashboardPage = lazyRouteView(() =>
+  import('./dashboard-page').then(
+    ({ DashboardPage }) => ({
+      default: DashboardPage,
+    }),
+  ),
+);
+
+// or if you use default export:
+// const DashboardPage = lazyRouteView(() => import('./dashboard-page'));
+
+export const dashboardRoute = defineRoute({
+  id: 'dashboard',
+  path: '/dashboard',
+  layout: {
+    view: DashboardLayout,
+  },
+  view: DashboardPage,
+});
+```
+
+Preloading the route warms the layout view before the route view.
+
+## Preload application data
+
+Use the route-level `preload` hook for resources owned by the application:
+
+* Query caches
+* Permissions
+* Configuration
+* Images
+* Localization data
+* Other application-specific resources
+
+```ts
+export const userRoute = defineRoute({
+  id: 'users.details',
+  path: '/users/{id:int}',
+
+  preload: async ({
+    params,
+    signal,
+  }) => {
+    const id = params.id;
+
+    if (typeof id !== 'number') {
+      throw new TypeError(
+        'Expected users.details id to be a number.',
+      );
+    }
+
+    await userCache.preload(id, {
+      signal,
+    });
+  },
+});
+```
+
+The router coordinates when the hook runs. The application still owns:
+
+* Storage
+* Deduplication
+* Expiration
+* Invalidation
+* Mutation handling
+* SSR hydration
+* Rendering state
+
+A completed router preload is not itself a data cache. A later preload can run the route hook again, so the application cache should decide whether work is already available.
+
+## Route preload context
+
+The route-level callback receives:
+
+```ts
+interface RoutePreloadContext {
+  readonly route: MatchedRoute;
+  readonly match: RouteMatch;
+  readonly location: RouterLocation;
+  readonly params: Record<string, unknown>;
+  readonly search: Record<string, unknown>;
+  readonly unknownSearch?: RouterUnknownSearchParams;
+  readonly hash: unknown;
+  readonly signal: AbortSignal;
+}
+```
+
+The fields have different scopes:
+
+* `route` is the current parent or child branch entry.
+* `params` contains parsed params visible to that branch entry.
+* `match` describes the complete accepted target.
+* `location` is parsed from the target href.
+* `search`, `unknownSearch`, and `hash` come from the accepted target URL state.
+* `signal` belongs to the current preload request.
+
+The call to `router.preload()` is typed from generated contracts. The authored route callback is not currently specialized by route ID, so its params, search, and hash context remain broad. Narrow values before passing them to application APIs.
+
+## Link and NavLink prefetch
+
+`Link` and `NavLink` can start preloading from browser intent:
+
+```tsx
+<Link
+  to="users.details"
+  params={{ id: 42 }}
+  prefetch="interaction" // [!code highlight]
+>
+  Open user
+</Link>
+```
+
+Prefetch is disabled by default.
+
+| Value           | Trigger                 |
+| --------------- | ----------------------- |
+| `false`         | Never                   |
+| `'hover'`       | Pointer enters the link |
+| `'focus'`       | Link receives focus     |
+| `'interaction'` | Pointer enter or focus  |
+| `'mount'`       | The link mounts         |
+
+`interaction` does not wait for a click. It combines hover and keyboard focus.
+
+`mount` should be reserved for destinations that are both valuable and likely to be visited:
+
+```tsx
+<Link
+  to="checkout"
+  prefetch="mount"
+>
+  Checkout
+</Link>
+```
+
+Mount prefetch runs again when the link’s target href changes.
+
+### Literal internal hrefs
+
+Prefetch also works for an explicit internal href:
+
+```tsx
+<Link
+  href="/users/42"
+  prefetch="hover"
+>
+  Open user
+</Link>
+```
+
+The link calls `router.preloadHref()` for that target.
+
+External and disabled links are not prefetched:
+
+```tsx
+<Link
+  href="https://example.com"
+  prefetch="interaction"
+>
+  External documentation
+</Link>
+
+<Link
+  to="users"
+  aria-disabled="true"
+  prefetch="interaction"
+>
+  Disabled
+</Link>
+```
+
+### Prefetch errors
+
+Link-triggered prefetch is speculative. Its promise is not exposed, and failures are swallowed.
+
+The actual navigation remains responsible for rendering loading and error boundaries.
+
+Use programmatic preloading when the caller needs to observe failure:
+
+```ts
+try {
+  await router.preload('users.details', {
+    params: {
+      id: 42,
+    },
+  });
+} catch (error) {
+  reportPreloadFailure(error);
+}
+```
+
+## Concurrent preload calls
+
+Concurrent calls share work when all of these are the same:
+
+* The href string
+* The per-call URL options
+* No caller-owned `AbortSignal` is supplied
+
+```ts
+const first =
+  router.preloadHref('/users/42');
+
+const second =
+  router.preloadHref('/users/42');
+
+first === second;
+// true while the preload is active
+```
+
+This is in-flight deduplication only.
+
+After the promise settles, the router removes it from the active preload map. A later call starts the preload sequence again.
+
+The underlying systems may still reuse work:
+
+* `lazyRouteView()` caches its import promise.
+* JavaScript modules are normally cached after import.
+* Application query or resource caches may retain data.
+
+The router does not impose one cache policy on all of them.
+
+## Cancellation
+
+Both programmatic methods accept an `AbortSignal`:
+
+```ts
+const controller =
+  new AbortController();
+
+const promise = router.preload(
+  'users.details',
+  {
+    params: {
+      id: 42,
+    },
+    signal: controller.signal, // [!code highlight]
+  },
+);
+
+controller.abort();
+
+await promise;
+```
+
+An already-aborted signal rejects before preload work begins.
+
+Cookbook Router checks cancellation before each preload stage and between branch entries. The same signal is passed to the authored route-level hook.
+
+Cancellation is cooperative. Generated module preloaders and view preloaders do not receive the signal, so the router cannot forcibly stop a dynamic import that is already running. It observes the abort before continuing to the next stage.
+
+### Signaled requests are independent
+
+Calls with an `AbortSignal` are not deduplicated:
+
+```ts
+const first =
+  new AbortController();
+
+const second =
+  new AbortController();
+
+await Promise.all([
+  router.preloadHref('/users/42', {
+    signal: first.signal,
+  }),
+  router.preloadHref('/users/42', {
+    signal: second.signal,
+  }),
+]);
+```
+
+Each caller owns its own cancellation lifecycle.
+
+## What preloading does not do
+
+Preloading does not:
+
+* Push or replace history
+* Change the active router location
+* Commit router state
+* Run navigation blockers
+* Run middleware
+* Run navigation lifecycle hooks
+* Follow route redirects
+* Render route boundaries
+* Activate configured intercepts
+* Preload intercept views
+* Preload resolved slot-route branches
+* Preload slot fallback views
+* Preload loading or error fallback views
+
+Automatic view preloading is limited to:
+
+```text
+route.layout.view
+route.view
+```
+
+for entries in the main matched branch.
+
+A lazy slot, intercept, loading, or error view can be warmed explicitly from a route-level hook:
+
+```tsx
+const Header = lazyRouteView(
+  () => import('./header'),
+);
+
+const CreateModal = lazyRouteView(
+  () => import('./create-modal'),
+);
+
+export const usersRoute = defineRoute({
+  id: 'users',
+  path: '/users',
+
+  layout: {
+    slots: {
+      header: Header,
+    },
+  },
+
+  preload: async () => {
+    await Promise.all([
+      Header.preload(),
+      CreateModal.preload(),
+    ]);
+  },
+});
+```
+
+Only add that work when the destination is likely to need those views. Preloading everything defeats the purpose of code splitting.
+
+## Choose a strategy
+
+Use `lazyRouteView()` for route and layout component imports:
+
+```tsx
+const Page =
+  lazyRouteView(() => import('./page'));
+```
+
+Use generated route modules for file-based route integration:
+
+```ts
+import {
+  routes,
+} from '../.cookbook-router/routes';
+```
+
+Use route-level `preload` for application-owned resources:
+
+```ts
+preload: ({ signal }) =>
+  applicationCache.warm({ signal });
+```
+
+Use link prefetch for user intent:
+
+```tsx
+<Link
+  to="users"
+  prefetch="interaction"
+>
+  Users
+</Link>
+```
+
+Use explicit programmatic preloading when application logic knows a destination is likely:
+
+```ts
+await router.preload('users');
+```
+
+Each layer owns one concern. Module imports are not a query cache, and a query cache should not need to understand route rendering.
+
+## Where this bites
+
+### A route ID does not force that exact leaf match
+
+`router.preload(routeId)` generates the route href and passes it through normal matching. If a parent and index route share the same pathname, ranking selects the accepted match.
+
+### A preload hook runs more than once
+
+The router only deduplicates concurrent unsignaled calls. Cache durable application data in the application-owned resource layer.
+
+### A slot or modal remains cold
+
+The automatic walker only inspects the main branch’s route and layout views. Slot, intercept, loading, and error views require explicit warming when needed.
+
+### Aborting does not stop an active import
+
+Cancellation is checked between stages. Dynamic imports already in progress cannot be forcibly canceled.
+
+### Hover errors are invisible
+
+Link prefetch catches failures because it is speculative. Programmatic preloading exposes failures to the caller.
+
+### Prefetch starts too much work
+
+`prefetch="mount"` runs as soon as the link renders. Prefer `interaction` unless eager warming has a clear benefit.

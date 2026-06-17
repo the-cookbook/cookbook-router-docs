@@ -1,0 +1,109 @@
+---
+title: "Matching API"
+description: "Normalize, flatten, rank, and match route candidates with deterministic branch and slot results."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Pipeline
+
+The public matching helpers operate on normalized routes. The safe tree path is `validateResolvedRouteTree()` or router creation, which validates before normalization.
+
+## `normalizeRoutes(routes, pathOptions?)`
+
+```ts
+function normalizeRoutes(
+  routes: readonly RouteDefinition[],
+  pathOptions?: RouterPathOptions,
+): readonly NormalizedRoute[];
+```
+
+Normalization derives `localPath`, `fullPath`, `parentId`, inherited parameter definitions, score, declaration order, normalized layouts/slots, and configured intercept records. It preserves the original declared definition on `normalized.route`.
+
+Normalization is cached downstream by normalized-array identity, but normalization itself returns a new tree.
+
+## `flattenRoutes(routes)`
+
+```ts
+function flattenRoutes(
+  routes: readonly NormalizedRoute[],
+): readonly NormalizedRoute[];
+```
+
+Returns depth-first pre-order: a route, then its descendants. The result is cached in a `WeakMap` by the input array identity. Slot route trees are already represented through normalized slot structures; this helper walks primary `children`.
+
+## `rankRoutes(routes)`
+
+```ts
+function rankRoutes(
+  routes: readonly NormalizedRoute[],
+): readonly RankedRoute[];
+```
+
+Pathless routes are excluded from direct candidates. Sorting uses:
+
+1. Higher route score.
+2. Greater full-path segment depth.
+3. Lower normalization order.
+
+Each result receives a zero-based `rank`. Equal specificity remains deterministic because declared order survives normalization.
+
+## `matchRoutes(routes, pathname, pathOptions?, options?)`
+
+```ts
+interface MatchRoutesOptions {
+  readonly routerUrl?: RouterUrlOptions;
+  readonly callUrl?: RouterUrlOptions;
+  readonly pathConstraints?: RouterPathConstraints;
+}
+
+function matchRoutes(
+  routes: readonly NormalizedRoute[],
+  pathname: string,
+  pathOptions?: RouterPathOptions,
+  options?: MatchRoutesOptions,
+): RouteMatch<string> | null;
+```
+
+The first ranked candidate whose path parses successfully wins. The result contains:
+
+```ts
+interface RouteMatch<Route extends string = string> {
+  readonly id: Route;
+  readonly pathname: string;
+  readonly href: string;
+  readonly route: NormalizedRoute;
+  readonly branch: readonly MatchedRoute[];
+  readonly params: Record<string, unknown>;
+  readonly search: Record<string, unknown>;
+  readonly unknownSearch?: RouterUnknownSearchParams;
+  readonly hash: unknown;
+  readonly slots: ResolvedSlots;
+  readonly intercepted?: ResolvedInterceptedRoute;
+}
+```
+
+This low-level function receives a pathname, so its initial search object is empty and hash is absent. Full router matching uses the URL-state pipeline to add typed search/hash state and URL policies.
+
+### Branch construction
+
+The matched branch is ordered from root/layout ancestry to leaf. Each `MatchedRoute` carries the params visible at that point. Pathless ancestors are restored through parent IDs even though they never ranked as direct candidates.
+
+### Slots
+
+Slot route trees are resolved for every branch owner. A slot result can be `matched`, `fallback`, `empty`, `disabled`, or `not-found`, with owner, params, branch, and fallback metadata where relevant.
+
+## Validation relationship
+
+```ts
+function validateRoutes(routes, pathOptions?): void;
+function validateResolvedRouteTree(routes, pathOptions?): readonly NormalizedRoute[];
+```
+
+Validation rejects duplicate IDs and normalized paths, invalid index/pathless/redirect combinations, malformed layouts, slots, intercepts, descriptors, unsafe keys, inherited parameter collisions, and invalid PathKit patterns.
+
+## Where this bites
+
+Do not call `normalizeRoutes()` on untrusted declared input and assume the output is valid. Use `validateResolvedRouteTree()` when an integration needs both validation and normalization.

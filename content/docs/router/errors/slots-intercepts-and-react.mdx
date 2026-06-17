@@ -1,0 +1,244 @@
+---
+title: "Slots, intercepts, and React errors"
+description: "Exact slot/intercept validation failures plus provider, outlet-context, and slot-rendering diagnostics."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Route "..." declares layout.errorFallback, but layout errorFallback is no longer supported. Use layout.error instead.
+
+**Symptom**
+A layout using an old fallback API fails validation.
+
+**Cause**
+The removed layout.errorFallback field is still present.
+
+**Fix**
+Rename layout.errorFallback to layout.error.
+
+## Route "..." declares layout.loading/layout.error, but no active layout view exists.
+
+**Symptom**
+Validation fails on layout fallback fields.
+
+**Cause**
+layout.loading or layout.error is declared where neither the route nor an ancestor has layout.view.
+
+**Fix**
+Use route.loading/route.error for route-local fallbacks or declare layout.view on this route or an ancestor.
+
+## Route "..." declares layout.slots, but no active layout view exists in its ancestor tree.
+
+**Symptom**
+Validation fails on layout.slots.
+
+**Cause**
+Slots were declared without an active layout view to render them.
+
+**Fix**
+Declare layout.view on the same route or an ancestor route, or remove layout.slots.
+
+## Route "..." layout.slots must be an object.
+
+**Symptom**
+Validation fails on layout.slots.
+
+**Cause**
+layout.slots was provided but is not an object.
+
+**Fix**
+Use layout.slots: `{ name: true }` or layout.slots: `{ name: { view, meta, routes } }`.
+
+## Route "..." defines a slot with an empty name.
+
+**Symptom**
+Validation fails while reading slot entries.
+
+**Cause**
+layout.slots contains an empty-string key.
+
+**Fix**
+Use a non-empty slot name such as header, sidebar, or modal.
+
+## Missing slot "..." for route "...".
+
+**Symptom**
+Validation fails on a child slot declaration.
+
+**Cause**
+A child route declares `layout.slots.<name>`, but no active ancestor layout declares that slot and the current route does not own a layout view.
+
+**Fix**
+Declare the slot on an active ancestor layout or remove the child slot declaration.
+
+## Route "..." declares invalid configuration for slot "...".
+
+**Symptom**
+Validation fails on a slot value.
+
+**Cause**
+The slot is false, null, undefined, or otherwise not a supported slot declaration.
+
+**Fix**
+Use true, a slot view component, or an object with view, meta, and/or routes.
+
+## Route "..." defines invalid configuration for slot "...".
+
+**Symptom**
+Validation fails on a slot config object.
+
+**Cause**
+The slot config is null, an array, or another invalid value where an object config was expected.
+
+**Fix**
+Use a valid slot config object.
+
+## Route "..." declares "layout.slots....id", but slot IDs are no longer supported.
+
+**Symptom**
+Validation fails on a removed slot field.
+
+**Cause**
+The slot config still uses the removed id property.
+
+**Fix**
+Remove `layout.slots.<name>.id`. The slot key is the slot identity.
+
+## Unsupported slot fallback: slot fallbacks are no longer supported on route "...".
+
+**Symptom**
+Validation fails on a removed slot field.
+
+**Cause**
+The slot config still uses the removed fallback property.
+
+**Fix**
+Remove `layout.slots.<name>.fallback`. Use the slot declaration itself and render fallback UI from the layout if needed.
+
+## Unsupported slot key "..." on route "...".
+
+**Symptom**
+Validation fails on an unknown slot config key.
+
+**Cause**
+The slot config contains a key other than view, meta, or routes.
+
+**Fix**
+Remove the unsupported key or move that information into slot meta.
+
+## Route "..." slot "..." routes must be an array.
+
+**Symptom**
+Validation fails on slot routes.
+
+**Cause**
+`layout.slots.<name>.routes` was provided but is not an array.
+
+**Fix**
+Use routes: `[...]` or omit routes.
+
+## Route "..." intercepts must be an object.
+
+**Symptom**
+Validation fails on intercepts.
+
+**Cause**
+intercepts was provided but is not an object.
+
+**Fix**
+Use intercepts: `{ slotName: { to, view } }` or remove intercepts.
+
+## Route "..." defines an intercept with an empty slot name.
+
+**Symptom**
+Validation fails while reading intercept entries.
+
+**Cause**
+intercepts contains an empty-string key.
+
+**Fix**
+Use a non-empty slot name that matches a declared layout slot.
+
+## Route "..." intercept for slot "..." must be an object.
+
+**Symptom**
+Validation fails on an intercept config.
+
+**Cause**
+The intercept slot value is missing, null, or not an object.
+
+**Fix**
+Use `{ to: "target.route", view: InterceptView }`.
+
+## Invalid intercept slot "..." on route "...".
+
+**Symptom**
+Validation fails because the intercept slot is not declared.
+
+**Cause**
+The route configures an intercept for a slot that is not declared on this route or an active ancestor layout.
+
+**Fix**
+Declare `layout.slots.<name>` on the source route layout or an active ancestor layout, or remove the intercept.
+
+## Route "..." intercept for slot "..." must define view.
+
+**Symptom**
+Validation fails on an intercept config.
+
+**Cause**
+The intercept config does not provide a view.
+
+**Fix**
+Add the intercept view component.
+
+## Route "..." intercept for slot "..." must define at least one target route id.
+
+**Symptom**
+Validation fails on intercept.to.
+
+**Cause**
+The intercept target list is empty.
+
+**Fix**
+Provide a target route id string or a non-empty array of target route ids.
+
+## Route "..." intercept for slot "..." defines an empty target route id.
+
+**Symptom**
+Validation fails on intercept.to.
+
+**Cause**
+The intercept target string or one of the target array entries is empty.
+
+**Fix**
+Replace it with a valid target route id.
+
+## Route "..." intercept "..." targets unknown route id "...".
+
+**Symptom**
+Validation fails after all routes have been collected.
+
+**Cause**
+The intercept points to a route id that does not exist in the route tree.
+
+**Fix**
+Fix the target route id or add the missing route.
+
+## `use... must be used inside <RouterProvider> or <StaticRouterProvider>.`
+
+**Cause:** a router hook read `RouterContext` outside either provider.
+
+**Fix:** render the component under `RouterProvider` or `StaticRouterProvider`. Moving only the hook into a helper does not create context.
+
+## `Outlet context ... was requested in strict mode, but no context was provided ...`
+
+**Cause:** `useOutletContext({ strict: true })` ran without context from the parent `Outlet` or `Slot`.
+
+**Fix:** provide context at the rendering outlet/slot, or use non-strict access when absence is valid.
+
+## Slot errors replace a larger route boundary
+
+This is not a validation error. Without `errorFallback`, a thrown slot view intentionally bubbles to the nearest route/provider boundary. Set `errorFallback={null}`, a component, or a render function on `<Slot />` to isolate the failure.

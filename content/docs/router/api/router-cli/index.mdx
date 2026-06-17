@@ -1,0 +1,44 @@
+---
+title: "@cookbook/router-cli API"
+description: "Command-line and programmatic APIs for configuration, static route loading, generation, validation, manifests, and bundler integration."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Package role
+
+`@cookbook/router-cli` turns route sources into validated physical artifacts. It also exports the same engine used by every bundler plugin. There is one generation pipeline, not six plugins with six interpretations of your route tree.
+
+## Binary
+
+The package installs two binary names that resolve to the same entrypoint:
+
+```bash
+cookbook-router <command> [options]
+cbr <command> [options]
+```
+
+Commands are `init`, `generate`, `manifest`, and `validate`. `generate --watch` invokes the exported watch engine.
+
+## Public API groups
+
+<Cards>
+ <Card title="Commands" href="/docs/router/api/router-cli/commands" description="CLI flags and programmatic command functions." />
+ <Card title="Configuration" href="/docs/router/api/router-cli/config" description="Config shape, discovery, loading, and effective option precedence." />
+ <Card title="Generation" href="/docs/router/api/router-cli/generation" description="Contracts, manifest, register, routes module, and safe writes." />
+ <Card title="Route loading" href="/docs/router/api/router-cli/route-loading" description="Static extraction, globs, composition, and route input resolution." />
+ <Card title="Build integration" href="/docs/router/api/router-cli/build-integration" description="Runner results, watch paths, error formatting, and compiler hooks." />
+ <Card title="Contracts" href="/docs/router/api/router-cli/contracts" description="Every public interface and supporting data model." />
+</Cards>
+
+## Import boundary
+
+All documented imports come from the package root:
+
+```ts
+import { generateRouterArtifacts, type CliRouteOptions } from '@cookbook/router-cli';
+```
+
+Internal source paths are not public API. A helper existing in `src/` is not permission to depend on it.

@@ -1,0 +1,14 @@
+{
+  "title": "@cookbook/router-react",
+  "pages": [
+    "---Overview---",
+    "index",
+    "---Components---",
+    "provider",
+    "links",
+    "outlets",
+    "---Hooks and Contracts---",
+    "hooks",
+    "contracts"
+  ]
+}

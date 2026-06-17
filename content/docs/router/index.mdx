@@ -1,0 +1,46 @@
+---
+title: "Overview"
+description: "A typed router that treats routes as contracts instead of strings."
+---
+
+# The route is not a string. It is an agreement.
+
+Cookbook Router connects route definitions, URL state, navigation, React rendering, SSR, and build-time generation. The payoff is not a clever API. The payoff is that broken links, malformed route trees, and stale contracts fail where engineers can act on them.
+
+<Cards>
+  <Card title="Get running" href="/docs/router/getting-started/installation">Install the runtime, React adapter, CLI, and the plugin for your build.</Card>
+  <Card title="Understand the model" href="/docs/router/concepts/route-definitions">Learn how routes become ranked, normalized, typed runtime contracts.</Card>
+  <Card title="Read the API" href="/docs/router/api">Every public value, option, return value, and failure mode.</Card>
+  <Card title="Fix the failure" href="/docs/router/troubleshooting">Start from the symptom. End with the actual cause.</Card>
+</Cards>
+
+## Packages
+
+| Package | Responsibility |
+| --- | --- |
+| `@cookbook/router` | Route definitions, matching, URL state, navigation, middleware, history, SSR primitives, and diagnostics. |
+| `@cookbook/router-react` | Providers, links, hooks, outlets, slots, boundaries, and lazy views. |
+| `@cookbook/router-cli` | Route discovery, validation, contracts, registration, manifests, and watch mode. |
+
+The six bundler plugins invoke the same CLI build pipeline. They do not invent six different routers.
+
+## Start with what you need
+
+<Steps>
+  <Step>
+    Install the packages for the runtime you actually use.
+  </Step>
+  <Step>
+    Define a static route tree the CLI can inspect.
+  </Step>
+  <Step>
+    Generate contracts and let TypeScript reject impossible navigation.
+  </Step>
+  <Step>
+    Add middleware, slots, intercepts, and SSR only when the application needs them.
+  </Step>
+</Steps>
+
+## Where this can bite
+
+Cookbook Router will not search the browser filesystem, infer route parents from folder names, or make executable URL codecs statically analyzable. Build-time tooling needs explicit files and static route data. This boundary is deliberate.

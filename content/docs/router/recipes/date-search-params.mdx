@@ -1,0 +1,47 @@
+---
+title: "Date search parameters"
+description: "Declare date and date-time URL state without timezone surprises or runtime-only codecs."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Declare the wire format
+
+```ts title="reports.route.ts"
+import { defineRoute, defineSearch } from '@cookbook/router';
+
+export const reportsRoute = defineRoute({
+  id: 'reports',
+  path: '/reports',
+  search: defineSearch({
+    from: { type: 'date', format: 'yyyy-MM-dd', optional: true },
+    generatedAt: { type: 'date-time', optional: true },
+  }),
+});
+```
+
+The descriptor is static route metadata. Do not put a runtime URLKit codec object into a route file that the CLI must extract.
+
+## Navigate with typed values
+
+```ts
+await router.navigate.to({
+  route: 'reports',
+  search: {
+    from: new Date(2026, 0, 15),
+    generatedAt: new Date(),
+  },
+});
+```
+
+The generated contract distinguishes input values from parsed route state. Read parsed values through router state/hooks; build values through `href()` or navigation.
+
+## Date-only versus instant
+
+A date represents a calendar value. A date-time represents an instant. Formatting a date-time in a local timezone can show a different day than its UTC representation. Pick the type that matches the product meaning instead of patching offsets after parsing.
+
+## Where this bites
+
+Format tokens are validated. Use the supported descriptor format, not moment-style tokens copied from another library. Hash/search values also go through router URL policies; `invalidSearch: 'recover'` cannot manufacture a missing required value.

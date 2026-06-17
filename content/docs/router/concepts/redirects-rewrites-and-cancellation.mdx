@@ -1,0 +1,713 @@
+---
+title: "Redirects, rewrites, and cancellation"
+description: "Control whether a transition resolves another target, writes history, or stops before commit."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Redirects, rewrites, and cancellation all interrupt the normal navigation pipeline, but they produce different route-state and history outcomes.
+
+The distinction comes down to two questions:
+
+1. Which location should the router resolve?
+2. Should that location be written to history?
+
+## Outcome at a glance
+
+| Control | Declared from | Router resolves | History outcome |
+| --- | --- | --- | --- |
+| Route `redirect` | Route configuration | Redirect target | Target replaces the current entry |
+| Middleware `redirect(to)` | Middleware | Redirect target | Target replaces the current entry |
+| Middleware `rewrite(to)` | Middleware | Rewrite target | No history write |
+| Middleware `cancel()` or `false` | Middleware | No new target | Navigation remains blocked |
+| Blocker returning `false` | Router blocker | No new target | Navigation remains blocked |
+| Before-lifecycle hook returning `false` | Lifecycle | No new target | Navigation remains blocked |
+| Middleware `Response` | Middleware | Attempted target enters error state | No redirect is performed |
+
+A redirect and rewrite both begin another route resolution.
+
+The difference is history:
+
+- A redirect resolves and commits the target with replace semantics.
+- A rewrite resolves the target without writing it to history.
+- Cancellation stops before the attempted destination commits.
+
+## Where controls run
+
+The transition order is:
+
+<Steps>
+  <Step>
+    Match and canonicalize the requested location.
+  </Step>
+  <Step>
+    Resolve a static route redirect, when the matched route declares one.
+  </Step>
+  <Step>
+    Run registered navigation blockers.
+  </Step>
+  <Step>
+    Run global and route lifecycle hooks that execute before navigation.
+  </Step>
+  <Step>
+    Run global and route-level middleware.
+  </Step>
+  <Step>
+    Commit the accepted location to history when the transition permits it.
+  </Step>
+  <Step>
+    Run after-navigation lifecycle hooks.
+  </Step>
+</Steps>
+
+Static route redirects happen before blockers, lifecycle hooks, and middleware for the redirecting route. The redirect target begins a new transition and runs its own matching and transition pipeline.
+
+## Static route redirects
+
+Use the route `redirect` property when reaching one route should always resolve another target.
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'main',
+    path: '/',
+    children: [
+      {
+        id: 'main.index',
+        index: true,
+        redirect: { // [!code highlight]
+          route: 'overview', // [!code highlight]
+        }, // [!code highlight]
+      },
+    ],
+  },
+  {
+    id: 'overview',
+    path: '/overview',
+  },
+] as const);
+````
+
+Opening `/` resolves `overview`. The redirect route is never committed as the active rendered destination.
+
+### Redirect by route ID
+
+Object-form redirects generate an internal href from a route ID:
+
+```ts
+{
+  id: 'legacy-profile',
+  path: '/profile',
+  redirect: { // [!code highlight]
+    route: 'users.details', // [!code highlight]
+    params: { // [!code highlight]
+      slug: 'current-user', // [!code highlight]
+    }, // [!code highlight]
+    search: { // [!code highlight]
+      tab: 'profile', // [!code highlight]
+    }, // [!code highlight]
+    hash: 'details', // [!code highlight]
+  },
+}
+```
+
+The object can provide:
+
+```ts
+interface RouteRedirectTarget {
+  readonly route: string;
+  readonly params?: Record<string, unknown>;
+  readonly search?: Record<string, unknown>;
+  readonly hash?: string | null;
+}
+```
+
+Use object form for internal targets when the redirect can be expressed with fixed route input. It applies the router basename and the target route’s URL generation rules.
+
+### Redirect by href
+
+A string redirect is treated as a literal href:
+
+```ts
+{
+  id: 'legacy-dashboard',
+  path: '/dashboard-old',
+  redirect: '/dashboard', // [!code highlight]
+}
+```
+
+Absolute URLs are external redirects:
+
+```ts
+{
+  id: 'external-docs',
+  path: '/documentation',
+  redirect: 'https://docs.example.com', // [!code highlight]
+}
+```
+
+Browser history performs external redirects through `location.replace()`.
+
+Memory and static histories cannot leave the application unless a custom history supplies `redirectExternal`.
+
+### Redirect routes are terminal
+
+A route with `redirect`:
+
+* Must declare `path` or `index: true`.
+* Cannot have children.
+* Does not render a route view.
+* Does not receive runtime middleware context before redirecting.
+
+The redirect value is static route configuration. It cannot derive a target from the matched source params at runtime.
+
+Use middleware when the destination depends on session state, parsed params, search values, or another runtime condition.
+
+## Conditional redirects
+
+Middleware redirects are for decisions made while a transition is running.
+
+```ts
+const requireAuth = ({
+  route,
+  location,
+  redirect,
+}: MiddlewareContext) => {
+  if (!route.route.meta?.requiresAuth) {
+    return;
+  }
+
+  if (session.isAuthenticated()) {
+    return;
+  }
+
+  return redirect( // [!code highlight]
+    `/login?redirect=${encodeURIComponent(location.href)}`, // [!code highlight]
+  ); // [!code highlight]
+};
+```
+
+Register it globally:
+
+```ts
+const router = createRouter({
+  routes,
+  middleware: [requireAuth],
+});
+```
+
+or on a route:
+
+```ts
+{
+  id: 'account',
+  path: '/account',
+  meta: {
+    requiresAuth: true,
+  },
+  middleware: [requireAuth],
+}
+```
+
+Middleware `redirect(to)` requires a non-empty string target.
+
+### Redirect from parsed params
+
+Middleware can derive a destination from parsed URL state:
+
+```ts
+const redirectLegacyUser = ({
+  params,
+  redirect,
+}: MiddlewareContext) => {
+  const id = params.id;
+
+  if (typeof id !== 'number') {
+    throw new TypeError(
+      'Expected the legacy user id to be a number.',
+    );
+  }
+
+  return redirect(`/users/${id}`);
+};
+```
+
+```ts
+{
+  id: 'legacy-user',
+  path: '/u/{id:int}',
+  middleware: [redirectLegacyUser],
+}
+```
+
+The middleware context is currently broad, so narrow values before passing them to application APIs.
+
+### Redirect history behavior
+
+Middleware redirects use replace semantics.
+
+Given a current entry of `/home`, a transition that redirects to `/login` replaces the current entry with `/login`. The attempted intermediate destination is not added to history.
+
+The redirect target goes through matching, blockers, lifecycle hooks, middleware, and route redirects again.
+
+## Rewrites
+
+A rewrite resolves another **internal** location without writing that target to history.
+
+```ts
+const requireAuth = ({
+  route,
+  location,
+  rewrite,
+}: MiddlewareContext) => {
+  if (!route.route.meta?.requiresAuth) {
+    return;
+  }
+
+  if (session.isAuthenticated()) {
+    return;
+  }
+
+  return rewrite( // [!code highlight]
+    `/login?redirect=${encodeURIComponent(location.href)}`, // [!code highlight]
+  ); // [!code highlight]
+};
+```
+
+The router resolves and renders the login route, but the history adapter receives no push or replace for the rewrite target.
+
+There is no static route-level `rewrite` property. Rewrites are middleware outcomes.
+
+## Router state and history after a rewrite
+
+A rewrite creates an intentional distinction between router state and history state.
+
+```text
+History location
+    may remain /private
+
+Router state location
+    becomes /login?redirect=%2Fprivate
+
+Active match
+    becomes the login route
+```
+
+Components render from the rewritten router match. Code reading `router.state.location` sees the rewritten target.
+
+Code reading `window.location` or the history adapter may see another location.
+
+### Existing history resolution
+
+When the router is resolving a location already present in history—such as initial startup, refresh, or browser back/forward—the existing requested entry remains.
+
+For example:
+
+```text
+Browser history: /private
+Middleware rewrite target: /login?redirect=%2Fprivate
+Rendered route: login
+```
+
+The browser history can remain `/private` while the router renders the login route.
+
+### Programmatic navigation
+
+During `router.navigate.to()` or an intercepted internal link, the destination has not yet been written to history when middleware runs.
+
+If middleware rewrites that navigation, no destination entry is written. The previously committed browser URL remains.
+
+For example:
+
+```text
+Current browser URL: /home
+Attempted navigation: /private
+Rewrite target: /login?redirect=%2Fprivate
+
+Browser URL after rewrite: /home
+Router state location: /login?redirect=%2Fprivate
+Rendered route: login
+```
+
+For that reason, a rewrite should not be described simply as “keeping the requested URL.” Its exact behavior is:
+
+> Resolve another internal target without performing a history write.
+
+## External rewrites are invalid
+
+A rewrite target must be internal:
+
+```ts
+rewrite('/login');
+```
+
+This produces an error state:
+
+```ts
+rewrite('https://example.com');
+```
+
+Use `redirect()` when navigation must leave the application.
+
+## Cancellation
+
+Cancellation stops a transition before the attempted target is committed.
+
+There are three cancellation layers.
+
+### Navigation blockers
+
+Use `router.block()` for runtime guards such as unsaved work:
+
+```ts
+const unblock = router.block(() => {
+  if (!formIsDirty()) {
+    return;
+  }
+
+  return window.confirm(
+    'Discard your unsaved changes?',
+  );
+});
+```
+
+A blocker returns:
+
+* `false` to block.
+* `true` or `void` to allow.
+
+```ts
+const unblock = router.block(() => false);
+
+// Later
+unblock();
+```
+
+Blockers run before lifecycle hooks and middleware.
+
+Throwing from a blocker places the router in the error state for the attempted location.
+
+### React `useBlocker()`
+
+The React integration registers a router blocker and a browser `beforeunload` listener:
+
+```tsx
+import {
+  useBlocker,
+} from '@cookbook/router-react';
+
+function EditDocument() {
+  const blocker = useBlocker({
+    when: formIsDirty,
+    message: 'You have unsaved changes.',
+  });
+
+  return blocker.blocked
+    ? <p>Navigation protection is enabled.</p>
+    : null;
+}
+```
+
+When `message` is provided, in-app navigation uses `window.confirm()` when available.
+
+Browser unload confirmation is controlled by the browser. Custom unload text is not guaranteed.
+
+### Lifecycle cancellation
+
+Before-navigation lifecycle hooks cancel by returning `false`:
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'editor',
+    path: '/editor',
+    lifecycle: {
+      beforeLeave() {
+        if (hasUnsavedChanges()) {
+          return false;
+        }
+      },
+    },
+  },
+] as const);
+```
+
+Cancellation-capable lifecycle hooks are:
+
+```ts
+interface GlobalLifecycle {
+  readonly beforeNavigate?: (
+    context: RouteLifecycleContext,
+  ) => boolean | void | Promise<boolean | void>;
+}
+
+interface RouteLifecycle {
+  readonly beforeLeave?: (
+    context: RouteLifecycleContext,
+  ) => boolean | void | Promise<boolean | void>;
+
+  readonly beforeEnter?: (
+    context: RouteLifecycleContext,
+  ) => boolean | void | Promise<boolean | void>;
+}
+```
+
+The order is:
+
+1. Global `beforeNavigate`
+2. `beforeLeave` from the current leaf toward its ancestors
+3. `beforeEnter` from the destination parent toward its leaf
+
+Lifecycle hooks do not receive `redirect()`, `rewrite()`, or `cancel()` helpers.
+
+Use middleware when the result must redirect or rewrite. Return `false` when lifecycle logic only needs to stop the transition.
+
+## Middleware cancellation
+
+Middleware can cancel explicitly:
+
+```ts
+const requirePermission = ({
+  cancel,
+}: MiddlewareContext) => {
+  if (!permissions.canOpenReports()) {
+    return cancel(); // [!code highlight]
+  }
+};
+```
+
+Returning `false` has the same result:
+
+```ts
+const requirePermission = () => {
+  if (!permissions.canOpenReports()) {
+    return false; // [!code highlight]
+  }
+};
+```
+
+`cancel()` is more explicit when cancellation is the intended outcome.
+
+Global middleware runs before route-level middleware. Route-level middleware follows the matched branch from parent to leaf. The first redirect, rewrite, cancellation, or `Response` stops the middleware pipeline.
+
+## Blocked navigation state
+
+Cancellation from a blocker, lifecycle hook, or middleware produces:
+
+```ts
+router.state.navigation === 'blocked';
+```
+
+For programmatic navigation, the destination was not committed, so the current history location remains.
+
+For a browser history event such as back or forward, the runtime restores the previously committed router location when possible.
+
+Cancellation does not produce an error fallback.
+
+## Returning a `Response`
+
+Middleware may return a `Response`:
+
+```ts
+const requireAuthorization = () => {
+  return new Response('Forbidden', {
+    status: 403,
+  });
+};
+```
+
+The current router runtime treats the `Response` as navigation error state:
+
+```ts
+router.state.navigation === 'error';
+router.state.error instanceof Response;
+```
+
+The router does not automatically:
+
+* Follow a `Location` header.
+* Interpret a `3xx` status as a redirect.
+* Convert the response into an HTTP server response.
+* Commit the attempted destination.
+* Choose an error page based on the response status.
+
+A redirecting response does not replace `redirect()`:
+
+```ts
+// Does not perform router redirection
+return new Response(null, {
+  status: 302,
+  headers: {
+    Location: '/login',
+  },
+});
+```
+
+Use `redirect('/login')` for a middleware redirect.
+
+SSR or platform integrations that need HTTP response handling must inspect router error state and map the `Response` explicitly.
+
+## Errors thrown during transition controls
+
+Throwing from a blocker, lifecycle hook, or middleware enters the navigation error path.
+
+```ts
+const requireConfiguration = () => {
+  if (!configuration.isLoaded()) {
+    throw new Error(
+      'Application configuration is unavailable.',
+    );
+  }
+};
+```
+
+Unlike cancellation:
+
+* Navigation state becomes `error`.
+* The error is available through `router.state.error`.
+* Router error handling can render the corresponding fallback.
+
+Use cancellation for an expected refusal. Throw for a transition failure.
+
+## Redirect and rewrite loops
+
+Every redirect and rewrite starts another internal transition.
+
+The router protects against loops with:
+
+```ts
+createRouter({
+  routes,
+  maxRedirectDepth: 10,
+});
+```
+
+The default is `10`.
+
+The guard counts:
+
+* Static route redirects
+* Middleware redirects
+* Middleware rewrites
+
+Despite its name, `maxRedirectDepth` also limits rewrite chains.
+
+The value must be a non-negative integer. When the limit is exceeded, the router enters error state with:
+
+```text
+Navigation exceeded the maximum redirect count.
+```
+
+The deprecated alias remains accepted:
+
+```ts
+createRouter({
+  routes,
+  maxRedirectionDepth: 10,
+});
+```
+
+Prefer `maxRedirectDepth` in new code.
+
+## Choose the correct control
+
+### Use a static route redirect when
+
+* A route always points somewhere else.
+* A parent index should resolve a default child.
+* A URL has permanently moved inside the application.
+* The target can be expressed without runtime context.
+
+```ts
+{
+  id: 'settings.index',
+  index: true,
+  redirect: {
+    route: 'settings.profile',
+  },
+}
+```
+
+### Use a middleware redirect when
+
+* The decision depends on authentication or permissions.
+* The destination depends on parsed params or search state.
+* The visible browser URL should become the redirect target.
+* The navigation may leave the application.
+
+```ts
+return redirect('/login');
+```
+
+### Use a middleware rewrite when
+
+* Another internal route should render.
+* No history write should occur.
+* Router state and browser history are intentionally allowed to differ.
+* The target must remain internal.
+
+```ts
+return rewrite('/login');
+```
+
+### Use a blocker when
+
+* The current application state determines whether leaving is allowed.
+* The guard must apply across route transitions.
+* React should also protect browser unload.
+
+```ts
+router.block(() => !formIsDirty());
+```
+
+### Return `false` from lifecycle when
+
+* A route’s enter or leave lifecycle should stop.
+* No redirect or rewrite is needed.
+* The cancellation belongs to route transition semantics.
+
+### Use `cancel()` in middleware when
+
+* Middleware has completed its checks.
+* The transition should stop without becoming an error.
+* The current route and history should remain active.
+
+## Where this bites
+
+### A rewrite does not always leave the requested destination in the address bar
+
+Rewrites suppress history writes. During programmatic navigation, the previous committed URL remains—not necessarily the attempted destination.
+
+### Router state and browser history disagree after a rewrite
+
+That is the current rewrite model. Rendering follows `router.state.match`, while the browser URL follows the history adapter.
+
+### Redirecting removes the previous history entry
+
+Redirects use replace semantics. The intermediate destination and previous current entry are not preserved as a new navigation entry.
+
+### A static redirect cannot use source params dynamically
+
+Static route redirect values do not receive match context. Use middleware when the target depends on parsed source state.
+
+### Source-route middleware does not run before a static redirect
+
+The route redirect is resolved before blockers, lifecycle hooks, and middleware for that source route. The target begins a fresh transition.
+
+### A `302 Response` does not redirect
+
+A middleware `Response` becomes router error state. Use the middleware `redirect()` helper.
+
+### An external rewrite becomes an error
+
+Only redirects can leave the application.
+
+### A rewrite loop is limited by `maxRedirectDepth`
+
+The same guard protects both redirect and rewrite chains.
+
+### Cancellation and errors are different outcomes
+
+Cancellation produces `blocked`. Throwing or returning a `Response` produces `error`.

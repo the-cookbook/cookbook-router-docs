@@ -1,0 +1,252 @@
+---
+title: "Path API"
+description: "Public path options and custom-constraint APIs exported by the current root-only @cookbook/router package."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Cookbook Router uses `@cookbook/pathkit` for route-pattern grammar, matching, and path compilation. The current package publishes one root entrypoint and exposes the constraint registry plus Router path option contracts. Internal tokenization, matching, and compilation modules are not public imports.
+
+For route-authoring syntax and examples, see [Path routes and constraints](/docs/router/concepts/path-routes-and-constraints).
+
+## Public export boundary
+
+```ts
+import {
+  createPathConstraint,
+  getPathConstraint,
+  hasPathConstraint,
+  registerPathConstraints,
+  unregisterPathConstraint,
+} from '@cookbook/router';
+
+import type {
+  RouterPathConstraint,
+  RouterPathConstraints,
+  RouterPathMatchOptions,
+  RouterPathOptions,
+} from '@cookbook/router';
+```
+
+There is no published `@cookbook/router/path` entrypoint in the current package manifest.
+
+## `RouterPathOptions`
+
+```ts
+interface RouterPathOptions {
+  readonly prune?: 'all' | 'duplication' | 'trailing' | false;
+}
+```
+
+`prune` controls slash normalization during route validation, matching, href generation, and canonicalization.
+
+| Value | Behavior | `/users//42/` becomes |
+| --- | --- | --- |
+| `'all'` | Remove duplicate and trailing slashes. Default. | `/users/42` |
+| `'duplication'` | Remove duplicate slashes only. | `/users/42/` |
+| `'trailing'` | Remove trailing slashes only. | `/users//42` |
+| `false` | Preserve the pathname as declared. | `/users//42/` |
+
+`RouterPathOptions` can be supplied to route declaration and router creation:
+
+```ts
+const routes = defineRoutes(routeDefinitions, {
+  pathOptions: { prune: 'all' },
+});
+
+const router = createRouter({
+  routes,
+  pathOptions: { prune: 'all' },
+});
+```
+
+Route-declaration options apply while paths are validated. Router options apply while raw definitions are normalized, matched, and used to build hrefs. Keep them consistent when definitions and runtime creation happen in different modules.
+
+## `RouterPathMatchOptions`
+
+```ts
+interface RouterPathMatchOptions {
+  readonly trailing?: boolean;
+  readonly strict?: boolean;
+  readonly sensitive?: boolean;
+  readonly end?: boolean;
+  readonly wildcardFormat?: 'string' | 'array';
+  readonly decode?: boolean | ((value: string) => string);
+}
+```
+
+These options configure serialized pathname matching through `RouterUrlOptions.pathMatch`.
+
+<TypeTable
+  type={{
+    trailing: { description: 'Allows one final delimiter while matching.', type: 'boolean', optional: true },
+    strict: { description: 'Surfaces constraint failures rather than treating them as an ordinary route miss.', type: 'boolean', optional: true },
+    sensitive: { description: 'Enables case-sensitive path matching.', type: 'boolean', optional: true },
+    end: { description: 'Controls whether matching must consume the complete pathname. Reserved for prefix-routing integrations.', type: 'boolean', optional: true },
+    wildcardFormat: { description: 'Controls PathKit wildcard capture representation before Router normalizes resolved params.', type: "'string' | 'array'", optional: true },
+    decode: { description: 'Enables standard decoding, disables it, or supplies a custom segment decoder.', type: 'boolean | ((value: string) => string)', optional: true },
+  }}
+/>
+
+```ts
+const router = createRouter({
+  routes,
+  url: {
+    pathMatch: {
+      sensitive: true,
+      strict: true,
+    },
+  },
+});
+```
+
+Route-level and call-site URL options can override router defaults where the receiving API accepts resolution policies. Href build APIs do not accept match-only policies.
+
+## Constraint contracts
+
+```ts
+type RouterPathConstraint = ConstraintValidation;
+
+type RouterPathConstraints = Readonly<
+  Record<string, RouterPathConstraint>
+>;
+```
+
+`RouterPathConstraint` is the PathKit validation contract. A custom constraint normally provides:
+
+```ts
+interface ConstraintValidation {
+  readonly parse: (
+    paramName: string,
+    value: string | number | boolean | undefined,
+    params: string,
+  ) => void;
+  readonly verify: (paramName: string, params: string) => void;
+  readonly toRegExp?: (params: string) => string;
+}
+```
+
+`parse()` validates matched or generated values. `verify()` validates the declared constraint arguments. `toRegExp()` supplies a segment-matching regular-expression source when the constraint needs custom matching syntax.
+
+## `createPathConstraint()`
+
+```ts
+function createPathConstraint(
+  definition: ConstraintValidation,
+): RouterPathConstraint;
+```
+
+Creates a PathKit-compatible constraint object. This is a direct public re-export from `@cookbook/pathkit`.
+
+```ts
+const slug = createPathConstraint({
+  parse(paramName, value) {
+    if (typeof value !== 'string' || !/^[a-z0-9-]+$/.test(value)) {
+      throw new Error(`Parameter "${paramName}" must be a valid slug.`);
+    }
+  },
+  verify(_paramName, params) {
+    if (params.trim()) {
+      throw new Error('slug does not accept parameters.');
+    }
+  },
+  toRegExp() {
+    return '[a-z0-9-]+';
+  },
+});
+```
+
+The regex return value is source text, not a JavaScript regex literal. Return `'[a-z0-9-]+'`, not `'/[a-z0-9-]+/'`.
+
+## `registerPathConstraints()`
+
+```ts
+function registerPathConstraints(
+  constraints?: RouterPathConstraints,
+): void;
+```
+
+Registers each constraint name with PathKit and clears Router's cached path machinery so subsequent validation, matching, and compilation use the new behavior.
+
+- `undefined` is a no-op.
+- an empty or whitespace-only name throws `Router path constraint names must be non-empty strings.`
+- registration is process-global.
+- registering an existing name follows PathKit registry behavior.
+
+Route modules should normally register through the declaration that uses the constraint:
+
+```ts
+export const routes = defineRoutes(
+  [
+    {
+      id: 'posts.show',
+      path: '/posts/{slug:slug}',
+      view: PostPage,
+    },
+  ] as const,
+  {
+    pathConstraints: { slug },
+  },
+);
+```
+
+`defineRoutes()` validates immediately, so supplying the constraint later only to `createRouter()` is too late for an already-executed `defineRoutes()` call.
+
+Use `createRouter({ pathConstraints })` when the router receives raw route arrays that were not already validated by `defineRoutes()` or `defineRouteTree()`.
+
+## `hasPathConstraint()`
+
+```ts
+function hasPathConstraint(name: string): boolean;
+```
+
+Reports whether the process-level PathKit registry currently contains the name. This is useful for diagnostics and collision-safe test setup; it does not prove every runtime environment registered the same implementation.
+
+## `getPathConstraint()`
+
+```ts
+function getPathConstraint(
+  name: string,
+): RouterPathConstraint | undefined;
+```
+
+Returns the registered constraint object when available. Treat the returned object as registry state, not route-local configuration.
+
+## `unregisterPathConstraint()`
+
+```ts
+function unregisterPathConstraint(name: string): void;
+```
+
+Removes a PathKit constraint from the process-level registry. It is mainly intended for test isolation.
+
+Direct unregistration is a PathKit re-export and does not independently run Router's registration cache-clear path. Avoid dynamically swapping application constraints after route creation. Prefer stable startup registration and unique names.
+
+## Built-in constraint grammar
+
+| Constraint | Pattern | Resolved Router type |
+| --- | --- | --- |
+| Unconstrained | `{slug}` | `string` |
+| `int` | `{id:int}` | `number` |
+| `decimal` | `{price:decimal}` | `number` |
+| `uuid` | `{id:uuid}` | `string` |
+| `min` | `{price:min(1)}` | `number` |
+| `max` | `{price:max(10)}` | `number` |
+| `range` | `{page:range(1,100)}` | `number` |
+| `minlength` | `{slug:minlength(3)}` | `string` |
+| `maxlength` | `{slug:maxlength(50)}` | `string` |
+| `list` | `{view:list(grid\|list)}` | `string` |
+| `regex` | `{slug:regex([a-z0-9-]+)}` | `string` |
+| Wildcard | `{*path}` | `readonly string[]` |
+
+A numeric built-in anywhere in a constraint chain makes the resolved URLKit/Router param a number. Arbitrary custom constraints remain `string` in generated contracts unless combined with a numeric built-in.
+
+## Environment consistency
+
+Custom constraints are executable configuration. Browser, server, tests, CLI route loading, and build plugins must load the same names before they validate or resolve routes. A generated contract can describe `{slug:slug}`, but it cannot ship the JavaScript implementation of `slug` into another process.
+
+## Where this bites
+
+A function existing under `packages/router/src/path` does not make it public. The package manifest and root `src/index.ts` are the contract. Import only the five constraint values and four path types listed on this page.

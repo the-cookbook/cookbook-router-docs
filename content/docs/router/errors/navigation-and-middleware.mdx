@@ -1,0 +1,60 @@
+---
+title: "Navigation and middleware errors"
+description: "Exact href-generation, middleware-target, internal-navigation, redirect, and disposed-router diagnostics."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## `Cannot generate href because route "..." is not registered. ...`
+
+**Cause:** `href()`, route navigation, or a typed link received an unknown route ID, often after generated contracts became stale.
+
+**Fix:** use an ID in the current route tree and regenerate `.cookbook-router/contracts.ts` when generated typing disagrees with runtime routes.
+
+## `Cannot generate href for route "..." because it does not resolve to a URL path. ...`
+
+**Cause:** the target is a pathless layout/group route.
+
+**Fix:** navigate to a concrete path or index descendant.
+
+## `Route "..." expected param "..." to satisfy "...", but received ...`
+
+Both missing and invalid parameter diagnostics use this pattern. The token is the path constraint declared in the route pattern.
+
+**Fix:** provide every required parameter using the input type and value accepted by that constraint.
+
+## `Generated href "..." for route "..." does not satisfy route path "...". ...`
+
+**Cause:** the built URL failed the route pattern after params, basename, and path constraints were applied.
+
+**Fix:** inspect custom constraint parse/build symmetry and the supplied basename.
+
+## `Middleware redirect target must be a non-empty string, but received ...`
+
+**Cause:** middleware called `redirect()`/`rewrite()` with an empty or non-string target, or returned a malformed target object.
+
+**Fix:** return `redirect('/login')`, `rewrite('/canonical')`, or a valid `{ type, to }` result.
+
+## `Cannot run middleware without a matched route branch.`
+
+**Cause:** low-level middleware execution was invoked without a successful route match. Normal router transitions do not manufacture this state.
+
+**Fix:** do not call internal transition helpers directly; match first when testing low-level middleware.
+
+## `Cannot navigate to internal href "..." with route option "...". ...`
+
+**Cause:** a raw internal href string was combined with route-only fields such as `params`, `search`, or `hash`.
+
+**Fix:** either navigate by route ID with route options, or pass the complete raw href without route-only fields.
+
+## `Router has been disposed. Create a new router instance before starting, navigating, refreshing, or preloading.`
+
+**Cause:** an operational method was called after `dispose()`.
+
+**Fix:** disposal is terminal. Create a new router; do not try to restart the old instance.
+
+## Redirect depth failure
+
+Redirect processing is bounded by `maxRedirects`. A loop or chain beyond that limit fails the transition rather than recursing forever. Remove the cycle or raise the configured limit only when the chain is intentional and finite.

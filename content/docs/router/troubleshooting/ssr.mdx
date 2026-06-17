@@ -1,0 +1,26 @@
+---
+title: "SSR troubleshooting"
+description: "Fix empty static renders, styles, hydration mismatches, and request-scoped router mistakes."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## SSR returns an empty root
+
+Your dev server is probably serving `index.html` directly instead of calling the SSR renderer. Use the SSR example pattern: a Vite dev plugin/middleware that calls `renderRequest()` for document requests.
+
+## SSR page has no styles
+
+Server HTML must include CSS links needed by the first render.
+
+```html
+<link rel="stylesheet" href="/src/styles.css" />
+```
+
+Production frameworks usually emit built CSS asset URLs from a manifest.
+
+## Hydration rejects the client URL
+
+The serialized pathname/search differs from client history. Serialize from the request router and inject that exact state into a client router created at the same URL. A hash-only difference is not the same failure because fragments never reach the server.

@@ -1,0 +1,66 @@
+---
+title: "Protected routes"
+description: "Enforce route metadata with provider middleware before the first protected render."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Provider middleware and protected routes
+
+Put access rules where routing can see them. Attach authorization hints to route metadata, then enforce them with middleware registered through `RouterProvider`. Provider middleware runs as part of provider-owned startup, so protected routes are guarded from the first resolution.
+
+```ts
+import type { Middleware } from '@cookbook/router';
+
+const authMiddleware: Middleware = ({ route, location, redirect }) => {
+  if (!route.route.meta?.requiresAuth || session.isAuthenticated()) {
+    return;
+  }
+
+  return redirect(`/login?redirect=${encodeURIComponent(location.href)}`);
+};
+```
+
+```tsx
+const middleware = React.useMemo(() => [authMiddleware], []);
+
+return <RouterProvider router={router} middleware={middleware} />;
+```
+
+Read metadata from the normalized matched route:
+
+```ts
+route.route.meta;
+```
+
+Reach for `route.route.route` only when you need the original declated `RouteDefinition`.
+
+## Public routes with metadata
+
+Make public access a route property, not a growing list of exceptions. Metadata keeps the policy visible where the route is defined.
+
+```ts
+export const privacyPolicyRoute = defineRoute({
+  id: 'policies.privacy',
+  parent: 'policies',
+  path: 'privacy-policy',
+  view: PrivacyPolicyPage,
+  meta: {
+    access: 'public',
+  },
+} as const);
+```
+
+Then middleware can skip public routes without hard-coding route ids:
+
+```ts
+const authMiddleware: Middleware = ({ route, redirect, location }) => {
+  if (route.route.meta?.access === 'public' || session.isAuthenticated()) {
+    return;
+  }
+
+  return redirect(`/login?redirect=${encodeURIComponent(location.href)}`);
+};
+```

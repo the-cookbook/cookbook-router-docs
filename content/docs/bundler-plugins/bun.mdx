@@ -1,0 +1,121 @@
+---
+title: "Bun plugin"
+description: "Run Cookbook Router generation from Bun onStart and understand the native watch limitation."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Install and configure
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab value="pnpm">
+
+```bash
+pnpm add -D @cookbook/router-bun-plugin
+```
+
+  </Tab>
+  <Tab value="npm">
+
+```bash
+npm install --save-dev @cookbook/router-bun-plugin
+```
+
+  </Tab>
+  <Tab value="yarn">
+
+```bash
+yarn add -D @cookbook/router-bun-plugin
+```
+
+  </Tab>
+  <Tab value="bun">
+
+```bash
+bun add -d @cookbook/router-bun-plugin
+```
+
+  </Tab>
+</Tabs>
+
+```ts title="build.ts"
+import { cookbookRouterBunPlugin } from '@cookbook/router-bun-plugin';
+
+await Bun.build({
+  entrypoints: ['./src/main.tsx'],
+  plugins: [cookbookRouterBunPlugin()],
+});
+```
+
+```ts
+function cookbookRouterBunPlugin(
+  options?: CookbookRouterBunPluginOptions,
+): Bun.BunPlugin;
+
+interface CookbookRouterBunPluginOptions
+  extends CookbookRouterBuilderPluginOptions {}
+```
+
+The factory is exported by name and as the default export.
+
+
+## Shared build-runner options
+
+All plugins except Vite extend `CookbookRouterBuilderPluginOptions` from `@cookbook/router-cli`.
+
+<TypeTable
+  type={{
+    cwd: {
+      description: 'Project root used for config discovery and relative route paths.',
+      type: 'string',
+      default: 'Bundler project root or current working directory',
+    },
+    configFile: {
+      description: 'Explicit router config path. Without it, Cookbook Router discovers cookbook-router.config.*.',
+      type: 'string',
+    },
+    routeFiles: {
+      description: 'Route file or glob override. It wins over routeFiles from the config file.',
+      type: 'string | readonly string[]',
+    },
+    outDir: {
+      description: 'Generated output directory. It wins over config outDir.',
+      type: 'string',
+      default: "'.cookbook-router'",
+    },
+    fs: {
+      description: 'File-system adapter for tests and non-standard runtimes.',
+      type: 'CliFileSystem',
+    },
+  }}
+/>
+
+The runner resolves command options, generates physical artifacts, and then resolves watch paths even after a failure. That last part is the recovery mechanism: a bad config should not make the plugin blind to the file that can repair it.
+
+## Generated artifacts
+
+A successful aggregate run writes:
+
+- `contracts.ts`
+- `register.d.ts`
+- `manifest.json`
+
+It writes `routes.ts` only when the loaded route input contains statically composable route exports. JSON-only or otherwise non-composable input can still produce contracts and a manifest without producing a runtime route module.
+
+## Precedence
+
+1. Explicit plugin options
+2. Values from `cookbook-router.config.*`
+3. Framework defaults
+
+An explicit `routeFiles` or `outDir` is not merged with the config value. It replaces it.
+
+## Lifecycle and errors
+
+The plugin registers an asynchronous `onStart` callback. A failed runner result is converted to one `Error` containing the formatted Cookbook Router messages. Bun receives that thrown error and aborts the build.
+
+## Watch boundary
+
+The adapter does not register arbitrary route roots. For development flows where creating or deleting a matching route must trigger generation, run `cbr generate --watch` as a companion process.

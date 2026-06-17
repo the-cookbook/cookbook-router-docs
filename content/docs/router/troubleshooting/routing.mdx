@@ -1,0 +1,151 @@
+---
+title: "Routing troubleshooting"
+description: "Diagnose route validation, matching, redirects, basename, constraints, slots, and intercepts."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Route validation fails
+
+`defineRoutes()`, `validateRoutes()`, `createRouter()`, and CLI generation all validate route definitions. For the complete list of validation errors with symptoms, causes, and fixes, see [Route validation errors](/docs/router/errors/route-definition-validation).
+
+Start with that catalog when the error mentions route IDs, paths, layout slots, intercepts, redirects, search descriptors, hash descriptors, duplicate params, or unsafe keys.
+
+## Route does not match
+
+Check:
+
+- the route has an `id`
+- index routes do not define `path`
+- nested child paths are composed with their parent path, even when the child path starts with `/`
+- constrained params satisfy the registered URLKit/PathKit constraint. See [Path routes and constraints](/docs/router/concepts/path-routes-and-constraints) for built-in constraint syntax.
+- `basename` is configured when the app is mounted under a URL prefix
+- `pathOptions.prune` is not set to `false` when you expect slash cleanup
+
+Use router matching directly in a test:
+
+```ts
+expect(router.match('/blog/articles/my-post')?.route.id).toBe('blog.articles.show');
+```
+
+## Redirect route shows not found
+
+For entry redirects such as:
+
+```tsx
+{
+  id: 'entry',
+  path: '/',
+  redirect: { route: 'dashboard' },
+}
+```
+
+call `router.start()` before the initial render:
+
+```tsx
+await router.start();
+createRoot(root).render(<RouterProvider router={router} fallback={<NotFound />} />);
+```
+
+If the app is running from built package outputs inside the monorepo, rebuild packages:
+
+```sh
+pnpm build:packages
+```
+
+## Trailing slash stays in the URL
+
+The default path cleanup is:
+
+```ts
+pathOptions: {
+  prune: 'all',
+}
+```
+
+This canonicalizes matched paths like `/gallery/` to `/gallery`. If it does not happen, check whether the app is using stale built package output or whether you opted out:
+
+```ts
+createRouter({ routes, pathOptions: { prune: false } });
+```
+
+## Unknown custom path constraint
+
+A route such as `/posts/{slug:slug}` only validates after `slug` has been registered.
+
+```ts
+import { createPathConstraint, createRouter, defineRoutes } from '@cookbook/router';
+
+const slug = createPathConstraint({
+  parse: (paramName, value) => {
+    if (typeof value !== 'string' || !/^[a-z0-9-]+$/.test(value)) {
+      throw new Error(`Parameter "${paramName}" must be a valid slug.`);
+    }
+  },
+  verify: (_paramName, params) => {
+    if (params) {
+      throw new Error('slug does not accept parameters.');
+    }
+  },
+  toRegExp: () => '[a-z0-9-]+',
+});
+
+const routes = defineRoutes([{ id: 'posts.show', path: '/posts/{slug:slug}' }] as const, {
+  pathConstraints: { slug },
+});
+
+createRouter({ routes });
+```
+
+For SSR, use the same custom-constraint setup in the route module used by both the server and client. `defineRoutes(..., { pathConstraints })` and `createRouter({ pathConstraints })` both forward constraints to URLKit before route URL contracts are used.
+
+## Basename routes do not work
+
+Configure basename once on the router:
+
+```ts
+createRouter({ routes, basename: '/foo' });
+```
+
+Do not include the basename in route paths. Use `/blog`, not `/foo/blog`.
+
+Links should generate `/foo/...`, while route config and intercept patterns remain app-relative.
+
+## Intercept throws missing configuration
+
+For configured intercepts, the source route must declare the slot and destination pattern.
+
+```tsx
+intercepts: {
+  modal: {
+    to: ['articles/{slug}'],
+    view: ArticleModal,
+  },
+}
+```
+
+The active layout tree must also render the target slot:
+
+```tsx
+<Slot name="modal" />
+```
+
+If the current route does not own a configured intercept, use call-site interception:
+
+```tsx
+<Link intercept={{ slot: 'modal', view: ArticleModal }} ... />
+```
+
+## Call-site intercept throws `DataCloneError`
+
+Browser history state cannot store functions. Current call-site intercept support stores a clone-safe view key in history and keeps the view in an in-memory registry.
+
+If you still see `DataCloneError`, rebuild packages and restart the dev server:
+
+```sh
+pnpm build:packages
+```
+
+Also avoid putting function values in custom `history.state`.

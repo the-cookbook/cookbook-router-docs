@@ -1,0 +1,8 @@
+{
+  "title": "Cookbook Router",
+  "pages": [
+    "---Documentation Areas---",
+    "router",
+    "bundler-plugins"
+  ]
+}

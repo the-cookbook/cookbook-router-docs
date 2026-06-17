@@ -1,0 +1,497 @@
+---
+title: "Installation"
+description: "Choose your runtime, then connect Cookbook Router to your build."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Three steps, then one check:
+
+1. Choose the runtime your application uses.
+2. Add one generation path: a bundler plugin or the CLI.
+3. Run `cbr init` to create the config, scripts, output directory, and initial contracts.
+4. Register the bundler plugin when applicable, then verify that TypeScript includes the generated contracts.
+
+<Steps>
+
+<Step>
+
+## Choose your runtime
+
+### For React applications
+
+Install the core router and its React integration.
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab value="pnpm">
+
+```bash
+pnpm add @cookbook/router @cookbook/router-react
+````
+
+  </Tab>
+
+  <Tab value="npm">
+
+```bash
+npm install @cookbook/router @cookbook/router-react
+```
+
+  </Tab>
+
+  <Tab value="yarn">
+
+```bash
+yarn add @cookbook/router @cookbook/router-react
+```
+
+  </Tab>
+
+  <Tab value="bun">
+
+```bash
+bun add @cookbook/router @cookbook/router-react
+```
+
+  </Tab>
+</Tabs>
+
+Use this setup for React providers, links, hooks, outlets, slots, intercepts, blockers, and static rendering.
+
+### Other frameworks and runtimes
+
+Install the core router.
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}> <Tab value="pnpm">
+
+```bash
+pnpm add @cookbook/router
+```
+
+  </Tab>
+
+  <Tab value="npm">
+
+```bash
+npm install @cookbook/router
+```
+
+  </Tab>
+
+  <Tab value="yarn">
+
+```bash
+yarn add @cookbook/router
+```
+
+  </Tab>
+
+  <Tab value="bun">
+
+```bash
+bun add @cookbook/router
+```
+
+  </Tab>
+</Tabs>
+
+The core router is **framework-agnostic** and works independently of React or any other UI library.
+
+</Step>
+
+<Step>
+
+## Add generation to your build
+
+Generation turns static route definitions into typed route IDs, params, search, hash, autocomplete, declarations, manifests, and build-time validation.
+
+Install the CLI and exactly one plugin for the bundler your application uses.
+
+<Accordions type="single">
+
+<Accordion title="Vite">
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}> <Tab value="pnpm">
+
+```bash
+pnpm add -D @cookbook/router-cli @cookbook/router-vite-plugin
+```
+
+  </Tab>
+
+  <Tab value="npm">
+
+```bash
+npm install --save-dev @cookbook/router-cli @cookbook/router-vite-plugin
+```
+
+  </Tab>
+
+  <Tab value="yarn">
+
+```bash
+yarn add --dev @cookbook/router-cli @cookbook/router-vite-plugin
+```
+
+  </Tab>
+
+  <Tab value="bun">
+
+```bash
+bun add --dev @cookbook/router-cli @cookbook/router-vite-plugin
+```
+
+  </Tab>
+</Tabs>
+
+</Accordion>
+
+<Accordion title="Webpack">
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}> <Tab value="pnpm">
+
+```bash
+pnpm add -D @cookbook/router-cli @cookbook/router-webpack-plugin
+```
+
+  </Tab>
+
+  <Tab value="npm">
+
+```bash
+npm install --save-dev @cookbook/router-cli @cookbook/router-webpack-plugin
+```
+
+  </Tab>
+
+  <Tab value="yarn">
+
+```bash
+yarn add --dev @cookbook/router-cli @cookbook/router-webpack-plugin
+```
+
+  </Tab>
+
+  <Tab value="bun">
+
+```bash
+bun add --dev @cookbook/router-cli @cookbook/router-webpack-plugin
+```
+
+  </Tab>
+</Tabs>
+
+</Accordion>
+
+<Accordion title="Rspack">
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}> <Tab value="pnpm">
+
+```bash
+pnpm add -D @cookbook/router-cli @cookbook/router-rspack-plugin
+```
+
+  </Tab>
+
+  <Tab value="npm">
+
+```bash
+npm install --save-dev @cookbook/router-cli @cookbook/router-rspack-plugin
+```
+
+  </Tab>
+
+  <Tab value="yarn">
+
+```bash
+yarn add --dev @cookbook/router-cli @cookbook/router-rspack-plugin
+```
+
+  </Tab>
+
+  <Tab value="bun">
+
+```bash
+bun add --dev @cookbook/router-cli @cookbook/router-rspack-plugin
+```
+
+  </Tab>
+</Tabs>
+
+</Accordion>
+
+<Accordion title="Rollup or Rolldown">
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}> <Tab value="pnpm">
+
+```bash
+pnpm add -D @cookbook/router-cli @cookbook/router-rollup-plugin
+```
+
+  </Tab>
+
+  <Tab value="npm">
+
+```bash
+npm install --save-dev @cookbook/router-cli @cookbook/router-rollup-plugin
+```
+
+  </Tab>
+
+  <Tab value="yarn">
+
+```bash
+yarn add --dev @cookbook/router-cli @cookbook/router-rollup-plugin
+```
+
+  </Tab>
+
+  <Tab value="bun">
+
+```bash
+bun add --dev @cookbook/router-cli @cookbook/router-rollup-plugin
+```
+
+  </Tab>
+</Tabs>
+
+</Accordion>
+
+<Accordion title="esbuild">
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}> <Tab value="pnpm">
+
+```bash
+pnpm add -D @cookbook/router-cli @cookbook/router-esbuild-plugin
+```
+
+  </Tab>
+
+  <Tab value="npm">
+
+```bash
+npm install --save-dev @cookbook/router-cli @cookbook/router-esbuild-plugin
+```
+
+  </Tab>
+
+  <Tab value="yarn">
+
+```bash
+yarn add --dev @cookbook/router-cli @cookbook/router-esbuild-plugin
+```
+
+  </Tab>
+
+  <Tab value="bun">
+
+```bash
+bun add --dev @cookbook/router-cli @cookbook/router-esbuild-plugin
+```
+
+  </Tab>
+</Tabs>
+
+</Accordion>
+
+<Accordion title="Bun">
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}> <Tab value="pnpm">
+
+```bash
+pnpm add -D @cookbook/router-cli @cookbook/router-bun-plugin
+```
+
+  </Tab>
+
+  <Tab value="npm">
+
+```bash
+npm install --save-dev @cookbook/router-cli @cookbook/router-bun-plugin
+```
+
+  </Tab>
+
+  <Tab value="yarn">
+
+```bash
+yarn add --dev @cookbook/router-cli @cookbook/router-bun-plugin
+```
+
+  </Tab>
+
+  <Tab value="bun">
+
+```bash
+bun add --dev @cookbook/router-cli @cookbook/router-bun-plugin
+```
+
+  </Tab>
+</Tabs>
+
+</Accordion>
+
+</Accordions>
+
+### No supported bundler plugin
+
+Use the CLI directly when the application uses another build system or needs generation outside the bundler lifecycle.
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}> <Tab value="pnpm">
+
+```bash
+pnpm add -D @cookbook/router-cli
+pnpm exec cbr generate --watch
+```
+
+  </Tab>
+
+  <Tab value="npm">
+
+```bash
+npm install --save-dev @cookbook/router-cli
+npx cbr generate --watch
+```
+
+  </Tab>
+
+  <Tab value="yarn">
+
+```bash
+yarn add --dev @cookbook/router-cli
+yarn cbr generate --watch
+```
+
+  </Tab>
+
+  <Tab value="bun">
+
+```bash
+bun add --dev @cookbook/router-cli
+bunx cbr generate --watch
+```
+
+  </Tab>
+</Tabs>
+
+</Step>
+
+<Step>
+
+## Initialize Cookbook Router
+
+Run the initializer once after installing the runtime and generation packages:
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab value="pnpm">
+
+```bash
+pnpm exec cbr init
+````
+
+  </Tab>
+
+  <Tab value="npm">
+
+```bash
+npx cbr init
+```
+
+  </Tab>
+
+  <Tab value="yarn">
+
+```bash
+yarn cbr init
+```
+
+  </Tab>
+
+  <Tab value="bun">
+
+```bash
+bunx cbr init
+```
+
+  </Tab>
+</Tabs>
+
+The initializer prepares the project for both CLI and bundler-plugin generation. It creates the router config, detects the source directory, adds route scripts, connects the generated output to TypeScript, and runs the first generation.
+
+By default, it creates:
+
+```text
+cookbook-router.config.ts
+src/root.route.tsx
+.cookbook-router/
+```
+
+Projects using an `app` directory get `app/root.route.tsx` instead. Custom route globs do not receive an automatic starter route.
+
+`cbr init` refuses to overwrite an existing router config. Existing projects should configure generation manually instead of forcing initialization over working setup.
+
+</Step>
+
+<Step>
+
+## Verify the TypeScript connection
+
+Generated contracts do nothing if TypeScript cannot see them. Whether the CLI or a bundler plugin creates the files, inference, autocomplete, and validation only work after those files become part of the application's TypeScript program.
+
+`cbr init` updates `tsconfig.json` automatically when it finds one. Check the configuration manually when initialization was skipped, the bundler plugin was configured by hand, or generation uses a custom `outDir`.
+
+Register the generated files to TypeScript's `include` option:
+
+```json title="tsconfig.json"
+{
+  "include": [
+    "src",
+    ".cookbook-router/contracts.ts",
+    ".cookbook-router/register.d.ts"
+  ]
+}
+````
+
+Replace `src` when your source lives elsewhere. If you configured a different `outDir`, replace `.cookbook-router` with that path.
+
+`contracts.ts` contains the route-specific types. `register.d.ts` connects these types to `@cookbook/router` and `@cookbook/router-react`, making route IDs, params, search, hash, metadata, and related specs available to links, navigation, hooks, and router APIs.
+
+Do not add these files to `compilerOptions.types`. They must be included as source files in the TypeScript program.
+
+**No inclusion, no inference.**
+
+</Step>
+
+</Steps>
+
+## What gets installed
+
+| Need                               | Install                                 |
+| ---------------------------------- | --------------------------------------- |
+| Framework-agnostic routing         | `@cookbook/router`                      |
+| React rendering and hooks          | `@cookbook/router-react`                |
+| Contract generation and validation | `@cookbook/router-cli`                  |
+| Build integration                  | One `@cookbook/router-*-plugin` package |
+
+## Requirements
+
+| Package                  | Runtime requirement                                              |
+| ------------------------ | ---------------------------------------------------------------- |
+| All packages             | Node.js 18 or newer                                              |
+| `@cookbook/router-react` | React and React DOM 18 or newer                                  |
+| Vite plugin              | Vite 5 or newer                                                  |
+| Webpack plugin           | Webpack 5 or newer                                               |
+| Rspack plugin            | Rspack 1 or newer                                                |
+| Rollup plugin            | Rollup 4 or newer                                                |
+| esbuild plugin           | esbuild 0.20 or newer                                            |
+| Bun plugin               | Current Bun plugin API and `bun-types` 1 or newer for TypeScript |
+
+## Where this bites
+
+Pick **one** bundler plugin. Your build only needs one, not all six.
+
+Do not run a bundler plugin and `cbr generate --watch` against the same output directory. Both processes will generate the same artifacts, duplicate work, and make failures harder to diagnose.
+
+The runtime packages make routing work. Generation is what turns the route tree into enforceable TypeScript contracts and build-time validation.

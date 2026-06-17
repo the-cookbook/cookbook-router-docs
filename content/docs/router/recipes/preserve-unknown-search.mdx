@@ -1,0 +1,41 @@
+---
+title: "Preserve unknown search parameters"
+description: "Keep campaign, experiment, and partner query parameters without polluting typed route state."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Preserve unknown search params
+
+Sometimes the URL carries value your route contract does not own. Preserve unknown search params when UTM tags, attribution keys, or partner parameters need to survive navigation.
+
+```ts
+const router = createRouter({
+  routes,
+  url: {
+    unknownSearch: 'preserve',
+  },
+});
+```
+
+Read undeclared keys separately from typed declared search:
+
+```tsx
+import { useSearchParams, useUnknownSearchParams } from '@cookbook/router-react';
+
+function Attribution() {
+  const search = useSearchParams('landing');
+  const unknownSearch = useUnknownSearchParams();
+
+  analytics.track('landing-view', {
+    campaign: search.campaign,
+    utmSource: unknownSearch.utm_source,
+  });
+
+  return null;
+}
+```
+
+If unknown keys should not survive routing, keep the default `'strip'` behavior or configure `unknownSearch: 'strip'` explicitly.

@@ -1,0 +1,34 @@
+---
+title: "esbuild and Bun watch fallback"
+description: "Pair host watch mode with CLI route discovery when new route files are outside the module graph."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Why the companion process exists
+
+The current esbuild and Bun adapters run generation from `onStart`, but they do not register arbitrary route-glob roots with the host watcher. An existing module change can trigger another build. Creating the first brand-new matching route outside the graph may not.
+
+## Run both watches
+
+```json title="package.json"
+{
+  "scripts": {
+    "dev:routes": "cbr generate --watch",
+    "dev:bundle": "node ./scripts/watch-bundle.mjs",
+    "dev": "run-p dev:routes dev:bundle"
+  }
+}
+```
+
+The CLI watcher owns config and route-root discovery. The bundler plugin still generates at build start, so production and one-shot builds remain self-contained.
+
+## Avoid output races
+
+Both paths may request the same deterministic generation. Writes only replace changed contents, but running two watchers against custom filesystems or custom output logic is unnecessary. During development, you can omit the plugin from the long-lived watch command and retain it for production configuration, or accept the idempotent standard writer.
+
+## Where this bites
+
+Watching only `.cookbook-router` does not solve discovery. The event must originate from the config candidate or route source root, not from the artifact produced after discovery.

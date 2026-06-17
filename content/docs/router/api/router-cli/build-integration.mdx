@@ -1,0 +1,120 @@
+---
+title: "Build integration API"
+description: "Exact shared builder options, runner result, watch-state fallback, path utilities, error formatting, and Webpack/Rspack compiler hooks."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Shared plugin options
+
+```ts
+interface CookbookRouterBuilderPluginOptions {
+  readonly cwd?: string;
+  readonly configFile?: string;
+  readonly routeFiles?: string | readonly string[];
+  readonly outDir?: string;
+  readonly fs?: CliFileSystem;
+}
+
+interface RouterBuildRunnerOptions
+  extends CookbookRouterBuilderPluginOptions {}
+```
+
+These are exported for custom build adapters and extended by Webpack, Rspack, Rollup, esbuild, and Bun plugin option interfaces. Vite has its own shape because it derives `cwd` from the resolved Vite root and adds `debounceMs`.
+
+## `createRouterBuildRunner(options?)`
+
+```ts
+interface RouterBuildRunnerResult extends CommandResult {
+  readonly watchPaths: readonly string[];
+  readonly outDir: string;
+  readonly error?: Error;
+}
+
+interface RouterBuildRunner {
+  run(): Promise<RouterBuildRunnerResult>;
+}
+
+function createRouterBuildRunner(
+  options?: RouterBuildRunnerOptions,
+): RouterBuildRunner;
+```
+
+`run()` calls aggregate generation and then resolves watch state. Thrown errors are normalized into a failed result with the original `Error` in `error`. Watch paths and output are still returned after failure.
+
+The runner has one method. Watch-state resolution is the separate exported `resolveRouterBuildWatchState()` function.
+
+## `resolveRouterBuildWatchState(options?)`
+
+```ts
+interface RouterBuildWatchState {
+  readonly watchPaths: readonly string[];
+  readonly outDir: string;
+}
+
+function resolveRouterBuildWatchState(
+  options?: RouterBuildRunnerOptions,
+): Promise<RouterBuildWatchState>;
+```
+
+It first resolves effective route options with empty route matches allowed. On failure it falls back to all standard config candidates and roots derived from explicit route patterns. This is what lets a broken or missing input recover.
+
+## Option and path helpers
+
+```ts
+function toRouterBuildCliOptions(
+  options?: RouterBuildRunnerOptions,
+): CliRouteOptions;
+
+function normalizeBuilderRouteFiles(
+  routeFiles: string | readonly string[] | undefined,
+): readonly string[] | undefined;
+
+function getFallbackWatchPaths(
+  options?: RouterBuildRunnerOptions,
+): readonly string[];
+
+function resolveUniqueBuildPaths(
+  root: string,
+  paths: readonly string[],
+): readonly string[];
+
+function resolveBuildPath(root: string, path: string): string;
+function normalizeBuildPath(path: string): string;
+function formatRouterBuildErrors(errors: readonly string[]): string;
+```
+
+`resolveBuildPath()` avoids double-scoping a relative path that already resolves under the root. `normalizeBuildPath()` changes backslashes to forward slashes. Error formatting prefixes every entry with `[cookbook-router]` and joins with newlines.
+
+## `applyRouterCompilerBuildHooks(compiler, options?)`
+
+```ts
+interface RouterCompilerBuildHooksOptions
+  extends RouterBuildRunnerOptions {
+  readonly pluginName?: string;
+}
+
+function applyRouterCompilerBuildHooks<Compiler, Compilation>(
+  compiler: Compiler,
+  options?: RouterCompilerBuildHooksOptions,
+): void;
+```
+
+The generic compiler must provide `beforeRun`, `watchRun`, and `afterCompile` promise hooks plus Webpack/Rspack-like options and dependency sets.
+
+Behavior:
+
+1. `beforeRun`: generate; throw on failure.
+2. `watchRun`: generate; report failure but keep watch mode alive and preserve prior valid files.
+3. `afterCompile`: recompute watch state; add file, context, and missing dependencies; exclude output from dependencies.
+4. Extend `watchOptions.ignored` with `outDir` while preserving string, regexp, array, or function rules.
+
+## Capability boundary
+
+Vite, Webpack, Rspack, and Rollup adapters can register route roots with the host watcher. The current esbuild and Bun adapters only run at host build start; pair them with `cbr generate --watch` when creation/deletion outside the module graph must trigger generation.
+
+## Where this bites
+
+`watchPaths` may contain files that do not exist and directories derived from globs. Treating every entry as an existing file dependency destroys missing-file recovery.

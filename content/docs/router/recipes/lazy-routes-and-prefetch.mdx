@@ -1,0 +1,79 @@
+---
+title: "Lazy routes and prefetch"
+description: "Preload route modules and warm userland data without assigning cache ownership to the router."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Code splitting and link prefetch
+
+Make the route view lazy once, then let links create intent before the click. `lazyRouteView()` lets the same route view be rendered and preloaded without duplicating imports.
+
+```tsx
+import { lazyRouteView } from '@cookbook/router-react';
+
+const UsersPage = lazyRouteView(() => import('./users-page'));
+
+export const usersRoute = defineRoute({
+  id: 'users',
+  path: '/users',
+  view: UsersPage,
+} as const);
+```
+
+Prefetch route views or generated route modules from links:
+
+```tsx
+<Link to="users" prefetch="interaction">
+  Users
+</Link>
+```
+
+Available prefetch modes are:
+
+```ts
+false;
+('hover');
+('focus');
+('interaction');
+('mount');
+```
+
+Use `prefetch="interaction"` for hover/focus intent. Use `prefetch="mount"` only for high-value links where eager work is worth the cost.
+
+For generated or file-based routes, generated runtime route modules attach internal module preloaders. Link prefetch can warm the route module without an declated route-level `preload` callback.
+
+## Userland query cache warming
+
+Preloading should prepare your app, not move ownership into the router. Use route-level `preload` when a route should warm application-owned systems before navigation.
+
+```ts
+export const userDetailsRoute = defineRoute({
+  id: 'users.details',
+  path: '/users/{id:int}',
+  preload: async ({ params, signal }) => {
+    await queryClient.prefetchQuery({
+      queryKey: ['user', params.id],
+      queryFn: () => fetchUser(params.id, { signal }),
+    });
+  },
+} as const);
+```
+
+This does not put data into the router. The query client still owns caching, invalidation, mutations, rendering state, and SSR data hydration.
+
+You can also preload explicitly:
+
+```ts
+await router.preload('users.details', {
+  params: { id: 123 },
+});
+```
+
+or by href:
+
+```ts
+await router.preloadHref('/users/123');
+```

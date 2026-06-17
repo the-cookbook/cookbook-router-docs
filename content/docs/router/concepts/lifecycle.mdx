@@ -1,0 +1,892 @@
+---
+title: "Lifecycle"
+description: "Observe transition phases, block before commit, run post-commit effects, and report navigation failures."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Lifecycle hooks observe and participate in route transitions.
+
+Use them for:
+
+- Route-owned enter and leave checks
+- Transition instrumentation
+- Analytics after navigation
+- Post-commit side effects
+- Reporting transition failures
+
+Lifecycle hooks are not component mount and unmount events. They operate on complete route transitions, and they do not calculate which branch entries were added, retained, or removed.
+
+Use middleware for redirects, rewrites, and destination access policy. Use blockers for application state that may prevent leaving, such as an unsaved form.
+
+## Lifecycle hooks
+
+Cookbook Router provides route-level and router-wide hooks.
+
+| Scope | Hook | Runs | Can block |
+| --- | --- | --- | --- |
+| Global | `beforeNavigate` | Before route leave and enter hooks | Yes |
+| Route | `beforeLeave` | For the current branch, leaf to root | Yes |
+| Route | `beforeEnter` | For the destination branch, root to leaf | Yes |
+| Route | `afterEnter` | After commit, destination root to leaf | No |
+| Global | `afterNavigate` | After all destination `afterEnter` hooks | No |
+| Route | `onError` | For destination branch transition failures | No |
+| Global | `onNavigationError` | After route error handlers | No |
+
+All hooks may be asynchronous. Cookbook Router awaits each hook before moving to the next stage.
+
+## Route lifecycle
+
+Declare route-owned lifecycle behavior through `lifecycle`:
+
+```tsx
+import type {
+  RouteLifecycle,
+} from '@cookbook/router';
+
+const dashboardLifecycle: RouteLifecycle = {
+  beforeEnter: async ({
+    location,
+  }) => {
+    await ensureDashboardReady(
+      location.pathname,
+    );
+  },
+
+  afterEnter: ({
+    location,
+  }) => {
+    analytics.page(
+      location.pathname,
+    );
+  },
+
+  beforeLeave: () => {
+    if (!dashboard.hasUnsavedChanges()) {
+      return;
+    }
+
+    return window.confirm(
+      'Discard your unsaved changes?',
+    );
+  },
+
+  onError: (
+    error,
+    context,
+  ) => {
+    reportRouteError(error, {
+      href: context.location.href,
+    });
+  },
+};
+````
+
+Attach it to a route:
+
+```tsx
+{
+  id: 'dashboard',
+  path: '/dashboard',
+  view: DashboardPage,
+  lifecycle: dashboardLifecycle,
+}
+```
+
+`beforeEnter` and `beforeLeave` may return:
+
+* `true` or `void` to continue
+* `false` to block the transition
+
+`afterEnter` and `onError` observe outcomes. Their return values do not change navigation.
+
+## Global lifecycle
+
+Register router-wide lifecycle behavior when it applies to every transition:
+
+```ts
+import {
+  createRouter,
+} from '@cookbook/router';
+
+import { routes } from './routes';
+
+export const router = createRouter({
+  routes,
+
+  lifecycle: {
+    beforeNavigate: ({
+      location,
+    }) => {
+      performance.mark(
+        `navigation:${location.href}:start`,
+      );
+    },
+
+    afterNavigate: ({
+      location,
+    }) => {
+      analytics.page(
+        location.pathname,
+      );
+    },
+
+    onNavigationError: (
+      error,
+      context,
+    ) => {
+      reportNavigationError(error, {
+        href: context.location.href,
+      });
+    },
+  },
+});
+```
+
+Global lifecycle is configured when the router is created. There is no runtime lifecycle registry equivalent to `router.useMiddleware()`.
+
+Use global hooks for cross-cutting concerns such as:
+
+* Navigation analytics
+* Performance instrumentation
+* Transition logging
+* Shared pre-commit checks
+* Central error reporting
+
+## Transition order
+
+The complete transition pipeline is:
+
+<Steps>
+  <Step>
+    Match and canonicalize the requested location.
+  </Step>
+  <Step>
+    Resolve a static route redirect, when present.
+  </Step>
+  <Step>
+    Run navigation blockers.
+  </Step>
+  <Step>
+    Run global `beforeNavigate`.
+  </Step>
+  <Step>
+    Run route `beforeLeave` hooks from the current leaf toward its root.
+  </Step>
+  <Step>
+    Run route `beforeEnter` hooks from the destination root toward its leaf.
+  </Step>
+  <Step>
+    Run global and route-level middleware.
+  </Step>
+  <Step>
+    Commit history and router state.
+  </Step>
+  <Step>
+    Run destination `afterEnter` hooks from root to leaf.
+  </Step>
+  <Step>
+    Run global `afterNavigate`.
+  </Step>
+</Steps>
+
+For this transition:
+
+```text
+/app/projects/1
+        ↓
+/app/settings/profile
+```
+
+the lifecycle order can be:
+
+```text
+global beforeNavigate
+
+projects.details beforeLeave
+projects beforeLeave
+app beforeLeave
+
+app beforeEnter
+settings beforeEnter
+settings.profile beforeEnter
+
+middleware
+
+history and router-state commit
+
+app afterEnter
+settings afterEnter
+settings.profile afterEnter
+
+global afterNavigate
+```
+
+Middleware only runs after every before-lifecycle hook allows the transition.
+
+## Hooks use complete branches
+
+Lifecycle hooks do not compare the source and destination branches to determine which routes actually entered or left.
+
+Given:
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'settings',
+    path: '/settings',
+    lifecycle: settingsLifecycle,
+    children: [
+      {
+        id: 'settings.profile',
+        path: 'profile',
+        lifecycle: profileLifecycle,
+      },
+      {
+        id: 'settings.security',
+        path: 'security',
+        lifecycle: securityLifecycle,
+      },
+    ],
+  },
+] as const);
+```
+
+Navigating from:
+
+```text
+/settings/profile
+```
+
+to:
+
+```text
+/settings/security
+```
+
+runs:
+
+```text
+profile beforeLeave
+settings beforeLeave
+
+settings beforeEnter
+security beforeEnter
+
+settings afterEnter
+security afterEnter
+```
+
+The shared `settings` route receives both `beforeLeave` and `beforeEnter`.
+
+Lifecycle names describe transition phases. They do not imply component unmounting or mounting.
+
+When behavior depends on whether a route truly left the active branch, compare `from.branch` and `to.branch` explicitly.
+
+## Lifecycle context
+
+Every lifecycle hook receives:
+
+```ts
+interface RouteLifecycleContext {
+  readonly from: RouteMatch | null;
+  readonly to: RouteMatch | null;
+  readonly location: RouterLocation;
+
+  readonly params:
+    Record<string, unknown>;
+
+  readonly search:
+    | ParsedRouteSearch
+    | Record<string, unknown>;
+
+  readonly unknownSearch?:
+    ParsedUnknownRouteSearch;
+
+  readonly hash:
+    | ParsedRouteHash
+    | unknown;
+}
+```
+
+## `from`
+
+`from` is the router match active when the transition began:
+
+```ts
+beforeNavigate: ({
+  from,
+}) => {
+  console.log(
+    from?.id,
+  );
+}
+```
+
+It contains:
+
+* The previous leaf route
+* The previous matched branch
+* Previous parsed params
+* Previous parsed search
+* Previous hash state
+
+Read source URL state through `from`:
+
+```ts
+beforeLeave: ({
+  from,
+}) => {
+  const sourceDocumentId =
+    from?.params.documentId;
+
+  if (
+    sourceDocumentId !== undefined &&
+    typeof sourceDocumentId !== 'string'
+  ) {
+    throw new TypeError(
+      'Expected the source document ID to be a string.',
+    );
+  }
+}
+```
+
+## `to`
+
+`to` is the accepted destination match:
+
+```ts
+beforeEnter: ({
+  to,
+}) => {
+  console.log(
+    to?.id,
+  );
+}
+```
+
+It contains the complete destination branch and parsed destination URL state.
+
+`to` can be `null` when no route matches.
+
+Before-navigation lifecycle hooks are skipped for an unmatched destination. After the unmatched location commits, global `afterNavigate` can still receive a context whose `to` is `null`.
+
+Use a wildcard route when unknown locations should participate in normal route lifecycle:
+
+```tsx
+{
+  id: 'not-found',
+  path: '/{*path}',
+  view: NotFoundPage,
+  lifecycle: {
+    afterEnter: ({
+      location,
+    }) => {
+      analytics.notFound(
+        location.pathname,
+      );
+    },
+  },
+}
+```
+
+## `location`
+
+`location` is the destination location being resolved:
+
+```ts
+beforeNavigate: ({
+  location,
+}) => {
+  console.log(
+    location.href,
+  );
+}
+```
+
+Before hooks receive it before commit. After hooks receive the committed destination location.
+
+For a rewrite transition, lifecycle for the rewritten attempt receives the rewritten location.
+
+## Destination URL state
+
+The top-level context fields:
+
+```ts
+context.params
+context.search
+context.unknownSearch
+context.hash
+```
+
+describe the destination match in `context.to`.
+
+They do not describe the source route, even inside `beforeLeave`.
+
+```ts
+beforeLeave: ({
+  from,
+  params,
+}) => {
+  // Destination params:
+  console.log(params);
+
+  // Source params:
+  console.log(from?.params);
+}
+```
+
+Path constraints, search descriptors, defaults, unknown-search policy, and hash parsing have already been applied.
+
+The lifecycle context remains broadly typed. Narrow values before using them with application services:
+
+```ts
+beforeEnter: ({
+  params,
+}) => {
+  const id = params.id;
+
+  if (typeof id !== 'number') {
+    throw new TypeError(
+      'Expected the destination ID to be a number.',
+    );
+  }
+
+  return permissions.checkRecord(id);
+}
+```
+
+Generated contracts do not currently specialize lifecycle callbacks by route ID.
+
+## Blocking navigation
+
+Return `false` from:
+
+* Global `beforeNavigate`
+* Route `beforeLeave`
+* Route `beforeEnter`
+
+to block the transition.
+
+```ts
+beforeLeave: () => {
+  if (!editor.isDirty()) {
+    return;
+  }
+
+  return window.confirm(
+    'Discard your unsaved changes?',
+  );
+}
+```
+
+When a lifecycle hook blocks:
+
+* Remaining before hooks do not run
+* Middleware does not run
+* The attempted destination is not committed by programmatic navigation
+* After hooks do not run
+* `router.state.navigation` becomes `'blocked'`
+* No lifecycle error handler runs
+
+Use a blocker instead when the rule is application-wide or should integrate with browser unload protection:
+
+```ts
+const unblock = router.block(
+  () => !editor.isDirty(),
+);
+```
+
+Lifecycle cancellation is appropriate when the rule belongs specifically to entering or leaving a route branch.
+
+## Post-commit hooks
+
+`afterEnter` and `afterNavigate` run after:
+
+* History has been written
+* Router state contains the destination
+* Navigation has otherwise succeeded
+
+Use them for effects that should only happen after commit:
+
+```ts
+afterEnter: ({
+  location,
+}) => {
+  analytics.page(
+    location.pathname,
+  );
+}
+```
+
+```ts
+afterNavigate: ({
+  from,
+  to,
+}) => {
+  navigationLog.record({
+    from: from?.id,
+    to: to?.id,
+  });
+}
+```
+
+If an after hook throws, the destination remains committed. The router moves into error state at that destination.
+
+```ts
+lifecycle: {
+  afterNavigate() {
+    throw new Error(
+      'Analytics failed.',
+    );
+  },
+}
+```
+
+After this failure:
+
+```ts
+router.state.location;
+// The committed destination
+
+router.state.navigation;
+// 'error'
+
+router.state.error;
+// The thrown error
+```
+
+Do not put effects in an after hook when their failure should roll back navigation. No rollback occurs.
+
+## There is no `afterLeave`
+
+Route lifecycle currently provides:
+
+```ts
+beforeEnter
+afterEnter
+beforeLeave
+onError
+```
+
+It does not provide:
+
+```ts
+afterLeave
+```
+
+and a hook cannot return an automatic cleanup callback.
+
+`beforeLeave` runs before the destination middleware and before commit. It can therefore run even when a later hook or middleware blocks, redirects, rewrites, or fails.
+
+Avoid irreversible cleanup in `beforeLeave`.
+
+Prefer component or integration cleanup for resources tied to rendered UI:
+
+```tsx
+useEffect(() => {
+  const subscription =
+    openDashboardSubscription();
+
+  return () => {
+    subscription.close();
+  };
+}, []);
+```
+
+For post-commit transition cleanup, use global `afterNavigate` and compare the branches:
+
+```ts
+function branchContains(
+  match: RouteMatch | null,
+  routeId: string,
+): boolean {
+  return (
+    match?.branch.some(
+      (entry) => entry.id === routeId,
+    ) === true
+  );
+}
+
+const router = createRouter({
+  routes,
+
+  lifecycle: {
+    afterNavigate({
+      from,
+      to,
+    }) {
+      const leftEditor =
+        branchContains(from, 'editor') &&
+        !branchContains(to, 'editor');
+
+      if (leftEditor) {
+        editorSession.close();
+      }
+    },
+  },
+});
+```
+
+This runs after a successful commit and calculates whether the route actually left the branch.
+
+## Refresh and repeated transitions
+
+`router.refresh()` resolves the current history location again:
+
+```ts
+await router.refresh();
+```
+
+It reruns current-location lifecycle and middleware without pushing history.
+
+Because the current and destination branches are the same, refresh can run:
+
+```text
+beforeNavigate
+current branch beforeLeave
+current branch beforeEnter
+middleware
+current branch afterEnter
+afterNavigate
+```
+
+The same branch-oriented behavior can occur during startup and same-location transitions.
+
+Do not treat `beforeEnter` as “runs once when mounted” or `beforeLeave` as “runs once when unmounted.”
+
+Hooks should tolerate repeated execution.
+
+## Redirects and rewrites
+
+### Static route redirects
+
+Static redirects resolve before blockers and lifecycle:
+
+```ts
+{
+  id: 'legacy',
+  path: '/legacy',
+  redirect: '/current',
+  lifecycle: {
+    beforeEnter() {
+      // Does not run for the redirect source.
+    },
+  },
+}
+```
+
+The redirect target begins its own transition and lifecycle pipeline.
+
+Do not attach lifecycle behavior to a static redirect route expecting it to execute.
+
+### Middleware redirects and rewrites
+
+Middleware runs after the before-lifecycle hooks.
+
+If middleware redirects or rewrites:
+
+* Before hooks for the interrupted attempt have already run
+* After hooks for that attempt do not run
+* The target starts another transition
+* Before hooks may therefore execute again
+
+```text
+attempted destination before hooks
+middleware redirect
+redirect target before hooks
+redirect target middleware
+commit
+redirect target after hooks
+```
+
+Keep before hooks idempotent and avoid irreversible work.
+
+Use middleware when the transition must choose another destination. Lifecycle hooks do not receive `redirect()` or `rewrite()` helpers.
+
+## Errors
+
+Lifecycle exposes two error hooks:
+
+```ts
+interface RouteLifecycle {
+  readonly onError?: (
+    error: unknown,
+    context: RouteLifecycleContext,
+  ) => void | Promise<void>;
+}
+
+interface GlobalLifecycle {
+  readonly onNavigationError?: (
+    error: unknown,
+    context: RouteLifecycleContext,
+  ) => void | Promise<void>;
+}
+```
+
+When a covered transition error occurs, handlers run in this order:
+
+```text
+destination root onError
+destination child onError
+destination leaf onError
+global onNavigationError
+```
+
+All destination route handlers receive the same error and lifecycle context.
+
+```ts
+{
+  id: 'dashboard',
+  path: '/dashboard',
+
+  lifecycle: {
+    onError(
+      error,
+      context,
+    ) {
+      reportError(error, {
+        routeId: context.to?.id,
+        href: context.location.href,
+      });
+    },
+  },
+}
+```
+
+Error handlers observe the failure. They do not recover the transition or replace the error state.
+
+## Errors covered by lifecycle handlers
+
+Lifecycle error handlers run for errors thrown or rejected by:
+
+* Global `beforeNavigate`
+* Route `beforeLeave`
+* Route `beforeEnter`
+* Middleware
+* Route `afterEnter`
+* Global `afterNavigate`
+
+For before-commit failures, navigation enters error state without committing the destination.
+
+For after-commit failures, the destination remains committed and navigation enters error state there.
+
+## Errors not covered by lifecycle handlers
+
+Lifecycle error hooks are not general router or rendering error boundaries.
+
+They do not receive:
+
+* Errors from navigation blockers
+* Matching or URL canonicalization failures
+* Static redirect resolution failures
+* A `Response` returned by middleware
+* Route preloading failures
+* React or renderer view errors
+* Loading or error-fallback rendering failures
+
+Use the corresponding mechanism for those failures:
+
+| Failure                        | Handle with                                                 |
+| ------------------------------ | ----------------------------------------------------------- |
+| Route or layout render failure | Route, layout, slot, or provider error fallback             |
+| Preload failure                | Programmatic preload caller or eventual navigation boundary |
+| Blocker failure                | Router navigation error state                               |
+| Returned middleware `Response` | Router error-state integration                              |
+| Matching failure               | Not-found route or router-level handling                    |
+
+Route lifecycle `onError` reports transition-pipeline failures. It does not replace render error boundaries.
+
+## Lifecycle versus other mechanisms
+
+| Use case                            | Prefer                                          |
+| ----------------------------------- | ----------------------------------------------- |
+| Authentication or permission policy | Middleware                                      |
+| Redirect or rewrite                 | Middleware or static route redirect             |
+| Prevent leaving unsaved state       | Blocker or `beforeLeave`                        |
+| Prevent entering a route            | `beforeEnter`                                   |
+| Analytics after successful commit   | `afterEnter` or `afterNavigate`                 |
+| Global navigation instrumentation   | Global lifecycle                                |
+| Speculative module or data warming  | Route `preload`                                 |
+| Component resource cleanup          | Framework effect or unmount cleanup             |
+| Post-commit branch cleanup          | Global `afterNavigate` with branch comparison   |
+| Render failure handling             | Route, layout, slot, or provider error fallback |
+
+Lifecycle observes and gates transitions. It should not become a substitute for every other router extension point.
+
+## Pathless routes
+
+Current route validation does not allow lifecycle on a pathless group route:
+
+```ts
+{
+  id: 'authenticated',
+  lifecycle: {
+    beforeEnter() {},
+  },
+  children: [
+    {
+      id: 'dashboard',
+      path: '/dashboard',
+    },
+  ],
+}
+```
+
+Pathless routes are restricted to structural layout or grouping declarations with children. Attaching lifecycle makes the declaration invalid.
+
+Use one of these alternatives:
+
+* Attach lifecycle to a matchable parent route
+* Attach it to the relevant child routes
+* Register global lifecycle
+* Use global or route middleware for cross-cutting destination policy
+
+## Best practices
+
+* Treat lifecycle as transition behavior, not component lifecycle.
+* Keep before hooks idempotent.
+* Use before hooks primarily for checks, not irreversible side effects.
+* Use after hooks for effects that require a committed destination.
+* Expect shared branch routes to receive leave and enter hooks in one transition.
+* Read source state from `from` and destination state from `to`.
+* Use `params`, `search`, and `hash` as destination aliases.
+* Narrow lifecycle URL state before passing it to typed services.
+* Do not expect lifecycle error handlers to catch render or preload errors.
+* Use middleware when the transition must redirect or rewrite.
+
+## Where this bites
+
+### A shared parent leaves and enters again
+
+Lifecycle processes complete branches. It does not diff them.
+
+### `beforeLeave` receives destination params
+
+Top-level `params`, `search`, and `hash` come from `to`. Read source values through `from`.
+
+### Cleanup runs even though navigation never commits
+
+`beforeLeave` runs before destination middleware. A later block, redirect, rewrite, or error can interrupt the attempt.
+
+### `afterEnter` fails after the URL changes
+
+After hooks run after history and router state commit. Their failure produces error state without rollback.
+
+### A redirect route’s hooks do not run
+
+Static redirects resolve before lifecycle.
+
+### Refresh reruns leave and enter hooks
+
+`router.refresh()` is a complete current-location transition, not only a data refresh.
+
+### `onError` does not catch a rendering failure
+
+Lifecycle errors and renderer errors use different mechanisms.
+
+### A pathless group rejects lifecycle
+
+Attach lifecycle to a matchable route or use global lifecycle or middleware.

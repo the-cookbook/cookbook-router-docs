@@ -1,0 +1,38 @@
+---
+title: "@cookbook/router"
+description: "Framework-neutral route definitions, matching, URL contracts, runtime transitions, history, rendering, metadata, serialization, and diagnostics."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Import
+
+```ts
+import { createRouter, defineRoutes } from '@cookbook/router';
+```
+
+The package exposes one public root entrypoint. `RouteView` is `unknown`; framework adapters decide how views render.
+
+## API groups
+
+| Group | Reference |
+| --- | --- |
+| Route declaration and composition | [Route configuration](/docs/router/api/router/route-config) |
+| Matching, normalization, and ranking | [Matching](/docs/router/api/router/matching) |
+| Path constraints | [Path](/docs/router/api/router/path) |
+| URLKit bridge | [URL state](/docs/router/api/router/url-state) |
+| Router creation and instance methods | [Runtime](/docs/router/api/router/runtime) |
+| Browser, memory, and static adapters | [History](/docs/router/api/router/history) |
+| Renderer-neutral traversal | [Rendering](/docs/router/api/router/rendering) |
+| Error factory APIs | [Diagnostics](/docs/router/api/router/diagnostics) |
+| Public contracts and generated registration | [Contracts](/docs/router/api/router/contracts) |
+
+## Runtime guarantees
+
+Routes are validated before normalization. Route-ID href generation validates required params and path constraints before history changes. Matching parses params, search, hash, and unknown search state through URLKit. Disposal is terminal.
+
+## Where this bites
+
+The package does not render React, discover files, or generate TypeScript. Those responsibilities belong to [`@cookbook/router-react`](/docs/router/api/router-react) and [`@cookbook/router-cli`](/docs/router/api/router-cli).

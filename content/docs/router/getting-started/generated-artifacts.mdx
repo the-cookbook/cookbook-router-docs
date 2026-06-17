@@ -1,0 +1,263 @@
+---
+title: "Generated artifacts"
+description: "Understand what generation writes, when each file exists, and how the application consumes it."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Generated files are not build debris. They are the enforceable form of the route contract.
+
+The CLI and bundler plugins run the same generation engine. They read the configured route definitions, validate the resolved route tree, and write the artifacts used by TypeScript, runtime composition, and external tooling.
+
+After running `cbr init`, generate the artifacts with:
+
+```bash
+cbr generate
+````
+
+A bundler plugin runs the same process as part of development and production builds. 
+
+<Callout title="Attention" type="warn">
+  Use **one** generation path: a bundler plugin **or** `cbr generate --watch`, not both.
+</Callout>
+
+
+## Generated directory
+
+The default output directory is:
+
+```text
+.cookbook-router/
+```
+
+A successful full generation produces:
+
+```text
+.cookbook-router/
+  contracts.ts
+  register.d.ts
+  manifest.json
+  routes.ts
+```
+
+`contracts.ts`, `register.d.ts`, and `manifest.json` are produced by every successful full generation.
+
+`routes.ts` is conditional. It exists only when the selected route files expose route declarations or route-tree exports that Cookbook Router can compose into a runtime module.
+
+If `outDir` is changed in `cookbook-router.config.ts`, the same files are written beneath that directory.
+
+## `contracts.ts`
+
+`contracts.ts` contains the route-specific TypeScript maps inferred from the resolved route tree.
+
+It includes:
+
+| Contract             | Purpose                                                    |
+| -------------------- | ---------------------------------------------------------- |
+| `RouteParams`        | Parsed path parameters available from matched router state |
+| `RouteParamsInput`   | Values accepted when creating links and navigation targets |
+| `RouteSearch`        | Parsed search values                                       |
+| `RouteSearchInput`   | Search values accepted by links and navigation             |
+| `RouteHash`          | Parsed hash value for each route                           |
+| `RouteMeta`          | Metadata shape declared by each route                      |
+| `RoutePaths`         | Resolved path associated with each route ID                |
+| `RouteOutletContext` | Route-keyed outlet-context contract                        |
+| `RouterContracts`    | Combined registry consumed by Cookbook Router packages     |
+
+Parsed values and navigation inputs are intentionally separate.
+
+For example, a wildcard is stored in matched router state as path segments:
+
+```ts
+interface RouteParams {
+  'files.show': {
+    path: readonly string[];
+  };
+}
+```
+
+Navigation accepts either an array or a slash-delimited string:
+
+```ts
+interface RouteParamsInput {
+  'files.show': {
+    path: string | readonly string[];
+  };
+}
+```
+
+An `{id:int}` parameter becomes a `number`. Search descriptors, hash descriptors, route IDs, paths, and metadata follow the static route definition.
+
+The route contract stops being documentation and starts rejecting incorrect code.
+
+## `register.d.ts`
+
+`register.d.ts` connects `RouterContracts` to:
+
+```text
+@cookbook/router
+@cookbook/router-react
+```
+
+It uses module augmentation so router APIs, links, navigation, and React hooks can read the generated contracts without importing `contracts.ts` at every call site.
+
+Do not import `register.d.ts` from application code. Add it to the TypeScript project instead.
+
+## Connect the contracts to TypeScript
+
+Add the generated contract and registration files to the `include` array in `tsconfig.json`:
+
+```json title="tsconfig.json"
+{
+  "include": [
+    "src",
+    ".cookbook-router/contracts.ts",
+    ".cookbook-router/register.d.ts"
+  ]
+}
+```
+
+Keep the source entries already used by the application. Replace `src` if the source lives elsewhere, and replace `.cookbook-router` if generation uses a custom `outDir`.
+
+Do not add these files to `compilerOptions.types`. They are source files in the TypeScript program.
+
+**No inclusion, no inference.**
+
+## `manifest.json`
+
+`manifest.json` is the tooling-friendly representation of the resolved route tree.
+
+Each manifest entry can contain:
+
+```ts
+interface ManifestRoute {
+  readonly id: string;
+  readonly path?: string;
+  readonly parentId?: string;
+  readonly index: boolean;
+  readonly url?: RouterUrlOptions;
+}
+```
+
+The manifest records:
+
+* Route IDs
+* Resolved paths
+* Parent relationships
+* Index-route status
+* Route-level URL behavior when configured
+
+It does not contain route components or executable application logic.
+
+Use it for diagnostics, external tooling, build analysis, or systems that need route structure without importing the application route module.
+
+The dedicated manifest command writes only this file:
+
+```bash
+cbr manifest
+```
+
+## `routes.ts`
+
+`routes.ts` is the generated runtime route module.
+
+It imports the route exports discovered in the configured `routeFiles` and produces one composed route tree:
+
+* Colocated `defineRoute(...)` declarations are composed with `defineRouteTree(...)`.
+* Multiple static route-tree exports are combined when necessary.
+* A compatible single static route tree can be re-exported directly.
+* Wrapped route modules receive an internal module preloader for route prefetching.
+
+Use it when the project relies on file-based route discovery:
+
+```ts title="src/router.ts"
+import { createRouter } from '@cookbook/router';
+import { routes } from '../.cookbook-router/routes';
+
+export const router = createRouter({
+  routes,
+});
+```
+
+Do not import `routes.ts` unconditionally. Some generation inputs produce contracts and a manifest without producing a generated route module.
+
+No file means no import.
+
+## Keep generated artifacts in source control
+
+Commit the generated output directory.
+
+That gives fresh checkouts, editor sessions, tests, and CI access to the current route contracts before generation runs. It also makes contract changes visible during code review.
+
+A route change that silently changes params, search values, paths, or metadata should appear in the diff.
+
+Generated files contain a warning because they are not application source. Do not edit them manually. The next successful generation will replace those edits.
+
+## When artifacts change
+
+| Route change                                 | Affected artifacts                                           |
+| -------------------------------------------- | ------------------------------------------------------------ |
+| Add or remove a route                        | All generated artifacts                                      |
+| Change a route ID or path                    | `contracts.ts`, `manifest.json`, and usually `routes.ts`     |
+| Change path parameters                       | `contracts.ts` and `manifest.json`                           |
+| Change search, hash, or metadata             | `contracts.ts`                                               |
+| Change route-level URL options               | `manifest.json`                                              |
+| Add or remove a route source file            | `routes.ts` and the contracts derived from the resolved tree |
+| Change only a route component implementation | Usually no contract change                                   |
+
+Generation compares file contents before writing. An unchanged artifact is not rewritten, which prevents unnecessary rebuild loops.
+
+Route loading and validation complete before a new artifact set is accepted. In watch and plugin workflows, a failed regeneration leaves the previous valid files available while the error is fixed.
+
+## Choose how generation runs
+
+### Bundler plugin
+
+Recommended when the project uses a supported bundler. Generation and validation become part of development and production builds.
+
+See [Choose a bundler plugin](/docs/bundler-plugins/choose-a-plugin).
+
+### CLI watch mode
+
+Use the CLI when the build system has no supported plugin or generation must run independently:
+
+```bash
+cbr generate --watch
+```
+
+Watch mode regenerates after matching route files or configuration change.
+
+Do not run watch mode beside a bundler plugin writing to the same `outDir`. Two generators do not provide extra safety. They provide duplicate work.
+
+## Where this bites
+
+### `routes.ts` is missing
+
+This is not automatically an error. `routes.ts` is generated only when route-source exports can be composed into a runtime module.
+
+Use the application’s existing route tree when the selected generation mode produces only contracts and a manifest.
+
+### TypeScript still accepts invalid navigation
+
+Confirm that both generated type files exist and are included by `tsconfig.json`:
+
+```text
+.cookbook-router/contracts.ts
+.cookbook-router/register.d.ts
+```
+
+Restart the editor TypeScript server after changing `tsconfig.json`.
+
+### Generated files are stale
+
+Run:
+
+```bash
+cbr generate
+```
+
+Then inspect the reported error instead of editing the generated files.
+
+For configuration and route-discovery rules, see [Configuration file](/docs/router/getting-started/config-file). For the complete type model, see [Typed contracts](/docs/router/concepts/typed-contracts). For command and programmatic APIs, see the [CLI generation API](/docs/router/api/router-cli/generation).

@@ -1,0 +1,214 @@
+---
+title: "Router runtime API"
+description: "Create browser, memory, and static routers and use every router instance operation."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## `createRouter(options)`
+
+Creates a browser-capable runtime. Without a supplied history it uses browser history when a window exists and memory history otherwise.
+
+```ts
+interface CreateRouterOptions {
+  readonly routes: readonly RouteDefinition[];
+  readonly basename?: string;
+  readonly middleware?: readonly Middleware[];
+  readonly lifecycle?: GlobalLifecycle;
+  readonly hydrationData?: SerializedRouterState;
+  readonly history?: RouterHistory;
+  readonly pathOptions?: RouterPathOptions;
+  readonly pathConstraints?: RouterPathConstraints;
+  readonly url?: RouterUrlOptions;
+  readonly maxRedirectDepth?: number;
+  readonly maxRedirectionDepth?: number;
+}
+
+function createRouter(options: CreateRouterOptions): Router;
+```
+
+<TypeTable
+  type={{
+    routes: { description: 'Route tree. Creation validates and normalizes it immediately.', type: 'readonly RouteDefinition[]' },
+    basename: { description: 'App prefix removed during matching and added during href generation.', type: 'string', optional: true },
+    middleware: { description: 'Initial global middleware.', type: 'readonly Middleware[]', optional: true },
+    lifecycle: { description: 'Global before/after/error hooks.', type: 'GlobalLifecycle', optional: true },
+    hydrationData: { description: 'Validated server state for matching client startup.', type: 'SerializedRouterState', optional: true },
+    history: { description: 'Custom history adapter.', type: 'RouterHistory', optional: true },
+    pathOptions: { description: 'Slash pruning behavior.', type: 'RouterPathOptions', optional: true, default: "{ prune: 'all' }" },
+    pathConstraints: { description: 'Custom constraints for raw, not-yet-validated route arrays.', type: 'RouterPathConstraints', optional: true },
+    url: { description: 'Router-level URLKit defaults.', type: 'RouterUrlOptions', optional: true },
+    maxRedirectDepth: { description: 'Redirect loop guard.', type: 'number', optional: true, default: '10' },
+    maxRedirectionDepth: { description: 'Backward-compatible alias for maxRedirectDepth.', type: 'number', optional: true },
+  }}
+/>
+
+`maxRedirectDepth` must be a non-negative integer.
+
+## `createMemoryRouter(options)`
+
+```ts
+interface CreateMemoryRouterOptions extends Omit<CreateRouterOptions, 'history'> {
+  readonly initialEntries?: readonly string[];
+  readonly initialIndex?: number;
+}
+
+function createMemoryRouter(options: CreateMemoryRouterOptions): Router;
+```
+
+Hydration data wins over `initialEntries` and `initialIndex`. Otherwise the default stack is `['/']` with its final entry active.
+
+## `createStaticRouter(options)`
+
+```ts
+type StaticRouterUrl = string | URL | Request;
+
+interface CreateStaticRouterOptions extends Omit<CreateRouterOptions, 'history' | 'url'> {
+  readonly url?: StaticRouterUrl;
+  readonly request?: Request;
+  readonly routerUrl?: RouterUrlOptions;
+}
+
+function createStaticRouter(options: CreateStaticRouterOptions): Router;
+```
+
+At least one of `request` or `url` is required; `request` takes precedence. `routerUrl` exists because `url` names the request location. Unsafe absolute inputs are rejected before static history is created.
+
+## Router instance
+
+```ts
+interface Router {
+  readonly routes: readonly NormalizedRoute[];
+  readonly rankedRoutes: readonly RankedRoute[];
+  readonly state: RouterState;
+  readonly started: boolean;
+  readonly starting: boolean;
+  readonly disposed: boolean;
+
+  href<Route extends RouteId>(routeId: Route, options?: HrefOptions<Route>): string;
+  href<Route extends RouteId>(options: NavigateOptions<Route>): string;
+  resolve<Route extends RouteId>(routeId: Route, options?: HrefOptions<Route>): RegisteredRouteMatch;
+  resolve<Route extends RouteId>(options: NavigateOptions<Route>): RegisteredRouteMatch;
+  match(href: string, options?: MatchOptions): RegisteredRouteMatch | null;
+
+  preload<Route extends RouteId>(routeId: Route, options?: PreloadOptions<Route>): Promise<void>;
+  preload<Route extends RouteId>(options: NavigateOptions<Route> & { readonly signal?: AbortSignal }): Promise<void>;
+  preloadHref(href: string, options?: PreloadHrefOptions): Promise<void>;
+
+  navigate: {
+    to(href: InternalHref, options?: NavigationOptions): Promise<RouterState>;
+    to<Route extends RouteId>(routeId: Route, options?: HrefOptions<Route>): Promise<RouterState>;
+    to<Route extends RouteId>(options: NavigateOptions<Route>): Promise<RouterState>;
+    replace(href: InternalHref, options?: NavigationOptions): Promise<RouterState>;
+    replace<Route extends RouteId>(routeId: Route, options?: HrefOptions<Route>): Promise<RouterState>;
+    replace<Route extends RouteId>(options: NavigateOptions<Route>): Promise<RouterState>;
+    back(): void;
+    forward(): void;
+    go(delta: number): void;
+  };
+
+  subscribe(listener: (state: RouterState) => void): () => void;
+  block(blocker: RouterBlocker): () => void;
+  useMiddleware(middleware: readonly Middleware[]): () => void;
+  start(): Promise<RouterState>;
+  refresh(): Promise<RouterState>;
+  serialize(): SerializedRouterState;
+  dispose(): void;
+}
+```
+
+The implementation also exposes loose `string` overloads when no generated contracts are registered.
+
+### Href and navigation options
+
+```ts
+interface HrefOptions<Route extends string> {
+  readonly params?: RouteParamsInput<Route>;
+  readonly search?: RouteSearchInput<Route>;
+  readonly hash?: RouteHashInput<Route>;
+  readonly url?: RouterUrlBuildOptions;
+  readonly intercept?: InterceptInput;
+  readonly context?: unknown;
+  readonly preventScrollReset?: boolean;
+}
+
+interface NavigateOptions<Route extends string> extends HrefOptions<Route> {
+  readonly route: Route;
+}
+
+interface PreloadOptions<Route extends string> extends HrefOptions<Route> {
+  readonly signal?: AbortSignal;
+}
+
+interface MatchOptions { readonly url?: RouterUrlOptions; }
+interface PreloadHrefOptions extends MatchOptions { readonly signal?: AbortSignal; }
+```
+
+`href()` builds and validates a URL without matching it. `resolve()` builds, matches, and throws if the generated href does not resolve back to the target route. `match()` accepts an arbitrary href and returns `null` for no candidate.
+
+### Preloading
+
+For each route in the matched branch, preloading runs generated module preload, layout-view preload, route-view preload, and declared `preload` in order. It does not run blockers, middleware, lifecycle, or history mutations. Unsignaled concurrent calls share work by href and URL policy; signaled calls remain independently cancellable.
+
+### Navigation and scroll metadata
+
+Literal href overloads accept only `/${string}`. Route-ID overloads build typed hrefs first. `preventScrollReset` is recorded in history state for rendering integrations; core never scrolls the document.
+
+### Blockers
+
+```ts
+interface RouterBlockerContext {
+  readonly from: RouteMatch | null;
+  readonly to: RouteMatch | null;
+  readonly location: RouterLocation;
+}
+
+type RouterBlocker = (
+  context: RouterBlockerContext,
+) => boolean | void | Promise<boolean | void>;
+```
+
+Return `false` to block. Throwing places the attempted transition into error state. The cleanup function unregisters the blocker.
+
+### Startup, refresh, and disposal
+
+Concurrent `start()` calls share one promise. After startup, repeated calls return current state. `refresh()` re-resolves the current location without pushing history. `dispose()` removes the history listener, runtime middleware, blockers, and subscribers; future startup, refresh, navigation, and preload work fails. Depending on the API, that failure may throw before a promise is created or reject the returned promise. Disposal is terminal.
+
+## `RouterState`
+
+```ts
+interface RouterState {
+  readonly location: RouterLocation;
+  readonly match: RouteMatch | null;
+  readonly navigation: 'idle' | 'pending' | 'redirecting' | 'blocked' | 'error';
+  readonly error?: unknown;
+  readonly previousLocation?: RouterLocation;
+}
+```
+
+## Metadata helpers
+
+```ts
+function getRouteMeta<Route extends string>(routes: readonly NormalizedRoute[], routeId: Route): RegisteredRouteMeta<Route>;
+function getRouteMetaChain<Route extends string>(routes: readonly NormalizedRoute[], routeId: Route, options?: RouteMetaChainOptions): readonly RouteMetaEntry<Route>[];
+function getActiveRouteMetaChain(match: RouteMatch | null, options?: RouteMetaChainOptions): readonly RouteMetaEntry[];
+function mergeRouteMetaChain(chain: readonly { readonly meta: Record<string, unknown> }[], merge?: RouteMetaMergeInput): Record<string, unknown>;
+```
+
+`includeAncestors` returns root-to-leaf entries. Merge modes are `leaf`, `shallow`, `deep`, `append`, and `prepend`, with optional per-key overrides. Unknown route IDs return empty results rather than throwing.
+
+## Serialization
+
+```ts
+function serializeRouterState(router: Pick<Router, 'serialize'>): SerializedRouterState;
+function stringifyRouterState(router: Pick<Router, 'serialize'>): string;
+function deserializeRouterState(state: SerializedRouterState | string): SerializedRouterState;
+```
+
+All helpers validate the expected state shape. Stringification additionally escapes `<`, `>`, `&`, U+2028, and U+2029 for safe HTML script embedding.
+
+## Where this bites
+
+An app-internal navigation href must begin with `/`. External destinations belong to native browser navigation or an environment-supported redirect response, not `router.navigate.to()`.

@@ -1,0 +1,175 @@
+---
+title: "Providers and render helpers"
+description: "Deep reference for RouterProvider, StaticRouterProvider, external-store subscription, React route traversal, and route boundaries."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## `RouterProvider`
+
+```ts
+type RouterScrollBehavior = ScrollBehavior;
+
+interface RouterProviderProps {
+  readonly router: Router;
+  readonly autoStart?: boolean;
+  readonly children?: ReactNode;
+  readonly fallback?: ReactNode;
+  readonly loadingFallback?: ReactNode;
+  readonly errorFallback?: ComponentType<RouterErrorFallbackProps>;
+  readonly middleware?: readonly Middleware[];
+  readonly scrollRestoration?: boolean;
+  readonly scrollBehavior?: RouterScrollBehavior;
+}
+
+function RouterProvider(props: RouterProviderProps): ReactElement;
+```
+
+The provider subscribes with `useSyncExternalStore`, exposes `{ router, state }`, optionally registers middleware, starts the router after mount, and renders the active branch.
+
+<TypeTable
+  type={{
+    router: { description: 'Core router instance to subscribe and render.', type: 'Router' },
+    autoStart: { description: 'Starts the router in the provider effect when it is not already started.', type: 'boolean', default: 'true', optional: true },
+    children: { description: 'Explicit content replacing automatic route-match rendering.', type: 'ReactNode', optional: true },
+    fallback: { description: 'Output used when the primary branch does not match or a global startup error has no error component.', type: 'ReactNode', default: 'null', optional: true },
+    loadingFallback: { description: 'Provider-level Suspense fallback when no closer route or layout fallback owns pending work.', type: 'ReactNode', optional: true },
+    errorFallback: { description: 'Global component for startup/navigation/render errors without a closer route or layout error view.', type: 'ComponentType<RouterErrorFallbackProps>', optional: true },
+    middleware: { description: 'Middleware registered for the provider lifetime.', type: 'readonly Middleware[]', optional: true },
+    scrollRestoration: { description: 'Enables DOM scroll restoration keyed by router location.', type: 'boolean', default: 'false', optional: true },
+    scrollBehavior: { description: 'Behavior passed to window.scrollTo during provider-managed restoration.', type: 'RouterScrollBehavior', default: "'auto'", optional: true },
+  }}
+/>
+
+### Startup and middleware order
+
+Provider middleware is registered in the same effect that starts the router. Letting the provider start the router ensures that middleware participates in initial navigation.
+
+When a router is already started and `autoStart !== false`, provider middleware affects only future transitions. Development builds warn and explain the two correct alternatives:
+
+1. remove manual `router.start()` and let the provider start;
+2. register middleware with `router.useMiddleware()` before manual startup, then render with `autoStart={false}`.
+
+### Render selection
+
+- `children` replaces automatic branch rendering.
+- redirect-only route state renders `null` while navigation continues.
+- a state error with no active match uses the global `errorFallback`, or `fallback` when none exists.
+- active-match errors are passed into `renderReactRouteMatch()` so route/layout ownership can be respected.
+
+### Scroll restoration
+
+Set `scrollRestoration` to `true` to let the provider save coordinates by location key. Existing keys restore their saved position. New locations without a hash reset to the top. Navigation with `preventScrollReset` bypasses restore/reset. Hash hydration mismatches trigger a router refresh after layout.
+
+`scrollBehavior` uses the public `RouterScrollBehavior` alias and accepts the DOM values `'auto'`, `'instant'`, or `'smooth'`. It is passed to `window.scrollTo` for saved-position restoration and top resets. It has no effect while `scrollRestoration` is disabled.
+
+## `StaticRouterProvider`
+
+```ts
+interface StaticRouterProviderProps {
+  readonly router: Router;
+  readonly children?: ReactNode;
+  readonly fallback?: ReactNode;
+  readonly loadingFallback?: ReactNode;
+  readonly errorFallback?: ComponentType<RouterErrorFallbackProps>;
+  readonly middleware?: readonly Middleware[];
+}
+
+function StaticRouterProvider(props: StaticRouterProviderProps): ReactElement;
+```
+
+Static rendering has no effect phase, so this provider never starts the router. Call `await router.start()` for the request before rendering. Otherwise it throws:
+
+```text
+Cookbook Router static rendering requires a started router. Call `await router.start()` before rendering `<StaticRouterProvider />`.
+```
+
+It delegates to `RouterProvider` with `autoStart={false}` and forwards fallback and middleware props. It intentionally has no scroll-restoration props.
+
+## `useRouterState(router)`
+
+```ts
+function useRouterState(router: Router): RouterState;
+```
+
+Subscribes to an explicit router with `useSyncExternalStore`. The same `router.state` getter is used for client and server snapshots. This helper is useful for integration components that cannot rely on context.
+
+## `renderReactRouteMatch()`
+
+```ts
+interface RenderReactRouteMatchOptions {
+  readonly loadingFallback?: ReactNode;
+  readonly errorFallback?: ComponentType<RouterErrorFallbackProps>;
+  readonly error?: unknown;
+}
+
+function renderReactRouteMatch(
+  match: RouteMatch | null | undefined,
+  fallback: ReactNode,
+  options?: RenderReactRouteMatchOptions,
+): ReactNode;
+```
+
+Adapts core `renderRouteMatch()` traversal to React. It provides route, outlet, and slot contexts; converts views to components; inserts `Suspense`; installs route/layout boundaries; renders intercept output; and distinguishes a primary no-match fallback from empty slots.
+
+The entire result is wrapped in an outer `Suspense` using `loadingFallback ?? null`. More specific route/layout loading views are installed by per-route boundaries.
+
+A no-match primary branch returns `fallback`. Empty or disabled slot states return `null`.
+
+## `renderRouteBoundary()`
+
+```ts
+interface ResolvedLoadingFallback {
+  readonly view: RouteView;
+  readonly match: MatchedRoute;
+}
+
+interface ResolvedErrorFallback {
+  readonly view: RouteView;
+  readonly match: MatchedRoute;
+}
+
+interface InheritedRouteFallbacks {
+  readonly loading?: ResolvedLoadingFallback;
+  readonly error?: ResolvedErrorFallback;
+}
+
+function renderRouteBoundary(
+  match: MatchedRoute,
+  element: ReactNode,
+  options?: RenderReactRouteMatchOptions,
+  fallbacks?: InheritedRouteFallbacks,
+): ReactNode;
+```
+
+This helper is public as a value, while the three fallback interfaces above are implementation-exported by the provider module but are not package-root type exports. Treat the inline shapes as the callable contract rather than importing them from an internal path.
+
+The selected fallback owner's `MatchedRoute` is passed to loading/error components. Error boundaries reset when their child element changes. Slot-isolation context causes route boundaries to rethrow so the nearest `<Slot errorFallback>` can own the error.
+
+## Fallback prop contracts
+
+```ts
+interface RouteLoadingFallbackProps {
+  readonly route: MatchedRoute;
+}
+
+interface RouteErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+  readonly route: MatchedRoute;
+}
+
+interface RouterErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+  readonly route?: MatchedRoute;
+}
+```
+
+Route and layout fallbacks receive the match that owns the selected fallback. The global router fallback may have no route when startup fails before a branch exists.
+
+## Where this bites
+
+Starting the router before provider middleware is registered changes initial-navigation behavior. The warning is not cosmetic; your authorization or rewrite middleware may have missed the first route.

@@ -1,0 +1,105 @@
+---
+title: "History API"
+description: "Memory, browser, and static adapters plus location parsing and custom history contracts."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## `createMemoryHistory(options?)`
+
+```ts
+interface MemoryHistoryOptions {
+  readonly initialEntries?: readonly string[];
+  readonly initialIndex?: number;
+}
+function createMemoryHistory(options?: MemoryHistoryOptions): RouterHistory;
+```
+
+An empty list becomes `['/']`; the default index is the final entry. Out-of-range indices are clamped. `push()` discards forward entries, `replace()` preserves the current key, and `go()` emits nothing when the index cannot change.
+
+## `createBrowserHistory(options?)`
+
+```ts
+interface BrowserHistoryOptions {
+  readonly window?: Pick<Window, 'location' | 'history' | 'addEventListener' | 'removeEventListener'>;
+}
+function createBrowserHistory(options?: BrowserHistoryOptions): RouterHistory;
+```
+
+The optional window supports controlled environments. Without one, the function uses `globalThis.window` and throws if unavailable. It writes `{ cookbookRouterKey, state }` into browser history, maps `popstate` to `pop`, maps `hashchange` to `hash`, and removes DOM listeners after the final subscriber leaves. `redirectExternal()` uses `location.assign()` or `location.replace()`.
+
+## `createStaticHistory(options)`
+
+```ts
+interface StaticHistoryOptions { readonly url: string; }
+function createStaticHistory(options: StaticHistoryOptions): RouterHistory;
+```
+
+Static `push()` and `replace()` throw. Back, forward, and go are no-ops. `listen()` returns a no-op cleanup. The higher-level static router accepts `URL` and `Request`; this adapter receives the already-resolved string.
+
+## `parseHref(href, options?)`
+
+```ts
+function parseHref(
+  href: string,
+  options?: { readonly state?: unknown; readonly key?: string },
+): RouterLocation;
+```
+
+Absolute origins are discarded. Empty input becomes `/`. The function generates a key when none is supplied and returns no `state` property when state is `undefined`.
+
+```ts
+parseHref('https://example.test/users/42?q=a#bio');
+// { pathname: '/users/42', search: '?q=a', hash: '#bio',
+//   href: '/users/42?q=a#bio', key: 'location-…' }
+```
+
+It does not match routes or parse typed URL state.
+
+## Contracts
+
+```ts
+type HistoryAction = 'push' | 'replace' | 'pop' | 'hash';
+
+interface HistoryEvent {
+  readonly action: HistoryAction;
+  readonly location: RouterLocation;
+}
+
+interface RouterLocation {
+  readonly pathname: string;
+  readonly search: string;
+  readonly hash: string;
+  readonly href: string;
+  readonly state?: unknown;
+  readonly key: string;
+}
+
+interface RouterHistory {
+  readonly location: RouterLocation;
+  readonly mode?: 'browser' | 'memory' | 'static';
+  redirectExternal?: (href: string, mode: 'push' | 'replace') => void;
+  push(href: string, state?: unknown): void;
+  replace(href: string, state?: unknown): void;
+  back(): void;
+  forward(): void;
+  go(delta: number): void;
+  listen(listener: (event: HistoryEvent) => void): () => void;
+}
+```
+
+A custom adapter must expose its latest location and notify after visible changes. `href` must equal `pathname + search + hash` and contain no origin.
+
+## Adapter matrix
+
+| Adapter | Mutates entries | Actions | External redirects | Use |
+| --- | --- | --- | --- | --- |
+| Memory | Yes | push, replace, pop | No | Tests and non-DOM environments |
+| Browser | Yes | push, replace, pop, hash | Yes | Client applications |
+| Static | No | None | No | One server/static request |
+
+## Where this bites
+
+A history adapter is transport. It does not know route IDs, basenames, constraints, typed search, or hash descriptors.

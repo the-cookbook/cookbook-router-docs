@@ -1,0 +1,32 @@
+---
+title: "Bundler Plugins"
+description: "Build-time Cookbook Router generation for Vite, Webpack, Rspack, Rollup, esbuild, and Bun."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## The job
+
+The plugins run Cookbook Router generation before application modules are compiled. That is the whole promise. The consuming code sees real files, not a virtual-module trick that works until another tool touches the graph.
+
+<Cards>
+  <Card title="Choose a plugin" href="/docs/bundler-plugins/choose-a-plugin" description="Pick by bundler and watch requirements." />
+  <Card title="Shared options" href="/docs/bundler-plugins/shared-options" description="Understand precedence, generated files, and the common runner." />
+  <Card title="Watch and recovery" href="/docs/bundler-plugins/watch-and-recovery" description="Know exactly what recovers after a broken route or config." />
+  <Card title="Troubleshooting" href="/docs/bundler-plugins/troubleshooting" description="Fix generation and watch failures without ritual sacrifice." />
+</Cards>
+
+## Supported packages
+
+| Bundler | Package | Public constructor |
+| --- | --- | --- |
+| Vite | `@cookbook/router-vite-plugin` | `cookbookRouterVitePlugin()` |
+| Webpack | `@cookbook/router-webpack-plugin` | `new CookbookRouterPlugin()` |
+| Rspack | `@cookbook/router-rspack-plugin` | `new CookbookRouterRspackPlugin()` |
+| Rollup and Rolldown | `@cookbook/router-rollup-plugin` | `cookbookRouterRollupPlugin()` |
+| esbuild | `@cookbook/router-esbuild-plugin` | `cookbookRouterEsbuildPlugin()` |
+| Bun | `@cookbook/router-bun-plugin` | `cookbookRouterBunPlugin()` |
+
+Vite exports only the named factory. Webpack, Rspack, Rollup, esbuild, and Bun also expose a default export. Rspack additionally exports `CookbookRouterPlugin` as an alias of `CookbookRouterRspackPlugin`.

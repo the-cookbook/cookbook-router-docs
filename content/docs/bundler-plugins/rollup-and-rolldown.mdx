@@ -1,0 +1,128 @@
+---
+title: "Rollup and Rolldown plugin"
+description: "Run generation from the Rollup-compatible buildStart lifecycle and register route roots as watch files."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## Install and configure
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab value="pnpm">
+
+```bash
+pnpm add -D @cookbook/router-rollup-plugin
+```
+
+  </Tab>
+  <Tab value="npm">
+
+```bash
+npm install --save-dev @cookbook/router-rollup-plugin
+```
+
+  </Tab>
+  <Tab value="yarn">
+
+```bash
+yarn add -D @cookbook/router-rollup-plugin
+```
+
+  </Tab>
+  <Tab value="bun">
+
+```bash
+bun add -d @cookbook/router-rollup-plugin
+```
+
+  </Tab>
+</Tabs>
+
+```ts title="rollup.config.ts"
+import { cookbookRouterRollupPlugin } from '@cookbook/router-rollup-plugin';
+
+export default {
+  plugins: [cookbookRouterRollupPlugin()],
+};
+```
+
+```ts
+function cookbookRouterRollupPlugin(
+  options?: CookbookRouterRollupPluginOptions,
+): Plugin;
+
+interface CookbookRouterRollupPluginOptions
+  extends CookbookRouterBuilderPluginOptions {}
+```
+
+The factory is exported by name and as the default export.
+
+
+## Shared build-runner options
+
+All plugins except Vite extend `CookbookRouterBuilderPluginOptions` from `@cookbook/router-cli`.
+
+<TypeTable
+  type={{
+    cwd: {
+      description: 'Project root used for config discovery and relative route paths.',
+      type: 'string',
+      default: 'Bundler project root or current working directory',
+    },
+    configFile: {
+      description: 'Explicit router config path. Without it, Cookbook Router discovers cookbook-router.config.*.',
+      type: 'string',
+    },
+    routeFiles: {
+      description: 'Route file or glob override. It wins over routeFiles from the config file.',
+      type: 'string | readonly string[]',
+    },
+    outDir: {
+      description: 'Generated output directory. It wins over config outDir.',
+      type: 'string',
+      default: "'.cookbook-router'",
+    },
+    fs: {
+      description: 'File-system adapter for tests and non-standard runtimes.',
+      type: 'CliFileSystem',
+    },
+  }}
+/>
+
+The runner resolves command options, generates physical artifacts, and then resolves watch paths even after a failure. That last part is the recovery mechanism: a bad config should not make the plugin blind to the file that can repair it.
+
+## Generated artifacts
+
+A successful aggregate run writes:
+
+- `contracts.ts`
+- `register.d.ts`
+- `manifest.json`
+
+It writes `routes.ts` only when the loaded route input contains statically composable route exports. JSON-only or otherwise non-composable input can still produce contracts and a manifest without producing a runtime route module.
+
+## Precedence
+
+1. Explicit plugin options
+2. Values from `cookbook-router.config.*`
+3. Framework defaults
+
+An explicit `routeFiles` or `outDir` is not merged with the config value. It replaces it.
+
+## Lifecycle
+
+On every `buildStart`, the plugin:
+
+1. Runs the shared build runner.
+2. Calls `addWatchFile()` for every resolved or fallback watch path.
+3. Returns on success.
+4. Warns on failure.
+5. Keeps watch mode alive, but calls `this.error()` in a non-watch build.
+
+Because watch paths are returned even after failure, a broken config can still recover when repaired.
+
+## Where this bites
+
+The warning in watch mode is deliberate. Turning every transient route-edit error into a terminal Rollup failure would kill the process that is supposed to notice the fix.

@@ -1,0 +1,595 @@
+---
+title: "SSR and static routing"
+description: "Resolve one request with read-only history, map HTTP outcomes, render React, and hydrate the same route safely."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+SSR is not a browser router with [`window`](https://developer.mozilla.org/en-US/docs/Web/API/Window) removed. It resolves one server request against read-only history. 
+
+Create one static router for one request, resolve it completely, map server outcomes, render it, serialize the successful location, and then dispose it.
+
+The browser creates a separate router from that serialized location.
+
+## Request lifecycle
+
+<Steps>
+  <Step>
+    Create one static router for the incoming request.
+  </Step>
+  <Step>
+    Register request middleware and lifecycle hooks before startup.
+  </Step>
+  <Step>
+    Call `await router.start()` to resolve the request location.
+  </Step>
+  <Step>
+    Handle `Response` values, errors, redirects, and HTTP status before rendering.
+  </Step>
+  <Step>
+    Render the started router with `StaticRouterProvider`.
+  </Step>
+  <Step>
+    Serialize the successful router state with `stringifyRouterState()`.
+  </Step>
+  <Step>
+    Dispose the request router after producing the response.
+  </Step>
+  <Step>
+    Create a new browser router and hydrate React without manually starting it first.
+  </Step>
+</Steps>
+
+A static router is mutable router state. Sharing one across requests leaks request locations, middleware results, and transition state between users.
+
+## Server render
+
+```tsx title="src/server.tsx"
+import { renderToString } from 'react-dom/server';
+import {
+  createStaticRouter,
+  stringifyRouterState,
+} from '@cookbook/router';
+import { StaticRouterProvider } from '@cookbook/router-react';
+import { routes } from './routes';
+
+export async function renderRequest(
+  request: Request,
+): Promise<Response> {
+  const router = createStaticRouter({
+    routes,
+    request,
+  });
+
+  try {
+    const state = await router.start();
+
+    if (state.error instanceof Response) {
+      return state.error;
+    }
+
+    if (state.error !== undefined) {
+      throw state.error;
+    }
+
+    const appHtml = renderToString(
+      <StaticRouterProvider
+        router={router}
+        fallback={
+          <main>
+            <h1>Not found</h1>
+          </main>
+        }
+      />,
+    );
+
+    const hydrationJson = stringifyRouterState(router);
+
+    const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <title>Cookbook Router SSR</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="root">${appHtml}</div>
+
+    <script>
+      window.__COOKBOOK_ROUTER__ = ${hydrationJson};
+    </script>
+
+    <script
+      type="module"
+      src="/src/main.tsx"
+    ></script>
+  </body>
+</html>`;
+
+    return new Response(html, {
+      status: state.match ? 200 : 404,
+      headers: {
+        'Content-Type':
+          'text/html; charset=utf-8',
+      },
+    });
+  } finally {
+    router.dispose();
+  }
+}
+```
+
+`StaticRouterProvider` requires an already-started router. It does not start the router during server rendering because React effects do not run there.
+
+Rendering before startup throws:
+
+```text
+Cookbook Router static rendering requires a started router. Call `await router.start()` before rendering `<StaticRouterProvider />`.
+```
+
+## Static router inputs
+
+`createStaticRouter()` accepts a relative string, an HTTP or HTTPS `URL`, or a `Request`.
+
+```ts
+createStaticRouter({
+  routes,
+  url: '/articles/typed-routing?preview=true',
+});
+
+createStaticRouter({
+  routes,
+  url: new URL(
+    'https://example.test/articles/typed-routing',
+  ),
+});
+
+createStaticRouter({
+  routes,
+  url: request,
+});
+
+createStaticRouter({
+  routes,
+  request,
+});
+```
+
+The router discards the origin and stores only:
+
+```text
+pathname + search + hash
+```
+
+Unsupported protocols such as `javascript:` and `file:` are rejected.
+
+If neither `url` nor `request` is supplied, creation throws:
+
+```text
+createStaticRouter requires either url or request.
+```
+
+Pass one input source. When both are supplied, `request` takes precedence.
+
+A string or `URL` can technically contain a hash. A real browser HTTP request does not send its fragment to the server.
+
+## Static history is read-only
+
+`createStaticRouter()` owns a static history implementation.
+
+It can read the request location, but it cannot create or replace browser history entries:
+
+```text
+Static history cannot push navigation entries.
+```
+
+```text
+Static history cannot replace navigation entries.
+```
+
+Do not use a static router for interaction after rendering. Its job ends with the request.
+
+`back()`, `forward()`, and `go()` cannot move a server request through browser history.
+
+Internal redirects can still resolve another router location during `start()` because startup does not need to push a history entry. That does not automatically produce an HTTP redirect response.
+
+## Register middleware before startup
+
+Request middleware and lifecycle hooks must be attached before `router.start()`.
+
+```ts
+const router = createStaticRouter({
+  routes,
+  request,
+  middleware: [
+    ({ location }) => {
+      console.log(
+        `Resolving ${location.pathname}`,
+      );
+    },
+  ],
+  lifecycle: {
+    afterNavigate: ({ location }) => {
+      console.log(
+        `Resolved ${location.pathname}`,
+      );
+    },
+  },
+});
+
+await router.start();
+```
+
+They can also be registered through `router.useMiddleware()` before startup:
+
+```ts
+const unregister = router.useMiddleware(requestMiddleware);
+
+try {
+  await router.start();
+} finally {
+  unregister();
+}
+```
+
+Do not rely on the `middleware` prop of `StaticRouterProvider` for initial request resolution. `RouterProvider` registers that prop in a React effect, and server rendering has no effect phase.
+
+## Map server responses before rendering
+
+Middleware may return a `Response`.
+
+The router stores that `Response` in `state.error`; it does not send it for you.
+
+```ts
+const router = createStaticRouter({
+  routes,
+  request,
+  middleware: [
+    ({ location }) => {
+      if (
+        location.pathname ===
+        '/legacy-documentation'
+      ) {
+        return new Response(null, {
+          status: 308,
+          headers: {
+            Location:
+              'https://docs.example.com',
+          },
+        });
+      }
+    },
+  ],
+});
+
+const state = await router.start();
+
+if (state.error instanceof Response) {
+  return state.error;
+}
+```
+
+Ordinary thrown errors are also stored in `state.error`. Decide whether your server adapter should throw them, render an error document, or return a framework-specific error response.
+
+Handle errors before calling `stringifyRouterState()`. Serialized router state does not include `state.error`.
+
+## Redirects during SSR
+
+### Internal redirects
+
+Route redirects and middleware `redirect()` results can resolve an internal destination during `router.start()`.
+
+The static router's state moves to that destination, but no HTTP `Location` header is produced automatically.
+
+For a hydratable document, the browser URL and serialized pathname/search must agree. If startup resolves `/login` while the browser remains at `/private`, client router creation records a hydration mismatch.
+
+Your server adapter must turn initial-request redirects into HTTP redirects before rendering.
+
+One possible adapter policy is to compare the requested pathname/search with the resolved pathname/search and emit a redirect when they differ:
+
+```ts
+const requestUrl = new URL(request.url);
+const state = await router.start();
+
+const requestChanged = state.location.pathname !== requestUrl.pathname 
+  || state.location.search !== requestUrl.search;
+
+if (requestChanged) {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: state.location.href,
+    },
+  });
+}
+```
+
+Only use that policy when a changed resolved URL always means redirect in your application.
+
+### Rewrites
+
+A rewrite deliberately resolves a different route while preserving the original history URL.
+
+That conflicts with the normal hydration requirement: the serialized pathname/search describes the rewritten target while browser history still contains the original request URL.
+
+`SerializedRouterState` does not preserve whether its final location came from a redirect or a rewrite.
+
+Do not use an initial server rewrite for a document that will be hydrated through the standard pathname/search handoff. Prefer an HTTP redirect for the initial request, or use an application-specific SSR strategy that reproduces the same rewritten state before React's first client render.
+
+### External redirects
+
+The built-in static history has no external redirect implementation.
+
+Using a route redirect or middleware `redirect()` with an external URL places this error in router state:
+
+```text
+History implementation cannot redirect to external URL "...".
+```
+
+Represent external SSR redirects as server `Response` values instead.
+
+In the browser runtime, browser history delegates external redirects to `window.location.assign()` or `window.location.replace()`.
+
+See [Redirects, rewrites, and cancellation](/docs/router/concepts/redirects-rewrites-and-cancellation) for transition semantics outside SSR.
+
+## Serialize hydration state
+
+Cookbook Router exposes three helpers around the minimal hydration snapshot:
+
+```ts
+import {
+  deserializeRouterState,
+  serializeRouterState,
+  stringifyRouterState,
+} from '@cookbook/router';
+
+const stateObject = serializeRouterState(router);
+
+const stateJson = stringifyRouterState(router);
+
+const parsedState = deserializeRouterState(stateJson);
+```
+
+The serialized state contains only:
+
+* `location`
+* `navigation`
+
+It does not contain the route tree, matched branch, middleware, lifecycle hooks, loaded modules, application data, `state.error`, or React state.
+
+`stringifyRouterState()`:
+
+* validates the serialized state shape;
+* serializes it as JSON;
+* escapes `<`, `>`, `&`, U+2028, and U+2029 for direct script embedding.
+
+Use it instead of:
+
+```ts
+JSON.stringify(router.serialize());
+```
+
+when inserting the payload into an executable `<script>`.
+
+For the complete serialized shape and validation behavior, see [Serialization and hydration](/docs/router/concepts/serialization-and-hydration).
+
+## Client hydration
+
+The raw script assignment in the server example evaluates the JSON expression and stores an object on `window`.
+
+```tsx title="src/main.tsx"
+import { hydrateRoot } from 'react-dom/client';
+import {
+  createRouter,
+  deserializeRouterState,
+  type SerializedRouterState,
+} from '@cookbook/router';
+import { RouterProvider } from '@cookbook/router-react';
+import { routes } from './routes';
+
+declare global {
+  interface Window {
+    __COOKBOOK_ROUTER__?:
+      SerializedRouterState;
+  }
+}
+
+const root = document.getElementById('root');
+
+if (!root) {
+  throw new Error(
+    'Application root was not found.',
+  );
+}
+
+const embeddedState = window.__COOKBOOK_ROUTER__;
+
+if (!embeddedState) {
+  throw new Error(
+    'Router hydration state was not found.',
+  );
+}
+
+const hydrationData = deserializeRouterState(embeddedState);
+
+const router = createRouter({
+  routes,
+  hydrationData,
+});
+
+hydrateRoot(
+  root,
+  <RouterProvider router={router} />,
+);
+```
+
+`deserializeRouterState()` also accepts a JSON string when your transport stores the payload as text. The direct global assignment above does not.
+
+Do not call:
+
+```ts
+await router.start();
+```
+
+before `hydrateRoot()`.
+
+The serialized location must drive the first client render. `RouterProvider` starts or refreshes the router after mounting.
+
+## Server and client configuration must agree
+
+The client reconstructs the route match from the serialized location. It does not receive the server's matched branch.
+
+Use compatible values for:
+
+* `routes`
+* `basename`
+* `pathOptions`
+* `pathConstraints`
+* router-level URLKit defaults
+
+Static and browser router creation use different property names for the last item:
+
+```ts
+const staticRouter = createStaticRouter({
+    routes,
+    request,
+    routerUrl: sharedUrlOptions,
+  });
+
+const browserRouter = createRouter({
+    routes,
+    hydrationData,
+    url: sharedUrlOptions,
+  });
+```
+
+`createStaticRouter()` uses `url` for the request input, so its router-level URLKit option is named `routerUrl`.
+
+A pathname or search difference between hydration state and browser history does not throw during router construction. The router records a hydration mismatch error in `router.state.error`.
+
+## Hash fragments
+
+Hydration compares pathname and search. It intentionally does not require the server and browser hash to match.
+
+For a direct browser request such as:
+
+```text
+/articles/typed-routing?preview=true#summary
+```
+
+the server receives:
+
+```text
+/articles/typed-routing?preview=true
+```
+
+The server therefore renders and serializes an empty hash.
+
+During the first client render, Cookbook Router keeps that serialized server location so React sees the same output as the server HTML. After hydration commits, `RouterProvider` resolves the current browser location and synchronizes `#summary`.
+
+Starting the browser router before `hydrateRoot()` can expose the browser hash during the first client render while the server HTML still represents an empty hash.
+
+## Vite development example
+
+[`examples/react-ssr`](https://github.com/the-cookbook/cookbook-router/tree/main/examples/react-ssr) contains an application-local Vite plugin named `createReactSsrDevPlugin()`.
+
+It is not the `@cookbook/router-vite-plugin` code-generation plugin.
+
+The local plugin:
+
+* intercepts `GET` and `HEAD` document requests that accept HTML;
+* skips source modules, dependencies, and asset requests;
+* loads `/src/server.tsx` through `server.ssrLoadModule()`;
+* calls the exported `renderRequest()`;
+* passes the result through `server.transformIndexHtml()`.
+
+Run the example from the monorepo root:
+
+```sh
+pnpm build:packages
+pnpm --filter react-ssr dev
+```
+
+Then open:
+
+```text
+http://localhost:5173/ssr/users/11?tab=settings
+```
+
+The response should contain rendered route HTML inside `#root`, not only the static Vite shell.
+
+## Styles
+
+The HTML response must include the styles required by the initial render.
+
+The SSR example emits:
+
+```html
+<link
+  rel="stylesheet"
+  href="/src/styles.css"
+/>
+```
+
+A production server should emit the built CSS URLs produced by its asset pipeline or manifest.
+
+## Security boundaries
+
+* Static router inputs accept relative paths and HTTP or HTTPS URLs. Other protocols are rejected.
+* Handle server errors and `Response` values before serializing state.
+* Use `stringifyRouterState()` for direct script embedding.
+* Do not treat serialized router state as application data or HTML.
+* React escapes rendered text, but any HTML assembled outside React remains the server adapter's responsibility.
+* Keep the hydration payload separate from user-generated markup.
+
+## Where this bites
+
+### One router is reused across requests
+
+A router contains request-specific location, transition, middleware, and error state.
+
+Create and dispose one static router per request.
+
+### Middleware is passed only to `StaticRouterProvider`
+
+Provider middleware is registered in an effect, so it does not participate in server startup.
+
+Register initial middleware on `createStaticRouter()` or through `router.useMiddleware()` before `start()`.
+
+### An errored router is serialized
+
+`state.error` is not part of `SerializedRouterState`.
+
+Map `Response` values and errors before rendering or serializing.
+
+### The server renders a redirected location under the old URL
+
+The client sees the old browser pathname/search and the new serialized pathname/search. The router records a hydration mismatch.
+
+Return an HTTP redirect instead of rendering the redirected document under the original URL.
+
+### An initial SSR rewrite is hydrated normally
+
+The rewrite preserves the browser URL but serializes the rewritten router location. Standard pathname/search hydration cannot represent both.
+
+Avoid initial rewrites for ordinarily hydrated SSR documents.
+
+### The client router is started before React hydration
+
+The client can resolve browser-only state, including the hash, before React compares its first render with the server HTML.
+
+Let `RouterProvider` start and synchronize the router after `hydrateRoot()`.
+
+### Server and client URL configuration differs
+
+Different routes, basename, path options, path constraints, or URLKit defaults can reconstruct a different match from the same serialized location.
+
+Share the configuration instead of recreating it independently.
+
+For symptom-based fixes, see [SSR troubleshooting](/docs/router/troubleshooting/ssr). For exact messages, see [Serialization, history, and SSR errors](/docs/router/errors/serialization-history-and-ssr). For a task-focused implementation, see [Static-router SSR](/docs/router/recipes/static-router-ssr).

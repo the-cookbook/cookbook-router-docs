@@ -1,0 +1,1259 @@
+---
+title: "Generated route contracts"
+description: "How generated route typed contracts connect declarations to typed links, navigation, hooks, matches, and metadata."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Typed contracts connect the validated route tree to TypeScript.
+
+The CLI generates route-keyed interfaces, then registers them with `@cookbook/router` and `@cookbook/router-react` through module augmentation. Router methods, React links, and hooks use that registration to select the correct contract for a route ID.
+
+Two layers are involved:
+
+1. `.cookbook-router/contracts.ts` contains generated route maps.
+2. `@cookbook/router` exposes generic types that read entries from those maps.
+
+Do not confuse the generated interfaces with the public generic selector types that share some of their names.
+
+## Generate the contracts
+
+Run generation using the configured route inputs:
+
+```bash
+cbr generate
+````
+
+The relevant generated files are:
+
+```text
+.cookbook-router/
+  contracts.ts
+  register.d.ts
+```
+
+`contracts.ts` contains the generated type maps.
+
+`register.d.ts` makes those maps visible to the router packages.
+
+See [Generated artifacts](/docs/router/getting-started/generated-artifacts) for `routes.ts`, `manifest.json`, output lifecycle, and source-control guidance.
+
+## Generated contract maps
+
+The generator emits these interfaces:
+
+```ts
+export interface RouteParams {}
+export interface RouteParamsInput {}
+export interface RouteSearch {}
+export interface RouteSearchInput {}
+export interface RouteHash {}
+export interface RouteMeta {}
+export interface RoutePaths {}
+export interface RouteOutletContext {}
+
+export interface RouterContracts {
+  params: RouteParams;
+  paramsInput: RouteParamsInput;
+  search: RouteSearch;
+  searchInput: RouteSearchInput;
+  hash: RouteHash;
+  meta: RouteMeta;
+  paths: RoutePaths;
+  outletContext: RouteOutletContext;
+}
+```
+
+Every map is keyed by route ID.
+
+A generated dashboard contract can contain entries such as:
+
+```ts
+export interface RouteParams {
+  'documents.details': {
+    documentId: string;
+  };
+
+  'users.details': {
+    slug: string;
+  };
+
+  'not-found': {
+    path: readonly string[];
+  };
+}
+```
+
+The interfaces describe the complete generated route registry. They are not generic types.
+
+## Registration
+
+The generated `register.d.ts` file registers `RouterContracts` with both public packages:
+
+```ts
+import type { RouterContracts } from './contracts';
+
+declare module '@cookbook/router' {
+  interface Register {
+    contracts: RouterContracts;
+  }
+}
+
+declare module '@cookbook/router-react' {
+  interface Register {
+    contracts: RouterContracts;
+  }
+}
+
+export {};
+```
+
+Include the generated files in the TypeScript project's `tsconfig.json`:
+
+```json title="tsconfig.json"
+{
+  "include": [
+    "src",
+    ".cookbook-router/contracts.ts",
+    ".cookbook-router/register.d.ts"
+  ]
+}
+```
+
+Replace `src` when the application uses another source root. Replace `.cookbook-router` when generation uses another `outDir`.
+
+Application modules do not import `register.d.ts`.
+
+**No inclusion, no inference.**
+
+## Use contracts in application code
+
+Generation creates route-keyed interfaces inside `.cookbook-router/contracts.ts`, but application code normally does not import that file.
+
+Once `register.d.ts` is included by TypeScript, the generated maps become available through the public types exported by `@cookbook/router` and the hooks exported by `@cookbook/router-react`.
+
+The distinction is:
+
+- Generated maps store the complete application contract.
+- Public selector types retrieve the contract for one route.
+- Hooks and router methods use the same registration to infer runtime values and navigation inputs.
+
+## Get a route contract type
+
+Import public selector types from `@cookbook/router` when application code needs the type associated with a route.
+
+```ts
+import type {
+  RegisteredRouteMeta,
+  RouteHash,
+  RouteHashInput,
+  RouteId,
+  RouteOutletContext,
+  RouteParams,
+  RouteParamsInput,
+  RouteSearch,
+  RouteSearchInput,
+} from '@cookbook/router';
+````
+
+Select a contract by route ID:
+
+```ts
+type UserParams =
+  RouteParams<'users.details'>;
+
+type UserParamsInput =
+  RouteParamsInput<'users.details'>;
+
+type UsersSearch =
+  RouteSearch<'users.index'>;
+
+type UsersSearchInput =
+  RouteSearchInput<'users.index'>;
+
+type ArticleHash =
+  RouteHash<'articles.show'>;
+
+type ArticleHashInput =
+  RouteHashInput<'articles.show'>;
+
+type LoginMeta =
+  RegisteredRouteMeta<'login'>;
+
+type DashboardContext =
+  RouteOutletContext<'dashboard'>;
+```
+
+Use `RouteId` when a value may be any registered route ID:
+
+```ts
+function preloadRoute(routeId: RouteId) {
+  return router.preload(routeId);
+}
+```
+
+These public types read from the generated registration. They do not duplicate the generated contract.
+
+## Read the current route state
+
+Use React hooks when a component needs the current parsed value rather than only its TypeScript type.
+
+```tsx
+import {
+  useHashParams,
+  useParams,
+  useRouteMeta,
+  useSearchParams,
+} from '@cookbook/router-react';
+
+function UserPage() {
+  const params = useParams('users.details');
+  const search = useSearchParams('users.index');
+  const hash = useHashParams('articles.show');
+  const meta = useRouteMeta('login');
+
+  params.slug;
+  search.status;
+  hash;
+  meta.access;
+}
+```
+
+The route ID selects the generated contract used by the hook.
+
+For outlet context, use the generic form when the application owns the context shape:
+
+```tsx
+import { useOutletContext } from '@cookbook/router-react';
+
+interface DashboardContext {
+  readonly user: User;
+  readonly permissions: readonly string[];
+}
+
+const context =
+  useOutletContext<DashboardContext>();
+```
+
+The current generator emits `{}` for route outlet-context entries because component-owned context cannot be inferred from route declarations.
+
+## Build typed links and navigation
+
+Links and router methods select their input types from the route ID automatically.
+
+```tsx
+<Link
+  route="users.details"
+  params={{
+    slug: 'ada-lovelace',
+  }}
+>
+  Open user
+</Link>
+```
+
+For a route with generated search input:
+
+```tsx
+<Link
+  route="users.index"
+  search={{
+    q: 'router',
+    page: 2,
+  }}
+>
+  Filter users
+</Link>
+```
+
+The same contracts apply to core router methods:
+
+```ts
+router.href('users.details', {
+  params: {
+    slug: 'ada-lovelace',
+  },
+});
+
+await router.navigate.to('users.index', {
+  search: {
+    q: 'router',
+    page: 2,
+  },
+});
+```
+
+Application code usually does not need to name the contract types here. The selected route ID drives inference directly.
+
+## Generated maps are the underlying registry
+
+The generated file contains interfaces such as:
+
+```ts
+export interface RouteParams {
+  'users.details': {
+    slug: string;
+  };
+}
+
+export interface RouteSearch {
+  'users.index': {
+    status: string;
+    role?: string;
+    q?: string;
+    page?: number;
+    pageSize?: number;
+  };
+}
+```
+
+These are route-keyed maps, not generic selector types.
+
+Direct indexing is possible:
+
+```ts
+import type {
+  RouteParams as GeneratedRouteParams,
+  RouteSearch as GeneratedRouteSearch,
+} from '../../.cookbook-router/contracts';
+
+type UserParams =
+  GeneratedRouteParams['users.details'];
+
+type UsersSearch =
+  GeneratedRouteSearch['users.index'];
+```
+
+Direct imports are mainly useful for:
+
+* Generator tests
+* Contract snapshots
+* Build tooling
+* Code that intentionally inspects the complete generated registry
+
+Normal application code should prefer public selectors:
+
+```ts
+import type {
+  RouteParams,
+  RouteSearch,
+} from '@cookbook/router';
+
+type UserParams =
+  RouteParams<'users.details'>;
+
+type UsersSearch =
+  RouteSearch<'users.index'>;
+```
+
+The public types remain stable even when the generated output directory changes.
+
+## Generated and public names
+
+Some generated interfaces and public selector types share names, but their syntax reveals their purpose:
+
+```ts
+// Generated route map
+GeneratedRouteParams['users.details'];
+
+// Public route selector
+RouteParams<'users.details'>;
+```
+
+The important exception is metadata:
+
+```ts
+// Generated map
+RouteMeta['login'];
+
+// Public selector
+RegisteredRouteMeta<'login'>;
+```
+
+`RouteHashInput` is another exception. It is not emitted in `.cookbook-router/contracts.ts`; `@cookbook/router` derives it from the registered `RouteHash` entry.
+
+## Route IDs
+
+`RouteId` is derived from the keys of the registered `RoutePaths` map.
+
+Given:
+
+```ts
+export interface RoutePaths {
+  main: '/';
+  login: '/login';
+  overview: '/overview';
+  'users.index': '/users';
+  'users.details': '/users/{slug:slug}';
+}
+```
+
+the public type includes:
+
+```ts
+type RouteId =
+  | 'main'
+  | 'login'
+  | 'overview'
+  | 'users.index'
+  | 'users.details';
+```
+
+Use it directly when an API accepts any registered route:
+
+```ts
+import type { RouteId } from '@cookbook/router';
+
+function preloadRoute(routeId: RouteId) {
+  return router.preload(routeId);
+}
+```
+
+Without generated registration, `RouteId` falls back to `string`.
+
+## Parsed params
+
+`RouteParams` represents values after path matching and constraint parsing.
+
+From the generated dashboard contract:
+
+```ts
+export interface RouteParams {
+  'documents.details': {
+    documentId: string;
+  };
+
+  'users.details': {
+    slug: string;
+  };
+
+  'not-found': {
+    path: readonly string[];
+  };
+}
+```
+
+Custom constraints such as:
+
+```text
+{documentId:slug}
+{slug:slug}
+```
+
+generate `string`.
+
+Built-in numeric constraints generate `number`:
+
+```text
+{id:int}
+{price:decimal}
+{value:range(1,10)}
+{value:min(1)}
+{value:max(10)}
+```
+
+Wildcards generate an array of parsed path segments:
+
+```ts
+type NotFoundParams =
+  RouteParams<'not-found'>;
+
+// {
+//   path: readonly string[];
+// }
+```
+
+React hooks consume the same registered contract:
+
+```tsx
+import { useParams } from '@cookbook/router-react';
+
+function UserDetails() {
+  const params = useParams('users.details');
+
+  params.slug;
+}
+```
+
+## Params input
+
+`RouteParamsInput` describes values accepted while building an href or navigation target.
+
+Most params have the same parsed and input type:
+
+```ts
+type UserParamsInput =
+  RouteParamsInput<'users.details'>;
+
+// {
+//   slug: string;
+// }
+```
+
+Wildcards differ.
+
+Generated parsed state:
+
+```ts
+export interface RouteParams {
+  'not-found': {
+    path: readonly string[];
+  };
+}
+```
+
+Generated input:
+
+```ts
+export interface RouteParamsInput {
+  'not-found': {
+    path: string | readonly string[];
+  };
+}
+```
+
+Both forms are accepted during URL generation:
+
+```ts
+router.href('not-found', {
+  params: {
+    path: 'missing/document',
+  },
+});
+```
+
+```ts
+router.href('not-found', {
+  params: {
+    path: ['missing', 'document'],
+  },
+});
+```
+
+Matched state remains normalized as `readonly string[]`.
+
+## Parsed search
+
+`RouteSearch` contains URLKit-parsed search values.
+
+The dashboard example generates:
+
+```ts
+export interface RouteSearch {
+  login: {
+    redirect?: string;
+  };
+
+  overview: {
+    visitors?: string;
+    page?: number;
+    pageSize?: number;
+  };
+
+  'users.index': {
+    status: string;
+    role?: string;
+    q?: string;
+    page?: number;
+    pageSize?: number;
+  };
+}
+```
+
+The corresponding declarations are assembled from local and shared descriptors:
+
+```ts
+const usersSearch = defineSearch({
+  status: {
+    type: 'string',
+    default: 'all',
+  },
+  role: {
+    type: 'string',
+    optional: true,
+  },
+  q: {
+    type: 'string',
+    optional: true,
+  },
+} as const);
+
+export const paginationSearch = defineSearch({
+  page: {
+    type: 'int',
+    optional: true,
+  },
+  pageSize: {
+    type: 'int',
+    optional: true,
+  },
+} as const);
+```
+
+After:
+
+```ts
+search: mergeSearch(
+  usersSearch,
+  paginationSearch,
+),
+```
+
+the generated parsed type is:
+
+```ts
+type UsersSearch =
+  RouteSearch<'users.index'>;
+
+// {
+//   status: string;
+//   role?: string;
+//   q?: string;
+//   page?: number;
+//   pageSize?: number;
+// }
+```
+
+`status` is required in parsed state because its descriptor has a default.
+
+```tsx
+import { useSearchParams } from '@cookbook/router-react';
+
+function UsersPage() {
+  const search = useSearchParams('users.index');
+
+  search.status;
+  search.role;
+  search.page;
+}
+```
+
+## Search input
+
+`RouteSearchInput` describes search values accepted during href generation and navigation.
+
+For the same route, generation produces:
+
+```ts
+export interface RouteSearchInput {
+  'users.index': {
+    status?: string;
+    role?: string;
+    q?: string;
+    page?: number;
+    pageSize?: number;
+  };
+}
+```
+
+`status` becomes optional in the input contract because omitting it allows its default to apply.
+
+This is valid:
+
+```tsx
+import { Link } from '@cookbook/router-react';
+
+<Link
+  route="users.index"
+  search={{
+    q: 'marcos',
+    page: 2,
+  }}
+>
+  Filter users
+</Link>
+```
+
+The resulting parsed state still contains a `status` value.
+
+The generator follows these optionality rules:
+
+| Descriptor            | Parsed `RouteSearch` | Input `RouteSearchInput` |
+| --------------------- | -------------------- | ------------------------ |
+| Required, no default  | Required             | Required                 |
+| Optional, no default  | Optional             | Optional                 |
+| Required with default | Required             | Optional                 |
+| Optional with default | Required             | Optional                 |
+
+A default means the parsed value exists even when the input omitted it.
+
+## Search value types
+
+Static search descriptors generate these TypeScript values:
+
+| Descriptor                        | Generated type               |
+| --------------------------------- | ---------------------------- |
+| `{ type: 'string' }`              | `string`                     |
+| `{ type: 'number' }`              | `number`                     |
+| `{ type: 'int' }`                 | `number`                     |
+| `{ type: 'boolean' }`             | `boolean`                    |
+| `{ type: 'date' }`                | `Date`                       |
+| `{ type: 'date-time' }`           | `Date`                       |
+| `{ type: 'enum', values: [...] }` | Union of the declared values |
+| `{ ..., many: true }`             | `readonly T[]`               |
+
+Unknown or unsupported static descriptor types generate `unknown`.
+
+## Hash contracts
+
+`RouteHash` contains the parsed hash contract for each route.
+
+A route with no hash descriptor generates `never`:
+
+```ts
+export interface RouteHash {
+  login: never;
+  overview: never;
+  'users.index': never;
+}
+```
+
+An enum descriptor such as:
+
+```ts
+hash: {
+  type: 'enum',
+  values: ['comments', 'share'],
+  optional: true,
+}
+```
+
+generates:
+
+```ts
+export interface RouteHash {
+  'articles.show':
+    | 'comments'
+    | 'share'
+    | undefined;
+}
+```
+
+A string hash descriptor generates `string`, or `string | undefined` when it is optional and has no default.
+
+## Hash input is derived
+
+The CLI does not generate a `RouteHashInput` interface.
+
+`@cookbook/router` derives the public `RouteHashInput<Route>` type from the generated `RouteHash` entry.
+
+For:
+
+```ts
+type ArticleHash =
+  RouteHash<'articles.show'>;
+
+// 'comments' | 'share' | undefined
+```
+
+the accepted input is:
+
+```ts
+type ArticleHashInput =
+  RouteHashInput<'articles.show'>;
+
+// 'comments'
+// | 'share'
+// | '#comments'
+// | '#share'
+// | null
+// | undefined
+```
+
+For a route whose generated hash is `never`:
+
+```ts
+type UsersHashInput =
+  RouteHashInput<'users.index'>;
+
+// never
+```
+
+Typed links therefore reject a hash for that route.
+
+## Hash hooks
+
+`useHashParams()` returns the parsed hash without the leading `#`.
+
+It returns `null` when:
+
+* There is no active match.
+* The requested route is not active.
+* The active route has no hash value.
+
+The hook excludes `undefined` from the generated route hash and uses `null` for absence.
+
+```tsx
+const hash =
+  useHashParams('articles.show');
+
+// 'comments' | 'share' | null
+```
+
+For a route whose generated hash contract is `never`:
+
+```tsx
+const hash =
+  useHashParams('users.index');
+
+// null
+```
+
+## Metadata
+
+`RouteMeta` is generated from metadata declared directly on each route.
+
+The dashboard contract includes:
+
+```ts
+export interface RouteMeta {
+  login: {
+    access?: string;
+  };
+
+  policies: {
+    access?: string;
+  };
+
+  'privacy-policy': {
+    access?: string;
+  };
+
+  'not-found': {
+    access?: string;
+  };
+}
+```
+
+Metadata properties are:
+
+* Always optional in the generated map.
+* Typed using JavaScript `typeof`.
+* Generated from that route’s local metadata declaration.
+
+Given:
+
+```ts
+meta: {
+  access: 'public',
+  requiresAuth: true,
+  priority: 10,
+}
+```
+
+generation produces:
+
+```ts
+{
+  access?: string;
+  requiresAuth?: boolean;
+  priority?: number;
+}
+```
+
+The generator does not preserve exact string literals such as `'public'`.
+
+Objects, arrays, and `null` follow JavaScript `typeof` behavior and therefore produce `object`, not a deep structural type.
+
+Use the public metadata selector:
+
+```ts
+import type {
+  RegisteredRouteMeta,
+} from '@cookbook/router';
+
+type LoginMeta =
+  RegisteredRouteMeta<'login'>;
+
+// {
+//   access?: string;
+// }
+```
+
+Read metadata through public runtime helpers:
+
+```ts
+import {
+  getRouteMeta,
+} from '@cookbook/router';
+
+const meta = getRouteMeta(
+  router.routes,
+  'login',
+);
+
+meta.access;
+```
+
+In React:
+
+```tsx
+import {
+  useRouteMeta,
+} from '@cookbook/router-react';
+
+const meta =
+  useRouteMeta('login');
+
+meta.access;
+```
+
+`useRouteMeta()` can also include and merge ancestor metadata. That operation happens at runtime; it does not change the generated local `RouteMeta` map.
+
+## Normalized paths
+
+`RoutePaths` maps route IDs to their normalized full route patterns.
+
+The dashboard contract includes:
+
+```ts
+export interface RoutePaths {
+  main: '/';
+  'main.redirect': '/';
+
+  documents: '/documents';
+  'documents.index': '/documents';
+  'documents.details':
+    '/documents/{documentId:slug}';
+
+  users: '/users';
+  'users.index': '/users';
+  'users.details':
+    '/users/{slug:slug}';
+
+  'not-found': '/{*path}';
+}
+```
+
+The generated path is the normalized full pattern, not only the local child segment.
+
+Index routes share their parent path:
+
+```ts
+documents: '/documents';
+'documents.index': '/documents';
+```
+
+Multiple route IDs can therefore map to the same normalized pathname when the route model requires it, such as parent/index pairs.
+
+`RouteId` is derived from the keys of this interface.
+
+## Outlet context
+
+The current generator does not infer outlet context from components, layouts, `<Outlet />`, or `<Slot />`.
+
+It emits `{}` for every route:
+
+```ts
+export interface RouteOutletContext {
+  main: {};
+  login: {};
+  overview: {};
+  'users.index': {};
+  'users.details': {};
+}
+```
+
+Do not interpret these empty objects as inferred application context.
+
+Use the generic hook overload for application-owned outlet context:
+
+```tsx
+import {
+  useOutletContext,
+} from '@cookbook/router-react';
+
+interface DashboardContext {
+  readonly user: User;
+  readonly permissions: readonly string[];
+}
+
+const context =
+  useOutletContext<DashboardContext>();
+```
+
+The route-ID overload reads `RouteOutletContext<Route>`, but generated output remains `{}` until the generator gains a declaration-level source for context inference.
+
+Do not edit the generated interface manually.
+
+## React links
+
+`Link` and `NavLink` select params, search, and hash inputs from the chosen route ID.
+
+Both `route` and `to` are supported for route-ID navigation.
+
+```tsx
+import { Link } from '@cookbook/router-react';
+
+<Link
+  route="users.details"
+  params={{
+    slug: 'ada-lovelace',
+  }}
+>
+  Open user
+</Link>
+```
+
+The generated `RouteParamsInput['users.details']` contract requires `slug`.
+
+For defaulted search state:
+
+```tsx
+<Link
+  route="users.index"
+  search={{
+    role: 'admin',
+    page: 2,
+  }}
+>
+  Administrators
+</Link>
+```
+
+`status` may be omitted because it has a descriptor default.
+
+A normal `href` bypasses route-ID URL generation and should be used for external URLs or native navigation behavior.
+
+## Router methods
+
+Core route-ID APIs consume the same contracts:
+
+```ts
+router.href('users.details', {
+  params: {
+    slug: 'ada-lovelace',
+  },
+});
+```
+
+```ts
+await router.navigate.to(
+  'users.index',
+  {
+    search: {
+      q: 'router',
+      page: 2,
+    },
+  },
+);
+```
+
+```ts
+const match = router.resolve(
+  'users.details',
+  {
+    params: {
+      slug: 'ada-lovelace',
+    },
+  },
+);
+```
+
+The router retains string overloads for dynamic route IDs and internal href navigation. Generated contracts provide precise inference for registered IDs; they are not the runtime source of route validation.
+
+## React state hooks
+
+Generated contracts flow into the state-reading hooks:
+
+```tsx
+const params =
+  useParams('users.details');
+
+const search =
+  useSearchParams('users.index');
+
+const hash =
+  useHashParams('users.index');
+
+const meta =
+  useRouteMeta('login');
+```
+
+The inferred values are:
+
+```ts
+params.slug;
+// string
+
+search.status;
+// string
+
+search.page;
+// number | undefined
+
+hash;
+// null
+
+meta.access;
+// string | undefined
+```
+
+The hooks read already-resolved router state. They do not re-parse the URL or change matching policies.
+
+## Runtime validation still applies
+
+Generated contracts validate application code at compile time.
+
+They do not make incoming browser URLs trustworthy.
+
+```text
+route declaration
+    ↓
+generated TypeScript contracts
+    ↓
+typed application calls
+    ↓
+generated href
+    ↓
+browser location
+    ↓
+runtime URLKit parsing and validation
+```
+
+An external URL can still contain:
+
+* Invalid constrained path parameters
+* Malformed search values
+* Unsupported hash values
+* Unknown search keys
+
+The runtime route matcher and URL policies decide how those values are handled.
+
+The generated type and runtime parser come from the same route declaration, but they perform different jobs.
+
+## Static inference boundary
+
+Generation can only describe fields the CLI can statically extract.
+
+Contract-relevant fields include:
+
+* `id`
+* `path`
+* `search`
+* `hash`
+* `meta`
+* `children`
+* Slot routes
+* Redirect routes
+* Registered custom path-constraint names
+
+Use static descriptors and supported helpers such as:
+
+```ts
+defineSearch(...)
+mergeSearch(...)
+defineHash(...)
+```
+
+Codegen-relevant imported values must remain statically resolvable according to the CLI extraction rules.
+
+See the CLI generation reference for the full extraction contract.
+
+## Keep contracts current
+
+Regenerate after changing:
+
+* Route IDs
+* Paths
+* Path constraints
+* Search descriptors
+* Hash descriptors
+* Metadata
+* Route hierarchy
+* Slot routes
+
+```bash
+cbr generate
+```
+
+Do not edit `contracts.ts` or `register.d.ts` directly.
+
+## Where this bites
+
+### Generated interfaces and public types look identical
+
+They share names such as `RouteParams` and `RouteSearch`, but they serve different purposes.
+
+Generated:
+
+```ts
+RouteParams['users.details']
+```
+
+Public:
+
+```ts
+RouteParams<'users.details'>
+```
+
+### A defaulted field is required in parsed search
+
+That is intentional.
+
+```ts
+status: string;
+```
+
+The runtime always supplies the descriptor default.
+
+It remains optional in navigation input:
+
+```ts
+status?: string;
+```
+
+### A custom constraint produces `string`
+
+Custom constraints such as `{slug:slug}` generate `string`. The generator only assigns `number` when the constraint chain contains a built-in numeric constraint.
+
+### A wildcard has two different contracts
+
+Parsed state uses:
+
+```ts
+readonly string[]
+```
+
+Navigation input accepts:
+
+```ts
+string | readonly string[]
+```
+
+### A route with no hash produces `never`
+
+That prevents typed href and navigation calls from supplying hash state for that route.
+
+`useHashParams()` returns `null` when no hash is present.
+
+### Metadata literals are widened
+
+```ts
+access: 'public'
+```
+
+generates:
+
+```ts
+access?: string
+```
+
+Metadata generation uses `typeof`; it does not preserve exact literals.
+
+### Outlet context remains `{}`
+
+The generator has no static declaration from which to infer component-owned outlet context. Use `useOutletContext<T>()`.
+
+### Contracts exist but inference is missing
+
+Confirm that both files are included by TypeScript:
+
+```text
+.cookbook-router/contracts.ts
+.cookbook-router/register.d.ts
+```
+
+Then restart the editor TypeScript server.

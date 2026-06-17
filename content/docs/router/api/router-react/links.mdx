@@ -1,0 +1,145 @@
+---
+title: "Links API"
+description: "Complete Link and NavLink props, typed URL generation, prefetch behavior, active matching, and native browser escape hatches."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+## `Link`
+
+```ts
+type LinkPrefetch = false | 'hover' | 'focus' | 'interaction' | 'mount';
+
+interface LinkProps<Route extends RouteId = RouteId>
+  extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> {
+  readonly route?: Route;
+  readonly to?: Route;
+  readonly href?: string;
+  readonly params?: HrefOptions<Route>['params'];
+  readonly search?: HrefOptions<Route>['search'];
+  readonly hash?: HrefOptions<Route>['hash'];
+  readonly url?: HrefOptions<Route>['url'];
+  readonly intercept?: InterceptInput | false;
+  readonly context?: HrefOptions<Route>['context'];
+  readonly preventScrollReset?: boolean;
+  readonly replace?: boolean;
+  readonly prefetch?: LinkPrefetch;
+  readonly children?: ReactNode;
+}
+
+function Link<Route extends RouteId = RouteId>(props: LinkProps<Route>): ReactElement;
+```
+
+Use `route` or its alias `to` for generated, contract-checked internal URLs. Use `href` for external destinations or deliberate browser-native navigation. When both are present, `href` controls the anchor URL while the route ID still determines whether an intercepted click can use router navigation.
+
+<TypeTable
+  type={{
+    route: { description: 'Typed route ID used to generate the href and navigate.', type: 'Route', optional: true },
+    to: { description: 'Alias for route. route wins when both are present.', type: 'Route', optional: true },
+    href: { description: 'Explicit anchor href. Useful for external or browser-native links.', type: 'string', optional: true },
+    params: { description: 'Path params inferred from generated contracts.', type: "HrefOptions<Route>['params']", optional: true },
+    search: { description: 'Declared route search input.', type: "HrefOptions<Route>['search']", optional: true },
+    hash: { description: 'Route hash input.', type: "HrefOptions<Route>['hash']", optional: true },
+    url: { description: 'Per-link URL build overrides such as array format and defaults.', type: "HrefOptions<Route>['url']", optional: true },
+    intercept: { description: 'Call-site interception request, or false to disable it.', type: 'InterceptInput | false', optional: true },
+    context: { description: 'Context forwarded to an intercepted target.', type: "HrefOptions<Route>['context']", optional: true },
+    preventScrollReset: { description: 'Marks the destination history state so provider scroll restoration does not reset it.', type: 'boolean', optional: true },
+    replace: { description: 'Uses navigate.replace instead of navigate.to.', type: 'boolean', default: 'false', optional: true },
+    prefetch: { description: 'Speculative preload trigger.', type: 'LinkPrefetch', default: 'false', optional: true },
+  }}
+/>
+
+```tsx
+<Link
+  route="users.show"
+  params={{ id: 42 }}
+  search={{ tab: 'activity' }}
+  prefetch="interaction"
+>
+  View activity
+</Link>
+```
+
+### Click behavior
+
+The component always renders an anchor. It intercepts only an unmodified, non-prevented left click when all of these are true:
+
+- the target is absent or `_self`;
+- no `download` attribute is present;
+- the href is not `mailto:`, `tel:`, or cross-origin HTTP(S);
+- a `route` or `to` ID exists.
+
+With only an explicit app-relative `href`, the browser remains in charge because there is no route ID to pass to typed navigation.
+
+### Prefetch behavior
+
+| Value | Trigger |
+| --- | --- |
+| `false` | No speculative load |
+| `'hover'` | Pointer enter |
+| `'focus'` | Focus |
+| `'interaction'` | Pointer enter or focus |
+| `'mount'` | Once per resolved href while the component remains mounted |
+
+Prefetch calls `router.preloadHref()`. Empty hrefs, external hrefs, and `aria-disabled={true}` or `aria-disabled="true"` are skipped. Prefetch rejection is swallowed because speculation must not create an unhandled rejection.
+
+## `shouldPreserveBrowserBehavior()`
+
+```ts
+function shouldPreserveBrowserBehavior(
+  event: MouseEvent<HTMLAnchorElement>,
+  href: string,
+  target?: string,
+  download?: AnchorHTMLAttributes<HTMLAnchorElement>['download'],
+): boolean;
+```
+
+Returns `true` when the click must stay browser-native: prevented event, non-left button, any modifier key, non-`_self` target, download, mail/telephone URL, or external HTTP(S). During SSR an absolute HTTP(S) URL is treated as external because client origin equality cannot be proven.
+
+This helper is public for design-system wrappers that need the same escape-hatch policy as `Link`.
+
+## `NavLink`
+
+```ts
+interface NavLinkRenderProps {
+  readonly isActive: boolean;
+}
+
+interface NavLinkEndOptions {
+  readonly search?: 'all' | 'ignore';
+}
+
+type NavLinkEnd = boolean | NavLinkEndOptions;
+```
+
+`NavLinkProps<Route>` carries the same route, URL-state, intercept, context, scroll, replace, prefetch, and anchor options as `Link`, plus:
+
+```ts
+readonly end?: NavLinkEnd;
+readonly children?: ReactNode | ((props: NavLinkRenderProps) => ReactNode);
+```
+
+It computes the target href, sets `aria-current="page"` while active, and supports render-prop children.
+
+```tsx
+<NavLink route="settings.profile" end>
+  {({ isActive }) => <span data-active={isActive}>Profile</span>}
+</NavLink>
+```
+
+### Active matching
+
+| `end` | Rule |
+| --- | --- |
+| omitted or `false` | Exact href or textual pathname-prefix match |
+| `true` | Full href equality, including search and hash |
+| `{ search: 'all' }` | Same full href equality as `true` |
+| `{ search: 'ignore' }` | Compare pathname and hash while ignoring search |
+
+The component throws `NavLink requires route, to, or href.` when no destination is supplied. Cross-origin absolute URLs cannot be active.
+
+## Where this bites
+
+Non-`end` matching is textual prefix matching, not path-segment matching. `/users` also prefixes `/users-old`. Use `end` for exact navigation items.
