@@ -478,6 +478,45 @@ export default function HomePage() {
           </div>
         </section>
 
+        <section className="border-b px-6 py-24 lg:px-8">
+          <div className="mx-auto max-w-7xl overflow-hidden rounded-3xl border bg-fd-card shadow-sm">
+            <div className="grid gap-8 p-6 md:grid-cols-[1fr_auto] md:items-center md:p-8">
+              <div>
+                <p className="font-mono text-xs font-semibold uppercase tracking-[0.22em] text-fd-muted-foreground">
+                  Live demo
+                </p>
+
+                <h3 className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl">
+                  See typed routing survive a real app.
+                </h3>
+
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-fd-muted-foreground md:text-base">
+                  Open the demo and inspect typed links, params, search state,
+                  layouts, middleware, and SSR-ready route definitions working
+                  together. No hand-waved contract. No documentation-only happy
+                  path.
+                </p>
+              </div>
+
+              <Link
+                href="https://the-cookbook.github.io/cookbook-router/"
+                target="_blank"
+                rel="noreferrer"
+                className={cn(
+                  "inline-flex items-center justify-center rounded-full bg-fd-primary px-5 py-3 text-sm font-semibold text-fd-primary-foreground transition-all duration-150 ease-in-out",
+                  "hover:-translate-y-0.5 hover:opacity-90",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fd-primary",
+                )}
+              >
+                Try the demo
+                <span aria-hidden="true" className="ml-1.5">
+                  ↗
+                </span>
+              </Link>
+            </div>
+          </div>
+        </section>
+
         <section className="mx-auto max-w-7xl px-6 py-24 lg:px-8">
           <div className="max-w-3xl">
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-fd-muted-foreground">
