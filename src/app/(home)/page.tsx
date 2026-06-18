@@ -487,14 +487,15 @@ export default function HomePage() {
                 </p>
 
                 <h3 className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl">
-                  See typed routing survive a real app.
+                  Routing under pressure. Try the demo.
                 </h3>
 
                 <p className="mt-4 max-w-2xl text-sm leading-7 text-fd-muted-foreground md:text-base">
-                  Open the demo and inspect typed links, params, search state,
-                  layouts, middleware, and SSR-ready route definitions working
-                  together. No hand-waved contract. No documentation-only happy
-                  path.
+                  Open the demo and move through the parts routers usually
+                  flatten: shell layouts, modal routes, search params, auth
+                  redirects, lazy loading, error fallbacks, prefetching, and
+                  dirty-form blockers. The route contract is not sitting in a
+                  README. It is driving the app.
                 </p>
               </div>
 
