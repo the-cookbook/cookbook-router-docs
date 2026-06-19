@@ -293,7 +293,7 @@ export default function HomePage() {
         </div>
 
         <div className="group relative order-1 flex justify-center md:order-2">
-          <div className="absolute inset-8 rounded-full bg-fd-primary/10 blur-3xl" />
+          <div className="absolute inset-8 rounded-full bg-emerald-300/20 dark:bg-emerald-300/10 blur-3xl" />
 
           <div className="relative w-full max-w-[440px]">
             <Image
