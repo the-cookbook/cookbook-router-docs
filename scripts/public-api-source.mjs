@@ -1,4 +1,4 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import ts from "typescript";
 

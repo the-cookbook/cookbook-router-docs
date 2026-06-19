@@ -157,12 +157,8 @@
     {
       "name": "@cookbook/router-bun-plugin",
       "source": "cookbook-router/packages/router-bun-plugin/src/index.ts",
-      "values": [
-        "cookbookRouterBunPlugin"
-      ],
-      "types": [
-        "CookbookRouterBunPluginOptions"
-      ],
+      "values": ["cookbookRouterBunPlugin"],
+      "types": ["CookbookRouterBunPluginOptions"],
       "defaultExport": true
     },
     {
@@ -247,12 +243,8 @@
     {
       "name": "@cookbook/router-esbuild-plugin",
       "source": "cookbook-router/packages/router-esbuild-plugin/src/index.ts",
-      "values": [
-        "cookbookRouterEsbuildPlugin"
-      ],
-      "types": [
-        "CookbookRouterEsbuildPluginOptions"
-      ],
+      "values": ["cookbookRouterEsbuildPlugin"],
+      "types": ["CookbookRouterEsbuildPluginOptions"],
       "defaultExport": true
     },
     {
@@ -325,46 +317,29 @@
     {
       "name": "@cookbook/router-rollup-plugin",
       "source": "cookbook-router/packages/router-rollup-plugin/src/index.ts",
-      "values": [
-        "cookbookRouterRollupPlugin"
-      ],
-      "types": [
-        "CookbookRouterRollupPluginOptions"
-      ],
+      "values": ["cookbookRouterRollupPlugin"],
+      "types": ["CookbookRouterRollupPluginOptions"],
       "defaultExport": true
     },
     {
       "name": "@cookbook/router-rspack-plugin",
       "source": "cookbook-router/packages/router-rspack-plugin/src/index.ts",
-      "values": [
-        "CookbookRouterPlugin",
-        "CookbookRouterRspackPlugin"
-      ],
-      "types": [
-        "CookbookRouterRspackPluginOptions"
-      ],
+      "values": ["CookbookRouterPlugin", "CookbookRouterRspackPlugin"],
+      "types": ["CookbookRouterRspackPluginOptions"],
       "defaultExport": true
     },
     {
       "name": "@cookbook/router-vite-plugin",
       "source": "cookbook-router/packages/router-vite-plugin/src/index.ts",
-      "values": [
-        "cookbookRouterVitePlugin"
-      ],
-      "types": [
-        "CookbookRouterVitePluginOptions"
-      ],
+      "values": ["cookbookRouterVitePlugin"],
+      "types": ["CookbookRouterVitePluginOptions"],
       "defaultExport": false
     },
     {
       "name": "@cookbook/router-webpack-plugin",
       "source": "cookbook-router/packages/router-webpack-plugin/src/index.ts",
-      "values": [
-        "CookbookRouterPlugin"
-      ],
-      "types": [
-        "CookbookRouterPluginOptions"
-      ],
+      "values": ["CookbookRouterPlugin"],
+      "types": ["CookbookRouterPluginOptions"],
       "defaultExport": true
     }
   ]
