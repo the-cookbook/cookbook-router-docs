@@ -2,6 +2,7 @@ import { Image } from "fumadocs-core/framework";
 import { DynamicCodeBlock } from "fumadocs-ui/components/dynamic-codeblock";
 import Link from "next/link";
 import Harpy from "@/assets/harpy.png";
+import HarpyDocs from "@/assets/harpy-docs.png";
 import { cn } from "@/lib/cn";
 
 const animatedUnderline = [
@@ -291,15 +292,34 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="relative order-1 flex justify-center md:order-2">
+        <div className="group relative order-1 flex justify-center md:order-2">
           <div className="absolute inset-8 rounded-full bg-fd-primary/10 blur-3xl" />
 
-          <Image
-            src={Harpy}
-            alt="Harpy Docs mascot"
-            className="relative w-full max-w-[440px] drop-shadow-2xl pointer-events-none"
-            loading="eager"
-          />
+          <div className="relative w-full max-w-[440px]">
+            <Image
+              src={Harpy}
+              alt="Harpy Docs mascot"
+              className="
+                relative w-full drop-shadow-2xl pointer-events-none
+                transition-all duration-150 ease-out
+                opacity-100
+                group-hover:opacity-0
+              "
+              loading="eager"
+            />
+
+            <Image
+              src={HarpyDocs}
+              alt="Harpy Docs mascot"
+              className="
+                absolute inset-0 w-full drop-shadow-2xl pointer-events-none
+                transition-all duration-150 ease-out
+                opacity-0
+                group-hover:opacity-100
+              "
+              loading="eager"
+            />
+          </div>
         </div>
       </section>
 
