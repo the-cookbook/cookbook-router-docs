@@ -56,7 +56,7 @@ The app uses the Fumadocs search UI and falls back to static search when Algolia
 
 ```bash
 NEXT_PUBLIC_ALGOLIA_APP_ID=
-NEXT_PUBLIC_ALGOLIA_API_KEY=
+NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY=
 NEXT_PUBLIC_ALGOLIA_INDEX_NAME=
 ALGOLIA_ADMIN_API_KEY=
 ```

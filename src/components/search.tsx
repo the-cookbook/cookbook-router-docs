@@ -23,7 +23,7 @@ function initOrama() {
 }
 
 const algoliaAppId = process.env.NEXT_PUBLIC_ALGOLIA_APP_ID;
-const algoliaSearchApiKey = process.env.NEXT_PUBLIC_ALGOLIA_API_KEY;
+const algoliaSearchApiKey = process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_API_KEY;
 const algoliaIndexName = process.env.NEXT_PUBLIC_ALGOLIA_INDEX_NAME;
 const hasAlgolia = Boolean(
   algoliaAppId && algoliaSearchApiKey && algoliaIndexName,
