@@ -1,4 +1,5 @@
 ---
+
 title: "Links API"
 description: "Complete Link and NavLink props, typed URL generation, prefetch behavior, active matching, and native browser escape hatches."
 ---
@@ -7,13 +8,44 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
 
+The links entrypoint exports router-aware anchors and the browser escape-hatch helper they use internally.
+
+```ts id="ojr0s5"
+import {
+  Link,
+  NavLink,
+  shouldPreserveBrowserBehavior,
+} from '@cookbook/router-react/links';
+
+import type {
+  LinkPrefetch,
+  LinkProps,
+  NavLinkEnd,
+  NavLinkEndOptions,
+  NavLinkProps,
+  NavLinkRenderProps,
+} from '@cookbook/router-react/links';
+```
+
+The package root re-exports the same public link surface.
+
+`Link` and `NavLink` always render real `<a>` elements. They intercept only the clicks that should become router navigation. Everything else stays browser-native. That is not decorative; users expect modifier keys, downloads, new tabs, mail links, and external links to behave like the web.
+
 ## `Link`
 
-```ts
-type LinkPrefetch = false | 'hover' | 'focus' | 'interaction' | 'mount';
+```ts id="1tp3y0"
+type LinkPrefetch =
+  | false
+  | 'hover'
+  | 'focus'
+  | 'interaction'
+  | 'mount';
 
 interface LinkProps<Route extends RouteId = RouteId>
-  extends Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> {
+  extends Omit<
+    AnchorHTMLAttributes<HTMLAnchorElement>,
+    'href'
+  > {
   readonly route?: Route;
   readonly to?: Route;
   readonly href?: string;
@@ -29,65 +61,356 @@ interface LinkProps<Route extends RouteId = RouteId>
   readonly children?: ReactNode;
 }
 
-function Link<Route extends RouteId = RouteId>(props: LinkProps<Route>): ReactElement;
+function Link<Route extends RouteId = RouteId>(
+  props: LinkProps<Route>,
+): ReactElement;
 ```
 
-Use `route` or its alias `to` for generated, contract-checked internal URLs. Use `href` for external destinations or deliberate browser-native navigation. When both are present, `href` controls the anchor URL while the route ID still determines whether an intercepted click can use router navigation.
+Use `route` or its alias `to` for generated, contract-checked internal URLs.
+
+Use `href` for external destinations or deliberate browser-native navigation.
+
+```tsx id="ntqx5z"
+import { Link } from '@cookbook/router-react/links';
+
+export function UserActivityLink() {
+  return (
+    <Link
+      to="users.details"
+      params={{ slug: 'ada-lovelace' }}
+      search={{ tab: 'activity' }}
+      prefetch="interaction"
+    >
+      View activity
+    </Link>
+  );
+}
+```
+
+Explicit external link:
+
+```tsx id="ylvmdv"
+import { Link } from '@cookbook/router-react/links';
+
+export function ExternalDocsLink() {
+  return (
+    <Link
+      href="https://example.com/docs"
+      target="_blank"
+      rel="noreferrer"
+    >
+      External docs
+    </Link>
+  );
+}
+```
+
+Explicit internal href without a route ID:
+
+```tsx id="a4b1vj"
+import { Link } from '@cookbook/router-react/links';
+
+export function NativeInternalLink() {
+  return <Link href="/users/ada-lovelace">Open user</Link>;
+}
+```
+
+That renders a real anchor and preserves browser navigation on click because there is no route ID to pass to typed navigation.
 
 <TypeTable
-  type={{
-    route: { description: 'Typed route ID used to generate the href and navigate.', type: 'Route', optional: true },
-    to: { description: 'Alias for route. route wins when both are present.', type: 'Route', optional: true },
-    href: { description: 'Explicit anchor href. Useful for external or browser-native links.', type: 'string', optional: true },
-    params: { description: 'Path params inferred from generated contracts.', type: "HrefOptions<Route>['params']", optional: true },
-    search: { description: 'Declared route search input.', type: "HrefOptions<Route>['search']", optional: true },
-    hash: { description: 'Route hash input.', type: "HrefOptions<Route>['hash']", optional: true },
-    url: { description: 'Per-link URL build overrides such as array format and defaults.', type: "HrefOptions<Route>['url']", optional: true },
-    intercept: { description: 'Call-site interception request, or false to disable it.', type: 'InterceptInput | false', optional: true },
-    context: { description: 'Context forwarded to an intercepted target.', type: "HrefOptions<Route>['context']", optional: true },
-    preventScrollReset: { description: 'Marks the destination history state so provider scroll restoration does not reset it.', type: 'boolean', optional: true },
-    replace: { description: 'Uses navigate.replace instead of navigate.to.', type: 'boolean', default: 'false', optional: true },
-    prefetch: { description: 'Speculative preload trigger.', type: 'LinkPrefetch', default: 'false', optional: true },
-  }}
+type={{
+route: {
+description: 'Typed route ID used to generate the href and navigate.',
+type: 'Route',
+optional: true,
+},
+to: {
+description: 'Alias for route. route wins when both are present.',
+type: 'Route',
+optional: true,
+},
+href: {
+description: 'Explicit anchor href. Useful for external links or deliberate browser-native navigation.',
+type: 'string',
+optional: true,
+},
+params: {
+description: 'Path params inferred from generated contracts.',
+type: "HrefOptions<Route>['params']",
+optional: true,
+},
+search: {
+description: 'Declared route search input inferred from generated contracts.',
+type: "HrefOptions<Route>['search']",
+optional: true,
+},
+hash: {
+description: 'Route hash input inferred from generated contracts.',
+type: "HrefOptions<Route>['hash']",
+optional: true,
+},
+url: {
+description: 'Per-link URL build overrides such as array format and default serialization.',
+type: "HrefOptions<Route>['url']",
+optional: true,
+},
+intercept: {
+description: 'Call-site interception request, or false to disable configured interception.',
+type: 'InterceptInput | false',
+optional: true,
+},
+context: {
+description: 'Context forwarded to an intercepted target.',
+type: "HrefOptions<Route>['context']",
+optional: true,
+},
+preventScrollReset: {
+description: 'Marks the destination history state so provider scroll restoration does not reset it.',
+type: 'boolean',
+optional: true,
+},
+replace: {
+description: 'Uses navigate.replace instead of navigate.to for intercepted router clicks.',
+type: 'boolean',
+default: 'false',
+optional: true,
+},
+prefetch: {
+description: 'Speculative preload trigger.',
+type: 'LinkPrefetch',
+default: 'false',
+optional: true,
+},
+children: {
+description: 'Anchor contents.',
+type: 'ReactNode',
+optional: true,
+},
+}}
 />
 
-```tsx
-<Link
-  route="users.show"
-  params={{ id: 42 }}
-  search={{ tab: 'activity' }}
-  prefetch="interaction"
->
-  View activity
+### Route, `to`, and `href` precedence
+
+`route` wins over `to` when both are supplied:
+
+```tsx id="wzs0cv"
+<Link route="users.details" to="users.index" params={{ slug }}>
+  User
 </Link>
 ```
 
-### Click behavior
+The component uses `users.details`.
 
-The component always renders an anchor. It intercepts only an unmodified, non-prevented left click when all of these are true:
+When `href` is supplied, it controls the rendered anchor URL:
 
-- the target is absent or `_self`;
-- no `download` attribute is present;
-- the href is not `mailto:`, `tel:`, or cross-origin HTTP(S);
-- a `route` or `to` ID exists.
+```tsx id="gf5e6e"
+<Link
+  to="users.details"
+  params={{ slug: 'ada-lovelace' }}
+  href="/manual-user-url"
+>
+  User
+</Link>
+```
 
-With only an explicit app-relative `href`, the browser remains in charge because there is no route ID to pass to typed navigation.
+The rendered `<a>` receives:
 
-### Prefetch behavior
+```html id="n48cav"
+<a href="/manual-user-url">User</a>
+```
 
-| Value | Trigger |
-| --- | --- |
-| `false` | No speculative load |
-| `'hover'` | Pointer enter |
-| `'focus'` | Focus |
-| `'interaction'` | Pointer enter or focus |
-| `'mount'` | Once per resolved href while the component remains mounted |
+But an intercepted router click still navigates using the route ID and route options, not the explicit `href`.
 
-Prefetch calls `router.preloadHref()`. Empty hrefs, external hrefs, and `aria-disabled={true}` or `aria-disabled="true"` are skipped. Prefetch rejection is swallowed because speculation must not create an unhandled rejection.
+That means the example above displays `/manual-user-url` in the browser status bar, while a normal router-handled click navigates to `users.details`.
+
+Do not mix `href` with `route` or `to` unless you intentionally want different native-click and router-click behavior. Most applications should choose one model.
+
+## Click behavior
+
+`Link` calls the user-provided `onClick` first.
+
+If that handler calls `event.preventDefault()`, router navigation is skipped.
+
+```tsx id="w1mxjj"
+<Link
+  to="users.details"
+  params={{ slug }}
+  onClick={(event) => {
+    if (!canNavigate) {
+      event.preventDefault();
+    }
+  }}
+>
+  User
+</Link>
+```
+
+After that, the component preserves browser behavior for:
+
+* already-prevented events;
+* non-left mouse buttons;
+* modifier keys;
+* `target` values other than `_self`;
+* `download`;
+* `mailto:` URLs;
+* `tel:` URLs;
+* cross-origin HTTP(S) URLs.
+
+Router navigation happens only when all of these are true:
+
+* the click is an unmodified left click;
+* the event was not prevented;
+* the target is absent or `_self`;
+* no `download` attribute is present;
+* the href is not `mailto:`, `tel:`, or cross-origin HTTP(S);
+* a `route` or `to` ID exists.
+
+```tsx id="fmwfk7"
+<Link to="documents.details" params={{ documentId }}>
+  Open document
+</Link>
+```
+
+With `replace`, the click calls `router.navigate.replace()` instead of `router.navigate.to()`:
+
+```tsx id="rprvot"
+<Link to="login" replace>
+  Sign in
+</Link>
+```
+
+With `intercept={false}`, configured interception is bypassed for that navigation:
+
+```tsx id="j2uqn9"
+<Link
+  to="documents.details"
+  params={{ documentId }}
+  intercept={false}
+>
+  Open full page
+</Link>
+```
+
+With a call-site intercept, the destination route can render through a slot:
+
+```tsx id="s6j229"
+<Link
+  to="documents.details"
+  params={{ documentId }}
+  intercept={{
+    slot: 'modal',
+    view: DocumentPreview,
+  }}
+  preventScrollReset
+>
+  Preview document
+</Link>
+```
+
+`aria-disabled` is not a click blocker. It only prevents prefetch in the current implementation.
+
+If a link must not navigate, do not render it as an enabled link, remove the destination, or prevent the click yourself.
+
+## `LinkPrefetch`
+
+```ts id="tesdvi"
+type LinkPrefetch =
+  | false
+  | 'hover'
+  | 'focus'
+  | 'interaction'
+  | 'mount';
+```
+
+| Value           | Trigger                                       |
+| --------------- | --------------------------------------------- |
+| `false`         | No speculative preload.                       |
+| `'hover'`       | Preload on pointer enter.                     |
+| `'focus'`       | Preload on focus.                             |
+| `'interaction'` | Preload on pointer enter or focus.            |
+| `'mount'`       | Preload once per resolved href while mounted. |
+
+Prefetch calls `router.preloadHref()`.
+
+```tsx id="g5nav3"
+<Link to="users.details" params={{ slug }} prefetch="hover">
+  User
+</Link>
+```
+
+Focus prefetch:
+
+```tsx id="e59qry"
+<Link to="settings" prefetch="focus">
+  Settings
+</Link>
+```
+
+Interaction prefetch:
+
+```tsx id="z2vq9w"
+<Link to="reports" prefetch="interaction">
+  Reports
+</Link>
+```
+
+Mount prefetch:
+
+```tsx id="rrqu10"
+<Link to="dashboard" prefetch="mount">
+  Dashboard
+</Link>
+```
+
+`prefetch="mount"` runs again if the resolved href changes while the component remains mounted.
+
+```tsx id="kwf8de"
+<Link
+  to="users.details"
+  params={{ slug }}
+  prefetch="mount"
+>
+  Current user
+</Link>
+```
+
+Changing `slug` changes the resolved href, so the component can preload the new target.
+
+Prefetch is skipped for:
+
+* empty hrefs;
+* external hrefs;
+* `aria-disabled={true}`;
+* `aria-disabled="true"`.
+
+Prefetch rejections are swallowed. Speculation must not create unhandled promise noise.
+
+Explicit internal hrefs can prefetch even without a route ID:
+
+```tsx id="bqrn5r"
+<Link href="/users/ada-lovelace" prefetch="hover">
+  User
+</Link>
+```
+
+That can warm the router through `preloadHref()`, but click navigation remains browser-native because no route ID exists.
+
+Per-link URL options are forwarded to `preloadHref()` only as URL options:
+
+```tsx id="q94kcz"
+<Link
+  to="products"
+  search={{ tags: ['router', 'typescript'] }}
+  url={{ arrayFormat: 'comma' }}
+  prefetch="interaction"
+>
+  Products
+</Link>
+```
 
 ## `shouldPreserveBrowserBehavior()`
 
-```ts
+```ts id="le52hr"
 function shouldPreserveBrowserBehavior(
   event: MouseEvent<HTMLAnchorElement>,
   href: string,
@@ -96,13 +419,89 @@ function shouldPreserveBrowserBehavior(
 ): boolean;
 ```
 
-Returns `true` when the click must stay browser-native: prevented event, non-left button, any modifier key, non-`_self` target, download, mail/telephone URL, or external HTTP(S). During SSR an absolute HTTP(S) URL is treated as external because client origin equality cannot be proven.
+Returns `true` when a click must stay browser-native.
+
+<TypeTable
+type={{
+event: {
+description: 'React mouse event from an anchor click.',
+type: 'MouseEvent<HTMLAnchorElement>',
+},
+href: {
+description: 'Resolved anchor href to classify as internal or external.',
+type: 'string',
+},
+target: {
+description: 'Anchor target. Any value other than _self preserves browser behavior.',
+type: 'string',
+optional: true,
+},
+download: {
+description: 'Anchor download attribute. Any defined value preserves browser behavior.',
+type: "AnchorHTMLAttributes<HTMLAnchorElement>['download']",
+optional: true,
+},
+}}
+/>
+
+It preserves browser behavior for:
+
+* `event.defaultPrevented`;
+* `event.button !== 0`;
+* `metaKey`;
+* `altKey`;
+* `ctrlKey`;
+* `shiftKey`;
+* `target` other than `_self`;
+* any defined `download`;
+* `mailto:`;
+* `tel:`;
+* cross-origin HTTP(S).
+
+```tsx id="coakrq"
+import {
+  shouldPreserveBrowserBehavior,
+} from '@cookbook/router-react/links';
+
+function CustomAnchor({
+  href,
+  onNavigate,
+  ...props
+}: {
+  readonly href: string;
+  readonly onNavigate: () => void;
+} & React.AnchorHTMLAttributes<HTMLAnchorElement>) {
+  return (
+    <a
+      {...props}
+      href={href}
+      onClick={(event) => {
+        if (
+          shouldPreserveBrowserBehavior(
+            event,
+            href,
+            props.target,
+            props.download,
+          )
+        ) {
+          return;
+        }
+
+        event.preventDefault();
+        onNavigate();
+      }}
+    />
+  );
+}
+```
+
+During SSR, an absolute HTTP(S) URL is treated as external because client origin equality cannot be proven without `window.location`.
 
 This helper is public for design-system wrappers that need the same escape-hatch policy as `Link`.
 
 ## `NavLink`
 
-```ts
+```ts id="y1op2v"
 interface NavLinkRenderProps {
   readonly isActive: boolean;
 }
@@ -111,35 +510,337 @@ interface NavLinkEndOptions {
   readonly search?: 'all' | 'ignore';
 }
 
-type NavLinkEnd = boolean | NavLinkEndOptions;
+type NavLinkEnd =
+  | boolean
+  | NavLinkEndOptions;
+
+interface NavLinkProps<Route extends RouteId = RouteId>
+  extends Omit<
+    AnchorHTMLAttributes<HTMLAnchorElement>,
+    'children' | 'href'
+  > {
+  readonly route?: Route;
+  readonly to?: Route;
+  readonly href?: string;
+  readonly params?: HrefOptions<Route>['params'];
+  readonly search?: HrefOptions<Route>['search'];
+  readonly hash?: HrefOptions<Route>['hash'];
+  readonly url?: HrefOptions<Route>['url'];
+  readonly replace?: boolean;
+  readonly intercept?: false | InterceptInput;
+  readonly context?: HrefOptions<Route>['context'];
+  readonly preventScrollReset?: boolean;
+  readonly prefetch?: LinkPrefetch;
+  readonly end?: NavLinkEnd;
+  readonly children?:
+    | ReactNode
+    | ((props: NavLinkRenderProps) => ReactNode);
+}
+
+function NavLink<Route extends RouteId = RouteId>(
+  props: NavLinkProps<Route>,
+): ReactElement;
 ```
 
-`NavLinkProps<Route>` carries the same route, URL-state, intercept, context, scroll, replace, prefetch, and anchor options as `Link`, plus:
+`NavLink` computes the target href, compares it to the current router location, sets `aria-current="page"` while active, and delegates rendering and click behavior to `Link`.
 
-```ts
-readonly end?: NavLinkEnd;
-readonly children?: ReactNode | ((props: NavLinkRenderProps) => ReactNode);
+```tsx id="eovl2e"
+import { NavLink } from '@cookbook/router-react/links';
+
+export function SettingsNav() {
+  return (
+    <NavLink to="settings.profile" end>
+      Profile
+    </NavLink>
+  );
+}
 ```
 
-It computes the target href, sets `aria-current="page"` while active, and supports render-prop children.
+Render-prop children receive active state:
 
-```tsx
-<NavLink route="settings.profile" end>
-  {({ isActive }) => <span data-active={isActive}>Profile</span>}
+```tsx id="2ou8xb"
+import { NavLink } from '@cookbook/router-react/links';
+
+export function ReportsNavItem() {
+  return (
+    <NavLink to="reports">
+      {({ isActive }) => (
+        <span data-active={isActive}>
+          Reports
+        </span>
+      )}
+    </NavLink>
+  );
+}
+```
+
+<TypeTable
+type={{
+route: {
+description: 'Typed route ID used to generate the href and navigate.',
+type: 'Route',
+optional: true,
+},
+to: {
+description: 'Alias for route. route wins when both are present.',
+type: 'Route',
+optional: true,
+},
+href: {
+description: 'Explicit anchor href. Useful for external links or deliberate browser-native navigation.',
+type: 'string',
+optional: true,
+},
+params: {
+description: 'Path params inferred from generated contracts.',
+type: "HrefOptions<Route>['params']",
+optional: true,
+},
+search: {
+description: 'Declared route search input inferred from generated contracts.',
+type: "HrefOptions<Route>['search']",
+optional: true,
+},
+hash: {
+description: 'Route hash input inferred from generated contracts.',
+type: "HrefOptions<Route>['hash']",
+optional: true,
+},
+url: {
+description: 'Per-link URL build overrides such as array format and default serialization.',
+type: "HrefOptions<Route>['url']",
+optional: true,
+},
+replace: {
+description: 'Uses navigate.replace instead of navigate.to for intercepted router clicks.',
+type: 'boolean',
+default: 'false',
+optional: true,
+},
+intercept: {
+description: 'Call-site interception request, or false to disable configured interception.',
+type: 'false | InterceptInput',
+optional: true,
+},
+context: {
+description: 'Context forwarded to an intercepted target.',
+type: "HrefOptions<Route>['context']",
+optional: true,
+},
+preventScrollReset: {
+description: 'Marks the destination history state so provider scroll restoration does not reset it.',
+type: 'boolean',
+optional: true,
+},
+prefetch: {
+description: 'Speculative preload trigger.',
+type: 'LinkPrefetch',
+default: 'false',
+optional: true,
+},
+end: {
+description: 'Active-state matching mode.',
+type: 'NavLinkEnd',
+optional: true,
+},
+children: {
+description: 'Static contents or render function receiving active-state props.',
+type: 'ReactNode | ((props: NavLinkRenderProps) => ReactNode)',
+optional: true,
+},
+}}
+/>
+
+`NavLink` throws when no destination is supplied:
+
+```text id="qlcj7y"
+NavLink requires route, to, or href.
+```
+
+The destination can come from `route`, `to`, or `href`.
+
+```tsx id="gavc49"
+<NavLink href="/settings">Settings</NavLink>
+```
+
+Same-origin absolute hrefs can be active in the browser:
+
+```tsx id="pfxglt"
+<NavLink href={`${window.location.origin}/settings`}>
+  Settings
 </NavLink>
 ```
 
-### Active matching
+Cross-origin absolute URLs cannot be active. During SSR, absolute HTTP(S) URLs are not normalized because there is no browser origin to compare.
 
-| `end` | Rule |
-| --- | --- |
-| omitted or `false` | Exact href or textual pathname-prefix match |
-| `true` | Full href equality, including search and hash |
-| `{ search: 'all' }` | Same full href equality as `true` |
-| `{ search: 'ignore' }` | Compare pathname and hash while ignoring search |
+## Active matching
 
-The component throws `NavLink requires route, to, or href.` when no destination is supplied. Cross-origin absolute URLs cannot be active.
+`NavLink` uses the current router `location.href`, current `location.pathname`, the resolved target href, and `end`.
+
+| `end`                  | Rule                                                                                                           |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------- |
+| omitted or `false`     | Active when the current href equals the target href, or when current pathname starts with the target pathname. |
+| `true`                 | Active only when the full current href equals the target href. Search and hash must match.                     |
+| `{ search: 'all' }`    | Same as `true`. Search and hash must match.                                                                    |
+| `{ search: 'ignore' }` | Compares pathname and hash while ignoring search.                                                              |
+
+Exact active link:
+
+```tsx id="sn09q2"
+<NavLink
+  to="users.details"
+  params={{ slug }}
+  search={{ tab: 'settings' }}
+  end
+>
+  Settings
+</NavLink>
+```
+
+Ignore search while keeping pathname and hash significant:
+
+```tsx id="lr9azt"
+<NavLink
+  to="users.details"
+  params={{ slug }}
+  search={{ tab: 'profile' }}
+  hash="top"
+  end={{ search: 'ignore' }}
+>
+  User
+</NavLink>
+```
+
+The `search: 'ignore'` mode strips search from both sides and still compares hash. These two are active relative to each other:
+
+```text id="z6zzk3"
+/items?sort=new#top
+/items?sort=old#top
+```
+
+These are not:
+
+```text id="rmiy4p"
+/items?sort=new#top
+/items?sort=new#details
+```
+
+## Native behavior escape hatches
+
+A `Link` or `NavLink` does not turn every anchor into router navigation.
+
+These stay browser-native:
+
+```tsx id="xpdqc2"
+<Link href="mailto:team@example.com">Email</Link>
+<Link href="tel:+15550123">Call</Link>
+<Link href="https://example.com">External</Link>
+<Link to="users" target="_blank">Open in new tab</Link>
+<Link to="report" download>Download report</Link>
+```
+
+Modifier keys stay native too:
+
+```text id="zspjtc"
+Cmd/Ctrl click
+Shift click
+Alt click
+Middle click
+```
+
+That is the right behavior. Breaking browser muscle memory to make a router look clever is how users lose tabs, downloads, and trust.
+
+## Export inventory
+
+`@cookbook/router-react/links` exports these values:
+
+```text id="akxycg"
+Link
+NavLink
+shouldPreserveBrowserBehavior
+```
+
+It exports these public types:
+
+```text id="jvpwjk"
+LinkPrefetch
+LinkProps
+NavLinkEnd
+NavLinkEndOptions
+NavLinkProps
+NavLinkRenderProps
+```
+
+The package root re-exports the same public values and types.
 
 ## Where this bites
 
-Non-`end` matching is textual prefix matching, not path-segment matching. `/users` also prefixes `/users-old`. Use `end` for exact navigation items.
+### Prefix matching is textual
+
+Non-`end` matching is textual prefix matching, not path-segment matching.
+
+This means `/users` also prefixes:
+
+```text id="s29rmu"
+/users-old
+/usersettings
+```
+
+Use `end` for exact navigation items:
+
+```tsx id="qzuz67"
+<NavLink to="users" end>
+  Users
+</NavLink>
+```
+
+### `href` plus `route` can lie to the user
+
+This renders one URL but router-clicks another route:
+
+```tsx id="v3jpwi"
+<Link
+  href="/manual"
+  to="users.details"
+  params={{ slug }}
+>
+  User
+</Link>
+```
+
+The anchor `href` is `/manual`. The intercepted router click uses `users.details`.
+
+Use either `href` or `to` unless you are intentionally splitting native behavior from router behavior.
+
+### `aria-disabled` is not disabled navigation
+
+This skips prefetch:
+
+```tsx id="f82y82"
+<Link
+  to="users.details"
+  params={{ slug }}
+  prefetch="hover"
+  aria-disabled="true"
+>
+  User
+</Link>
+```
+
+It does not stop click navigation.
+
+If the link should not navigate, prevent the click or do not render an enabled destination.
+
+### Explicit local hrefs do not router-navigate
+
+This can prefetch:
+
+```tsx id="iykvrw"
+<Link href="/users/ada-lovelace" prefetch="hover">
+  User
+</Link>
+```
+
+But the click stays native because there is no route ID.
+
+Typed navigation needs `route` or `to`.

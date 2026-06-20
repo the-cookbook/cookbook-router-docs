@@ -1,57 +1,376 @@
 ---
 title: "React contracts"
-description: "Every public type and context exported from the @cookbook/router-react root entrypoint."
+description: "Public type contracts, context values, provider props, link props, outlet props, fallback props, hook options, and generated registration types exported by @cookbook/router-react."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
 
-The package exposes one root entrypoint. The contracts below are the supported type surface; similarly named internal renderer types are not public imports.
+This page documents the public type contracts exported from the `@cookbook/router-react` root entrypoint.
 
-## Link and navigation types
+It is not a usage guide. It is the map of what the React package commits to exporting.
+
+`@cookbook/router-react` also exposes focused subpaths:
+
+```ts
+'@cookbook/router-react/hooks'
+'@cookbook/router-react/links'
+'@cookbook/router-react/outlets'
+'@cookbook/router-react/provider'
+```
+
+Those subpaths re-export smaller surfaces. This page is scoped to the root React contract surface unless stated otherwise.
+
+## Link contracts
 
 ### `LinkPrefetch`
 
 ```ts
-type LinkPrefetch = false | 'hover' | 'focus' | 'interaction' | 'mount';
+type LinkPrefetch =
+  | false
+  | 'hover'
+  | 'focus'
+  | 'interaction'
+  | 'mount';
 ```
+
+Controls speculative route preloading for `Link` and `NavLink`.
+
+| Value           | Meaning                                           |
+| --------------- | ------------------------------------------------- |
+| `false`         | No speculative preload.                           |
+| `'hover'`       | Preload on pointer enter.                         |
+| `'focus'`       | Preload on focus.                                 |
+| `'interaction'` | Preload on pointer enter or focus.                |
+| `'mount'`       | Preload once for the resolved href while mounted. |
 
 ### `LinkProps<Route>`
 
-Extends anchor attributes except `href`, then adds typed `route`/`to`, explicit `href`, route params, search, hash, URL build options, interception, context, scroll reset, replacement, and prefetch. See [Links](/docs/router/api/router-react/links).
+```ts
+interface LinkProps<Route extends RouteId = RouteId>
+  extends Omit<
+    AnchorHTMLAttributes<HTMLAnchorElement>,
+    'href'
+  > {
+  readonly route?: Route;
+  readonly to?: Route;
+  readonly href?: string;
+  readonly params?: HrefOptions<Route>['params'];
+  readonly search?: HrefOptions<Route>['search'];
+  readonly hash?: HrefOptions<Route>['hash'];
+  readonly url?: HrefOptions<Route>['url'];
+  readonly intercept?: InterceptInput | false;
+  readonly context?: HrefOptions<Route>['context'];
+  readonly preventScrollReset?: boolean;
+  readonly replace?: boolean;
+  readonly prefetch?: LinkPrefetch;
+  readonly children?: ReactNode;
+}
+```
 
-### `NavLinkEndOptions`, `NavLinkEnd`, `NavLinkRenderProps`, `NavLinkProps<Route>`
+<TypeTable
+type={{
+route: {
+description: 'Typed route ID used to generate the href and perform router navigation.',
+type: 'Route',
+optional: true,
+},
+to: {
+description: 'Alias for route. route wins when both are present.',
+type: 'Route',
+optional: true,
+},
+href: {
+description: 'Explicit anchor href. Used for external links or intentional browser-native navigation.',
+type: 'string',
+optional: true,
+},
+params: {
+description: 'Path params inferred from generated route contracts.',
+type: "HrefOptions<Route>['params']",
+optional: true,
+},
+search: {
+description: 'Declared route search input inferred from generated route contracts.',
+type: "HrefOptions<Route>['search']",
+optional: true,
+},
+hash: {
+description: 'Route hash input inferred from generated route contracts.',
+type: "HrefOptions<Route>['hash']",
+optional: true,
+},
+url: {
+description: 'Per-link URL build options such as array format and defaults.',
+type: "HrefOptions<Route>['url']",
+optional: true,
+},
+intercept: {
+description: 'Call-site route interception request, or false to disable configured interception.',
+type: 'InterceptInput | false',
+optional: true,
+},
+context: {
+description: 'Context forwarded to an intercepted target.',
+type: "HrefOptions<Route>['context']",
+optional: true,
+},
+preventScrollReset: {
+description: 'Marks the destination history state so provider scroll restoration does not reset it.',
+type: 'boolean',
+optional: true,
+},
+replace: {
+description: 'Uses navigate.replace instead of navigate.to for intercepted router clicks.',
+type: 'boolean',
+default: 'false',
+optional: true,
+},
+prefetch: {
+description: 'Speculative preload trigger.',
+type: 'LinkPrefetch',
+default: 'false',
+optional: true,
+},
+children: {
+description: 'Anchor contents.',
+type: 'ReactNode',
+optional: true,
+},
+}}
+/>
+
+`LinkProps` inherits all anchor attributes except `href`, because `href` is controlled by the router-aware contract.
+
+## NavLink contracts
+
+### `NavLinkEndOptions`
 
 ```ts
 interface NavLinkEndOptions {
   readonly search?: 'all' | 'ignore';
 }
+```
 
-type NavLinkEnd = boolean | NavLinkEndOptions;
+<TypeTable
+type={{
+search: {
+description: 'Controls whether search params participate in end-state active matching.',
+type: "'all' | 'ignore'",
+default: "'all'",
+optional: true,
+},
+}}
+/>
 
+### `NavLinkEnd`
+
+```ts
+type NavLinkEnd =
+  | boolean
+  | NavLinkEndOptions;
+```
+
+Controls active matching strictness for `NavLink`.
+
+| Value                  | Meaning                                           |
+| ---------------------- | ------------------------------------------------- |
+| `false` or omitted     | Allows prefix path matches.                       |
+| `true`                 | Requires the full href to match.                  |
+| `{ search: 'all' }`    | Requires pathname, search, and hash to match.     |
+| `{ search: 'ignore' }` | Ignores search while comparing pathname and hash. |
+
+### `NavLinkRenderProps`
+
+```ts
 interface NavLinkRenderProps {
   readonly isActive: boolean;
 }
 ```
 
-`NavLinkProps` mirrors typed link options, adds `end`, and accepts node or render-function children.
+<TypeTable
+type={{
+isActive: {
+description: 'Whether the resolved NavLink href is active for the current router location.',
+type: 'boolean',
+},
+}}
+/>
 
-## Outlet and slot types
+### `NavLinkProps<Route>`
+
+```ts
+interface NavLinkProps<Route extends RouteId = RouteId>
+  extends Omit<
+    AnchorHTMLAttributes<HTMLAnchorElement>,
+    'children' | 'href'
+  > {
+  readonly route?: Route;
+  readonly to?: Route;
+  readonly href?: string;
+  readonly params?: HrefOptions<Route>['params'];
+  readonly search?: HrefOptions<Route>['search'];
+  readonly hash?: HrefOptions<Route>['hash'];
+  readonly url?: HrefOptions<Route>['url'];
+  readonly replace?: boolean;
+  readonly intercept?: false | InterceptInput;
+  readonly context?: HrefOptions<Route>['context'];
+  readonly preventScrollReset?: boolean;
+  readonly prefetch?: LinkPrefetch;
+  readonly end?: NavLinkEnd;
+  readonly children?:
+    | ReactNode
+    | ((props: NavLinkRenderProps) => ReactNode);
+}
+```
+
+<TypeTable
+type={{
+route: {
+description: 'Typed route ID used to generate the href and perform router navigation.',
+type: 'Route',
+optional: true,
+},
+to: {
+description: 'Alias for route. route wins when both are present.',
+type: 'Route',
+optional: true,
+},
+href: {
+description: 'Explicit anchor href. Used for external links or intentional browser-native navigation.',
+type: 'string',
+optional: true,
+},
+params: {
+description: 'Path params inferred from generated route contracts.',
+type: "HrefOptions<Route>['params']",
+optional: true,
+},
+search: {
+description: 'Declared route search input inferred from generated route contracts.',
+type: "HrefOptions<Route>['search']",
+optional: true,
+},
+hash: {
+description: 'Route hash input inferred from generated route contracts.',
+type: "HrefOptions<Route>['hash']",
+optional: true,
+},
+url: {
+description: 'Per-link URL build options such as array format and defaults.',
+type: "HrefOptions<Route>['url']",
+optional: true,
+},
+replace: {
+description: 'Uses navigate.replace instead of navigate.to for intercepted router clicks.',
+type: 'boolean',
+default: 'false',
+optional: true,
+},
+intercept: {
+description: 'Call-site route interception request, or false to disable configured interception.',
+type: 'false | InterceptInput',
+optional: true,
+},
+context: {
+description: 'Context forwarded to an intercepted target.',
+type: "HrefOptions<Route>['context']",
+optional: true,
+},
+preventScrollReset: {
+description: 'Marks the destination history state so provider scroll restoration does not reset it.',
+type: 'boolean',
+optional: true,
+},
+prefetch: {
+description: 'Speculative preload trigger.',
+type: 'LinkPrefetch',
+default: 'false',
+optional: true,
+},
+end: {
+description: 'Active-state matching mode.',
+type: 'NavLinkEnd',
+optional: true,
+},
+children: {
+description: 'Static contents or render function receiving active-state props.',
+type: 'ReactNode | ((props: NavLinkRenderProps) => ReactNode)',
+optional: true,
+},
+}}
+/>
+
+`NavLinkProps` inherits anchor attributes except `href` and `children`, because both are router-aware.
+
+## Outlet and slot contracts
+
+### `OutletProps<T>`
 
 ```ts
 interface OutletProps<T = unknown> {
   readonly context?: T;
   readonly children?: ReactNode;
 }
+```
 
+<TypeTable
+type={{
+context: {
+description: 'Context exposed to descendant route content through useOutletContext.',
+type: 'T',
+optional: true,
+},
+children: {
+description: 'Explicit content replacing the router-provided outlet.',
+type: 'ReactNode',
+optional: true,
+},
+}}
+/>
+
+### `SlotErrorFallbackProps`
+
+```ts
 interface SlotErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
 }
+```
 
-type SlotErrorFallback = ComponentType<SlotErrorFallbackProps> | null;
+<TypeTable
+type={{
+error: {
+description: 'Render error thrown by content inside the slot-local boundary.',
+type: 'unknown',
+},
+reset: {
+description: 'Clears the slot-local error boundary state.',
+type: '() => void',
+},
+}}
+/>
 
+### `SlotErrorFallback`
+
+```ts
+type SlotErrorFallback =
+  | ComponentType<SlotErrorFallbackProps>
+  | null;
+```
+
+Controls slot-local render-error isolation.
+
+| Value                                   | Behavior                                                                      |
+| --------------------------------------- | ----------------------------------------------------------------------------- |
+| omitted                                 | Slot render errors bubble to the nearest route, layout, or provider boundary. |
+| `ComponentType<SlotErrorFallbackProps>` | Slot render errors are isolated and rendered by the fallback component.       |
+| `null`                                  | Slot render errors are isolated and render nothing.                           |
+
+### `SlotProps<T>`
+
+```ts
 interface SlotProps<T = unknown> {
   readonly name: string;
   readonly context?: T;
@@ -59,19 +378,53 @@ interface SlotProps<T = unknown> {
 }
 ```
 
-`SlotErrorFallback` is a package-root export. Omit `errorFallback` to let render errors bubble to the nearest route, layout, or provider boundary. Pass a component to isolate the error to the slot, or pass `null` to isolate it and render nothing.
+<TypeTable
+type={{
+name: {
+description: 'Named slot to render from the nearest layout slot context.',
+type: 'string',
+},
+context: {
+description: 'Context exposed to slot content through useOutletContext.',
+type: 'T',
+optional: true,
+},
+errorFallback: {
+description: 'Slot-local render-error fallback. Omit to bubble slot errors.',
+type: 'SlotErrorFallback',
+optional: true,
+},
+}}
+/>
 
-## Lazy view type
+Slot error fallback contracts are not route error fallback contracts. Treating them as interchangeable makes the wrong part of the UI disappear.
+
+## Lazy view contract
+
+### `LazyRouteViewComponent<Component>`
 
 ```ts
 interface LazyRouteViewComponent<
   Component extends ComponentType<any> = ComponentType<any>,
 > extends LazyExoticComponent<Component> {
-  readonly preload: () => Promise<{ readonly default: Component }>;
+  readonly preload: () => Promise<{
+    readonly default: Component;
+  }>;
 }
 ```
 
-## Provider and rendering types
+<TypeTable
+type={{
+preload: {
+description: 'Preloads the lazy route view module and resolves to the React lazy-compatible default export object.',
+type: "() => Promise<{ readonly default: Component }>",
+},
+}}
+/>
+
+`LazyRouteViewComponent` is the return type of `lazyRouteView()`.
+
+## Provider contracts
 
 ### `RouterScrollBehavior`
 
@@ -79,7 +432,15 @@ interface LazyRouteViewComponent<
 type RouterScrollBehavior = ScrollBehavior;
 ```
 
-`RouterScrollBehavior` is the public provider alias for the DOM scroll behavior accepted by `window.scrollTo`: `'auto'`, `'instant'`, or `'smooth'`. It only affects provider-managed restoration when `scrollRestoration` is enabled. The default is `'auto'`.
+Public alias for DOM scroll behavior accepted by provider-managed scroll restoration.
+
+Common browser values:
+
+```ts
+'auto' | 'instant' | 'smooth'
+```
+
+### `RouterProviderProps`
 
 ```ts
 interface RouterProviderProps {
@@ -93,7 +454,64 @@ interface RouterProviderProps {
   readonly scrollRestoration?: boolean;
   readonly scrollBehavior?: RouterScrollBehavior;
 }
+```
 
+<TypeTable
+type={{
+router: {
+description: 'Core router instance to subscribe, start, and render.',
+type: 'Router',
+},
+autoStart: {
+description: 'Starts the router in the provider effect when the router is not already started.',
+type: 'boolean',
+default: 'true',
+optional: true,
+},
+children: {
+description: 'Explicit content replacing automatic route-match rendering.',
+type: 'ReactNode',
+optional: true,
+},
+fallback: {
+description: 'Output used when the primary branch does not match, or when a startup error has no error fallback.',
+type: 'ReactNode',
+default: 'null',
+optional: true,
+},
+loadingFallback: {
+description: 'Provider-level Suspense fallback when no closer route or layout fallback owns pending work.',
+type: 'ReactNode',
+optional: true,
+},
+errorFallback: {
+description: 'Provider-level error fallback for startup, navigation, or render failures without a closer route or layout error view.',
+type: 'ComponentType<RouterErrorFallbackProps>',
+optional: true,
+},
+middleware: {
+description: 'Middleware registered for the provider lifetime. Initial navigation participation depends on provider startup order.',
+type: 'readonly Middleware[]',
+optional: true,
+},
+scrollRestoration: {
+description: 'Enables DOM scroll restoration keyed by router location.',
+type: 'boolean',
+default: 'false',
+optional: true,
+},
+scrollBehavior: {
+description: 'Behavior passed to window.scrollTo during provider-managed restoration.',
+type: 'RouterScrollBehavior',
+default: "'auto'",
+optional: true,
+},
+}}
+/>
+
+### `StaticRouterProviderProps`
+
+```ts
 interface StaticRouterProviderProps {
   readonly router: Router;
   readonly children?: ReactNode;
@@ -104,6 +522,47 @@ interface StaticRouterProviderProps {
 }
 ```
 
+<TypeTable
+type={{
+router: {
+description: 'Started static router for the current request.',
+type: 'Router',
+},
+children: {
+description: 'Explicit content replacing automatic route-match rendering.',
+type: 'ReactNode',
+optional: true,
+},
+fallback: {
+description: 'Output used when the primary branch does not match, or when a startup error has no error fallback.',
+type: 'ReactNode',
+default: 'null',
+optional: true,
+},
+loadingFallback: {
+description: 'Provider-level Suspense fallback when no closer route or layout fallback owns pending work.',
+type: 'ReactNode',
+optional: true,
+},
+errorFallback: {
+description: 'Provider-level error fallback for startup, navigation, or render failures without a closer route or layout error view.',
+type: 'ComponentType<RouterErrorFallbackProps>',
+optional: true,
+},
+middleware: {
+description: 'Middleware forwarded to RouterProvider. Static rendering has no React effect phase, so request-startup middleware belongs on the router before start.',
+type: 'readonly Middleware[]',
+optional: true,
+},
+}}
+/>
+
+`StaticRouterProvider` requires a started router. It does not expose `autoStart`, `scrollRestoration`, or `scrollBehavior`.
+
+## Render-helper contracts
+
+### `RenderReactRouteMatchOptions`
+
 ```ts
 interface RenderReactRouteMatchOptions {
   readonly loadingFallback?: ReactNode;
@@ -112,19 +571,73 @@ interface RenderReactRouteMatchOptions {
 }
 ```
 
-Fallback component contracts:
+<TypeTable
+type={{
+loadingFallback: {
+description: 'Global Suspense fallback used when no route or layout loading fallback is closer.',
+type: 'ReactNode',
+optional: true,
+},
+errorFallback: {
+description: 'Global error fallback used when no route or layout error fallback is closer.',
+type: 'ComponentType<RouterErrorFallbackProps>',
+optional: true,
+},
+error: {
+description: 'Router-state error to surface through active route rendering.',
+type: 'unknown',
+optional: true,
+},
+}}
+/>
+
+### `RouteLoadingFallbackProps`
 
 ```ts
 interface RouteLoadingFallbackProps {
   readonly route: MatchedRoute;
 }
+```
 
+<TypeTable
+type={{
+route: {
+description: 'Matched route that owns the loading fallback.',
+type: 'MatchedRoute',
+},
+}}
+/>
+
+### `RouteErrorFallbackProps`
+
+```ts
 interface RouteErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
   readonly route: MatchedRoute;
 }
+```
 
+<TypeTable
+type={{
+error: {
+description: 'Render or route-state error handled by the route or layout boundary.',
+type: 'unknown',
+},
+reset: {
+description: 'Clears the React error boundary state.',
+type: '() => void',
+},
+route: {
+description: 'Matched route that owns the error fallback.',
+type: 'MatchedRoute',
+},
+}}
+/>
+
+### `RouterErrorFallbackProps`
+
+```ts
 interface RouterErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -132,22 +645,88 @@ interface RouterErrorFallbackProps {
 }
 ```
 
-## Public context types and values
+<TypeTable
+type={{
+error: {
+description: 'Error handled by the provider-level fallback.',
+type: 'unknown',
+},
+reset: {
+description: 'Restarts or refreshes the router from the provider boundary.',
+type: '() => void',
+},
+route: {
+description: 'Matched route associated with the error when one exists.',
+type: 'MatchedRoute',
+optional: true,
+},
+}}
+/>
+
+`route` is optional because startup errors and unmatched router errors may not have an active route.
+
+## Context contracts
+
+### `RouterContextValue`
 
 ```ts
 interface RouterContextValue {
   readonly router: Router;
   readonly state: RouterState;
 }
+```
 
+<TypeTable
+type={{
+router: {
+description: 'Core router instance exposed by RouterProvider.',
+type: 'Router',
+},
+state: {
+description: 'Current router state subscribed through the provider.',
+type: 'RouterState',
+},
+}}
+/>
+
+### `OutletContextValue`
+
+```ts
 interface OutletContextValue {
   readonly context?: unknown;
 }
+```
 
+<TypeTable
+type={{
+context: {
+description: 'Context provided by the nearest Outlet or Slot.',
+type: 'unknown',
+optional: true,
+},
+}}
+/>
+
+### `RouteRenderContextValue`
+
+```ts
 interface RouteRenderContextValue {
   readonly match: MatchedRoute;
 }
+```
 
+<TypeTable
+type={{
+match: {
+description: 'Matched route currently being rendered.',
+type: 'MatchedRoute',
+},
+}}
+/>
+
+### `SlotRenderContextValue`
+
+```ts
 interface SlotRenderContextValue {
   readonly ownerRouteId: string;
   readonly slots: Readonly<Record<string, ReactNode>>;
@@ -155,74 +734,333 @@ interface SlotRenderContextValue {
 }
 ```
 
-Corresponding public context values:
+<TypeTable
+type={{
+ownerRouteId: {
+description: 'Route ID that owns the current layout slot map.',
+type: 'string',
+},
+slots: {
+description: 'Rendered slot output keyed by slot name.',
+type: 'Readonly<Record<string, ReactNode>>',
+},
+renderOptions: {
+description: 'Render options propagated into slot rendering.',
+type: 'RenderReactRouteMatchOptions',
+optional: true,
+},
+}}
+/>
+
+## Public context values
+
+The root entrypoint exports these React context values:
 
 ```ts
-RouterContext
-OutletContext
-RouteRenderContext
-SlotRenderContext
+const RouterContext:
+  Context<RouterContextValue | null>;
+
+const OutletContext:
+  Context<OutletContextValue | null>;
+
+const RouteRenderContext:
+  Context<RouteRenderContextValue | null>;
+
+const SlotRenderContext:
+  Context<SlotRenderContextValue | null>;
 ```
 
-Internal `OutletRenderContext`, `SlotErrorIsolationContext`, and their accessor hooks are not package-root exports.
+They are public for framework integrations and advanced rendering adapters. Application code should prefer hooks and components.
 
-## Hook option and result types
+Internal contexts are not root exports.
+
+Not public:
+
+```ts
+OutletRenderContext
+SlotErrorIsolationContext
+```
+
+Not public:
+
+```ts
+useOutletContextValue
+useOutletRenderContextValue
+useRouteRenderContext
+useSlotRenderContext
+```
+
+## Hook option and result contracts
+
+### `UseBlockerOptions`
 
 ```ts
 interface UseBlockerOptions {
   readonly when: boolean;
   readonly message?: string;
 }
+```
 
+<TypeTable
+type={{
+when: {
+description: 'Enables router and browser-unload blocking while truthy.',
+type: 'boolean',
+},
+message: {
+description: 'Confirmation message used for in-app navigation when window.confirm is available. Browser unload wording remains browser-controlled.',
+type: 'string',
+optional: true,
+},
+}}
+/>
+
+### `BlockerState`
+
+```ts
 interface BlockerState {
   readonly blocked: boolean;
 }
+```
 
+<TypeTable
+type={{
+blocked: {
+description: 'Whether blocking is currently enabled.',
+type: 'boolean',
+},
+}}
+/>
+
+`blocked` is not a history of the last blocked transition. It is current hook state.
+
+### `OutletContextOptions`
+
+```ts
 interface OutletContextOptions {
   readonly strict?: boolean;
 }
+```
 
+<TypeTable
+type={{
+strict: {
+description: 'Throws the missing-outlet-context diagnostic when no outlet or slot context is available.',
+type: 'boolean',
+default: 'false',
+optional: true,
+},
+}}
+/>
+
+### `UseRouteMetaOptions`
+
+```ts
 interface UseRouteMetaOptions {
   readonly includeAncestors?: boolean;
   readonly merge?: false | RouteMetaMergeInput;
 }
 ```
 
-## Generated registration types
+<TypeTable
+type={{
+includeAncestors: {
+description: 'Includes metadata from ancestor routes before selecting or merging metadata.',
+type: 'boolean',
+default: 'false',
+optional: true,
+},
+merge: {
+description: 'Controls metadata composition. Omit for default merge behavior, pass false for the raw ordered chain, or pass a merge mode/input for custom composition.',
+type: 'false | RouteMetaMergeInput',
+optional: true,
+},
+}}
+/>
+
+## Generated registration contracts
+
+### `Register`
 
 ```ts
 interface Register {}
-
-interface RouterContracts extends CoreRouterContracts {}
-
-type RegisteredContracts = Register extends {
-  readonly contracts: infer Contracts;
-}
-  ? Contracts
-  : RouterContracts;
 ```
 
-Generated `register.d.ts` augments `Register` in both core and React packages. Route IDs, params, search, hash, metadata, and outlet context therefore narrow consistently across router methods, links, and hooks.
+`Register` is the module augmentation target for generated React route contracts.
 
-## Export inventory
+<TypeTable
+type={{
+contracts: {
+description: 'Generated augmentation field added by register.d.ts. It is absent from the base interface.',
+type: 'RouterContracts',
+optional: true,
+},
+}}
+/>
 
-The root entrypoint exports these type names:
+The base interface is intentionally empty. Generated `register.d.ts` augments it.
+
+### `RouterContracts`
+
+```ts
+interface RouterContracts extends CoreRouterContracts {}
+```
+
+`RouterContracts` is the React package alias for the core generated contract model.
+
+<TypeTable
+type={{
+paths: {
+description: 'Route ID to path-pattern contract map inherited from core RouterContracts.',
+type: "CoreRouterContracts['paths']",
+},
+params: {
+description: 'Route ID to parsed path-params contract map inherited from core RouterContracts.',
+type: "CoreRouterContracts['params']",
+},
+search: {
+description: 'Route ID to parsed declared-search contract map inherited from core RouterContracts.',
+type: "CoreRouterContracts['search']",
+},
+hash: {
+description: 'Route ID to parsed hash contract map inherited from core RouterContracts.',
+type: "CoreRouterContracts['hash']",
+},
+meta: {
+description: 'Route ID to metadata contract map inherited from core RouterContracts.',
+type: "CoreRouterContracts['meta']",
+},
+outletContext: {
+description: 'Route ID to outlet-context contract map inherited from core RouterContracts.',
+type: "CoreRouterContracts['outletContext']",
+},
+}}
+/>
+
+The exact fields are supplied by generated core contracts. React consumes the same model for links, hooks, outlet context, and route metadata.
+
+### `RegisteredContracts`
+
+```ts
+type RegisteredContracts =
+  Register extends {
+    readonly contracts: infer Contracts;
+  }
+    ? Contracts
+    : RouterContracts;
+```
+
+`RegisteredContracts` resolves to generated contracts when `Register` has been augmented. Otherwise it falls back to the base `RouterContracts` shape.
+
+This is the type-level switch that makes route IDs, params, search, hash, metadata, and outlet context narrow after generated registration is included by TypeScript.
+
+## Root type export inventory
+
+The `@cookbook/router-react` root entrypoint exports these public type names:
 
 ```text
-LinkPrefetch, LinkProps, LazyRouteViewComponent,
-NavLinkEnd, NavLinkEndOptions, NavLinkProps, NavLinkRenderProps,
-OutletProps,
-RenderReactRouteMatchOptions, RouteErrorFallbackProps,
-RouteLoadingFallbackProps, RouterErrorFallbackProps, RouterProviderProps,
-StaticRouterProviderProps, RouterScrollBehavior,
-SlotErrorFallback, SlotErrorFallbackProps, SlotProps,
-OutletContextValue, RouteRenderContextValue,
-SlotRenderContextValue, RouterContextValue,
-BlockerState, UseBlockerOptions,
-OutletContextOptions, UseRouteMetaOptions,
-Register, RegisteredContracts, RouterContracts
+LinkPrefetch
+LinkProps
+
+LazyRouteViewComponent
+
+NavLinkEnd
+NavLinkEndOptions
+NavLinkProps
+NavLinkRenderProps
+
+OutletProps
+
+RenderReactRouteMatchOptions
+RouteErrorFallbackProps
+RouteLoadingFallbackProps
+RouterErrorFallbackProps
+RouterProviderProps
+RouterScrollBehavior
+
+StaticRouterProviderProps
+
+SlotErrorFallback
+SlotErrorFallbackProps
+SlotProps
+
+OutletContextValue
+RouteRenderContextValue
+SlotRenderContextValue
+RouterContextValue
+
+BlockerState
+UseBlockerOptions
+OutletContextOptions
+UseRouteMetaOptions
+
+Register
+RegisteredContracts
+RouterContracts
 ```
+
+The root entrypoint exports these public context values:
+
+```text
+RouterContext
+OutletContext
+RouteRenderContext
+SlotRenderContext
+```
+
+The root entrypoint also exports `useRouterContext`, but the hook itself is documented with provider APIs, not contract types.
+
+## Subpath note
+
+`@cookbook/router-react/hooks`, `@cookbook/router-react/links`, `@cookbook/router-react/outlets`, and `@cookbook/router-react/provider` are public package subpaths.
+
+They expose focused subsets of the root surface. They do not make every implementation type under `src/` or `dist/` public.
 
 ## Where this bites
 
-Do not deep-import a useful-looking type from `src/` or `dist/`. It may be real implementation code and still not be part of the package contract.
+### The source file is not the package contract
+
+`packages/router-react/src/contracts.ts` re-exports several core type aliases internally.
+
+The root entrypoint only re-exports:
+
+```ts
+Register
+RegisteredContracts
+RouterContracts
+```
+
+from that file.
+
+Do not document the rest as root exports unless `packages/router-react/src/index.ts` exports them.
+
+### Slot fallbacks are their own contract
+
+`SlotErrorFallbackProps` is not `RouteErrorFallbackProps`.
+
+Slot error fallback:
+
+```ts
+interface SlotErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+}
+```
+
+Route error fallback:
+
+```ts
+interface RouteErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+  readonly route: MatchedRoute;
+}
+```
+
+That missing `route` is intentional. A slot-local boundary is not the route boundary.
+
+### Generated registration must reach TypeScript
+
+Runtime routing does not prove contracts are active.
+
+If generated `register.d.ts` is not included by TypeScript, React APIs still run, but route IDs, params, search, hash, metadata, and outlet context lose their generated precision.

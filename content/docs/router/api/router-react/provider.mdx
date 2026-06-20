@@ -1,11 +1,34 @@
 ---
 title: "Providers and render helpers"
-description: "Deep reference for RouterProvider, StaticRouterProvider, external-store subscription, React route traversal, and route boundaries."
+description: "Deep reference for RouterProvider, StaticRouterProvider, external-store subscription, React route traversal, route contexts, and route boundaries."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
+
+The provider entrypoint is the React rendering layer for Cookbook Router.
+
+It exports:
+
+```ts
+import {
+  OutletContext,
+  RouteRenderContext,
+  RouterContext,
+  RouterProvider,
+  SlotRenderContext,
+  StaticRouterProvider,
+  renderReactRouteMatch,
+  renderRouteBoundary,
+  useRouterContext,
+  useRouterState,
+} from '@cookbook/router-react/provider';
+```
+
+It also exports the provider, render-helper, context, and fallback contracts documented on this page.
+
+Use `RouterProvider` for browser and memory routers. Use `StaticRouterProvider` only with an already-started static router during SSR or static rendering.
 
 ## `RouterProvider`
 
@@ -27,43 +50,249 @@ interface RouterProviderProps {
 function RouterProvider(props: RouterProviderProps): ReactElement;
 ```
 
-The provider subscribes with `useSyncExternalStore`, exposes `{ router, state }`, optionally registers middleware, starts the router after mount, and renders the active branch.
+`RouterProvider` subscribes React to the router with `useSyncExternalStore`, exposes `{ router, state }` through `RouterContext`, optionally registers provider middleware, starts the router after mount, coordinates scroll restoration, and renders the active branch.
 
 <TypeTable
-  type={{
-    router: { description: 'Core router instance to subscribe and render.', type: 'Router' },
-    autoStart: { description: 'Starts the router in the provider effect when it is not already started.', type: 'boolean', default: 'true', optional: true },
-    children: { description: 'Explicit content replacing automatic route-match rendering.', type: 'ReactNode', optional: true },
-    fallback: { description: 'Output used when the primary branch does not match or a global startup error has no error component.', type: 'ReactNode', default: 'null', optional: true },
-    loadingFallback: { description: 'Provider-level Suspense fallback when no closer route or layout fallback owns pending work.', type: 'ReactNode', optional: true },
-    errorFallback: { description: 'Global component for startup/navigation/render errors without a closer route or layout error view.', type: 'ComponentType<RouterErrorFallbackProps>', optional: true },
-    middleware: { description: 'Middleware registered for the provider lifetime.', type: 'readonly Middleware[]', optional: true },
-    scrollRestoration: { description: 'Enables DOM scroll restoration keyed by router location.', type: 'boolean', default: 'false', optional: true },
-    scrollBehavior: { description: 'Behavior passed to window.scrollTo during provider-managed restoration.', type: 'RouterScrollBehavior', default: "'auto'", optional: true },
-  }}
+type={{
+router: {
+description: 'Core router instance to subscribe, start, and render.',
+type: 'Router',
+},
+autoStart: {
+description: 'Starts the router in the provider effect when the router is not already started.',
+type: 'boolean',
+default: 'true',
+optional: true,
+},
+children: {
+description: 'Explicit content replacing automatic route-match rendering.',
+type: 'ReactNode',
+optional: true,
+},
+fallback: {
+description: 'Output used when the primary branch does not match, or when a router error has no error fallback.',
+type: 'ReactNode',
+default: 'null',
+optional: true,
+},
+loadingFallback: {
+description: 'Provider-level Suspense fallback when no closer route or layout loading fallback owns pending work.',
+type: 'ReactNode',
+optional: true,
+},
+errorFallback: {
+description: 'Provider-level error component for startup, navigation, or render failures without a closer route or layout error view.',
+type: 'ComponentType<RouterErrorFallbackProps>',
+optional: true,
+},
+middleware: {
+description: 'Middleware registered for the provider lifetime.',
+type: 'readonly Middleware[]',
+optional: true,
+},
+scrollRestoration: {
+description: 'Enables DOM scroll restoration keyed by router location.',
+type: 'boolean',
+default: 'false',
+optional: true,
+},
+scrollBehavior: {
+description: 'Behavior passed to window.scrollTo during provider-managed restoration and top resets.',
+type: 'RouterScrollBehavior',
+default: "'auto'",
+optional: true,
+},
+}}
 />
 
-### Startup and middleware order
+Basic browser setup:
 
-Provider middleware is registered in the same effect that starts the router. Letting the provider start the router ensures that middleware participates in initial navigation.
+```tsx
+import { createRouter } from '@cookbook/router';
+import { RouterProvider } from '@cookbook/router-react/provider';
+import { routes } from './routes';
 
-When a router is already started and `autoStart !== false`, provider middleware affects only future transitions. Development builds warn and explain the two correct alternatives:
+const router = createRouter({ routes });
 
-1. remove manual `router.start()` and let the provider start;
-2. register middleware with `router.useMiddleware()` before manual startup, then render with `autoStart={false}`.
+export function App() {
+  return (
+    <RouterProvider
+      router={router}
+      fallback={<h1>Not found</h1>}
+    />
+  );
+}
+```
 
-### Render selection
+With global fallbacks:
 
-- `children` replaces automatic branch rendering.
-- redirect-only route state renders `null` while navigation continues.
-- a state error with no active match uses the global `errorFallback`, or `fallback` when none exists.
-- active-match errors are passed into `renderReactRouteMatch()` so route/layout ownership can be respected.
+```tsx
+import type { RouterErrorFallbackProps } from '@cookbook/router-react/provider';
+import { RouterProvider } from '@cookbook/router-react/provider';
 
-### Scroll restoration
+function AppErrorFallback({
+  error,
+  reset,
+  route,
+}: RouterErrorFallbackProps) {
+  return (
+    <main role="alert">
+      <h1>Route failed</h1>
+      <p>{route ? `Route: ${route.id}` : 'No route matched.'}</p>
+      <pre>{String(error)}</pre>
+      <button onClick={reset}>Retry</button>
+    </main>
+  );
+}
 
-Set `scrollRestoration` to `true` to let the provider save coordinates by location key. Existing keys restore their saved position. New locations without a hash reset to the top. Navigation with `preventScrollReset` bypasses restore/reset. Hash hydration mismatches trigger a router refresh after layout.
+export function App({ router }: { readonly router: Router }) {
+  return (
+    <RouterProvider
+      router={router}
+      fallback={<h1>Not found</h1>}
+      loadingFallback={<p>Loading route…</p>}
+      errorFallback={AppErrorFallback}
+    />
+  );
+}
+```
 
-`scrollBehavior` uses the public `RouterScrollBehavior` alias and accepts the DOM values `'auto'`, `'instant'`, or `'smooth'`. It is passed to `window.scrollTo` for saved-position restoration and top resets. It has no effect while `scrollRestoration` is disabled.
+With explicit children:
+
+```tsx
+import { Outlet } from '@cookbook/router-react/outlets';
+import { RouterProvider } from '@cookbook/router-react/provider';
+
+export function AppShell({ router }: { readonly router: Router }) {
+  return (
+    <RouterProvider router={router}>
+      <header>Dashboard</header>
+      <main>
+        <Outlet />
+      </main>
+    </RouterProvider>
+  );
+}
+```
+
+`children` replaces the provider's automatic call to `renderReactRouteMatch()`. Use it only when your shell renders route output itself.
+
+## Startup and middleware order
+
+Provider middleware is registered in the same effect that starts the router.
+
+When `autoStart` is left enabled and the router is not started yet, provider middleware participates in the initial navigation.
+
+```tsx
+<RouterProvider
+  router={router}
+  middleware={[
+    ({ route, redirect }) => {
+      if (route.route.meta?.access === 'private') {
+        return redirect('/login');
+      }
+    },
+  ]}
+/>
+```
+
+When the router is already started and `autoStart !== false`, provider middleware only affects future transitions. Development builds warn:
+
+```text
+Cookbook Router warning: RouterProvider received middleware after the router was already started.
+Provider middleware only applies to future navigations in this case.
+Remove the manual `await router.start()` before rendering `<RouterProvider />`, or register middleware with `router.useMiddleware(...)` before starting the router and render with `autoStart={false}`.
+```
+
+Correct manual-start pattern:
+
+```tsx
+router.useMiddleware(authMiddleware);
+await router.start();
+
+root.render(
+  <RouterProvider
+    router={router}
+    autoStart={false}
+  />,
+);
+```
+
+If you use `autoStart={false}` without starting the router yourself, the provider still subscribes and renders current state, but it does not resolve the initial route for you.
+
+## Render selection
+
+`RouterProvider` renders in this order:
+
+| State                                                       | Rendered result                                               |
+| ----------------------------------------------------------- | ------------------------------------------------------------- |
+| `children` is provided                                      | `children` replaces automatic branch rendering.               |
+| Active branch contains a redirect route and no error exists | `null` while redirect navigation continues.                   |
+| `state.error` exists and there is no active match           | `errorFallback`, or `fallback` when no error fallback exists. |
+| Active match exists                                         | `renderReactRouteMatch(activeMatch, fallback, options)`.      |
+| No active match                                             | `fallback ?? null`.                                           |
+
+For active-match errors, the provider passes `state.error` into `renderReactRouteMatch()` so route and layout error ownership can still be respected.
+
+Interception changes the renderable branch. When the current state is intercepted and a previous location exists, the provider renders the previous primary branch while attaching the intercepted output to the active slot state.
+
+## Scroll restoration
+
+Provider scroll restoration is opt-in.
+
+```tsx
+<RouterProvider
+  router={router}
+  scrollRestoration
+  scrollBehavior="smooth"
+/>
+```
+
+When `scrollRestoration` is enabled:
+
+* saved positions are keyed by `location.key`;
+* known keys restore their saved `{ x, y }` position;
+* new locations without a hash reset to `{ left: 0, top: 0 }`;
+* locations with a hash are left to browser/hash behavior;
+* navigation with `preventScrollReset` bypasses restore/reset;
+* unmount cleanup stores the current `window.scrollX` and `window.scrollY`.
+
+`scrollBehavior` is passed to `window.scrollTo()` for both saved-position restoration and top resets.
+
+```ts
+type RouterScrollBehavior = ScrollBehavior;
+```
+
+Common DOM values are:
+
+```ts
+'auto' | 'instant' | 'smooth'
+```
+
+`scrollBehavior` does nothing while `scrollRestoration` is disabled.
+
+Navigation opt-out:
+
+```tsx
+<Link
+  to="documents.details"
+  params={{ documentId }}
+  preventScrollReset
+>
+  Preview document
+</Link>
+```
+
+or programmatically:
+
+```ts
+await router.navigate.to('documents.details', {
+  params: { documentId },
+  preventScrollReset: true,
+});
+```
+
+During hydration, browsers may have a hash that the server could not serialize. When pathname and search match but the browser hash differs, the provider starts or refreshes the router after layout to synchronize the browser-only hash.
 
 ## `StaticRouterProvider`
 
@@ -80,13 +309,93 @@ interface StaticRouterProviderProps {
 function StaticRouterProvider(props: StaticRouterProviderProps): ReactElement;
 ```
 
-Static rendering has no effect phase, so this provider never starts the router. Call `await router.start()` for the request before rendering. Otherwise it throws:
+`StaticRouterProvider` is the SSR/static wrapper around `RouterProvider`.
+
+<TypeTable
+type={{
+router: {
+description: 'Already-started static router for the current request.',
+type: 'Router',
+},
+children: {
+description: 'Explicit content replacing automatic route-match rendering.',
+type: 'ReactNode',
+optional: true,
+},
+fallback: {
+description: 'Output used when the primary branch does not match, or when a router error has no error fallback.',
+type: 'ReactNode',
+default: 'null',
+optional: true,
+},
+loadingFallback: {
+description: 'Provider-level Suspense fallback when no closer route or layout loading fallback owns pending work.',
+type: 'ReactNode',
+optional: true,
+},
+errorFallback: {
+description: 'Provider-level error component for startup, navigation, or render failures without a closer route or layout error view.',
+type: 'ComponentType<RouterErrorFallbackProps>',
+optional: true,
+},
+middleware: {
+description: 'Forwarded to RouterProvider. It does not participate in server startup during renderToString because React effects do not run on the server.',
+type: 'readonly Middleware[]',
+optional: true,
+},
+}}
+/>
+
+Static rendering has no React effect phase. This provider never starts the router.
+
+Call `await router.start()` before rendering:
+
+```tsx
+import { renderToString } from 'react-dom/server';
+import { createStaticRouter } from '@cookbook/router';
+import { StaticRouterProvider } from '@cookbook/router-react/provider';
+import { routes } from './routes';
+
+export async function renderRequest(request: Request) {
+  const router = createStaticRouter({
+    routes,
+    request,
+  });
+
+  await router.start();
+
+  return renderToString(
+    <StaticRouterProvider
+      router={router}
+      fallback={<h1>Not found</h1>}
+    />,
+  );
+}
+```
+
+Rendering before startup throws:
 
 ```text
 Cookbook Router static rendering requires a started router. Call `await router.start()` before rendering `<StaticRouterProvider />`.
 ```
 
-It delegates to `RouterProvider` with `autoStart={false}` and forwards fallback and middleware props. It intentionally has no scroll-restoration props.
+`StaticRouterProvider` delegates to `RouterProvider` with `autoStart={false}` and forwards fallback props.
+
+It intentionally has no `scrollRestoration` or `scrollBehavior` props. Static history is not the browser.
+
+Request middleware belongs on the static router before startup:
+
+```ts
+const router = createStaticRouter({
+  routes,
+  request,
+  middleware: [authMiddleware],
+});
+
+await router.start();
+```
+
+Passing `middleware` to `StaticRouterProvider` is not enough for initial SSR resolution because provider middleware is effect-registered and server rendering has no effect phase.
 
 ## `useRouterState(router)`
 
@@ -94,7 +403,86 @@ It delegates to `RouterProvider` with `autoStart={false}` and forwards fallback 
 function useRouterState(router: Router): RouterState;
 ```
 
-Subscribes to an explicit router with `useSyncExternalStore`. The same `router.state` getter is used for client and server snapshots. This helper is useful for integration components that cannot rely on context.
+Subscribes to an explicit router with `useSyncExternalStore`.
+
+It uses the same `router.state` getter for client and server snapshots.
+
+```tsx
+import { useRouterState } from '@cookbook/router-react/provider';
+
+export function NavigationBadge({
+  router,
+}: {
+  readonly router: Router;
+}) {
+  const state = useRouterState(router);
+
+  return <span>{state.navigation}</span>;
+}
+```
+
+Use it for integration components that cannot rely on `RouterContext`.
+
+Most application components should use narrower hooks:
+
+```ts
+useLocation()
+useMatches()
+useNavigation()
+useRouter()
+```
+
+`useRouterState(router)` does not start the router and does not install middleware. It only subscribes to state changes.
+
+## `useRouterContext()`
+
+```ts
+interface RouterContextValue {
+  readonly router: Router;
+  readonly state: RouterState;
+}
+
+function useRouterContext(): RouterContextValue;
+```
+
+Reads `RouterContext` and returns the provider value.
+
+<TypeTable
+type={{
+router: {
+description: 'Core router instance from the nearest provider.',
+type: 'Router',
+},
+state: {
+description: 'Current router state from the nearest provider subscription.',
+type: 'RouterState',
+},
+}}
+/>
+
+```tsx
+import { useRouterContext } from '@cookbook/router-react/provider';
+
+export function RouterDebugPanel() {
+  const { router, state } = useRouterContext();
+
+  return (
+    <aside>
+      <p>Started: {String(router.started)}</p>
+      <p>Navigation: {state.navigation}</p>
+      <p>Location: {state.location.href}</p>
+    </aside>
+  );
+}
+```
+
+Outside `RouterProvider` or `StaticRouterProvider`, it throws:
+
+```text
+Cookbook Router hooks must be used inside <RouterProvider> or <StaticRouterProvider>.
+```
+
+This is a low-level integration hook. Application code should prefer the narrower hooks unless it truly needs both router and full state.
 
 ## `renderReactRouteMatch()`
 
@@ -112,55 +500,237 @@ function renderReactRouteMatch(
 ): ReactNode;
 ```
 
-Adapts core `renderRouteMatch()` traversal to React. It provides route, outlet, and slot contexts; converts views to components; inserts `Suspense`; installs route/layout boundaries; renders intercept output; and distinguishes a primary no-match fallback from empty slots.
+Adapts core `renderRouteMatch()` traversal to React.
 
-The entire result is wrapped in an outer `Suspense` using `loadingFallback ?? null`. More specific route/layout loading views are installed by per-route boundaries.
+<TypeTable
+type={{
+loadingFallback: {
+description: 'Outer Suspense fallback used when no closer route or layout loading fallback owns pending work.',
+type: 'ReactNode',
+optional: true,
+},
+errorFallback: {
+description: 'Provider-level error fallback used when no closer route or layout error view owns an error.',
+type: 'ComponentType<RouterErrorFallbackProps>',
+optional: true,
+},
+error: {
+description: 'Router-state error to surface through active route rendering.',
+type: 'unknown',
+optional: true,
+},
+}}
+/>
 
-A no-match primary branch returns `fallback`. Empty or disabled slot states return `null`.
+It:
+
+* provides route render context;
+* provides outlet render context;
+* provides slot render context for layout views;
+* converts route views to React components;
+* inserts Suspense boundaries;
+* installs route and layout error boundaries;
+* renders configured and call-site intercept output;
+* distinguishes primary no-match fallback from empty slot output.
+
+Low-level render example:
+
+```tsx
+import {
+  renderReactRouteMatch,
+  type RenderReactRouteMatchOptions,
+} from '@cookbook/router-react/provider';
+
+const renderOptions: RenderReactRouteMatchOptions = {
+  loadingFallback: <p>Loading…</p>,
+  errorFallback: AppErrorFallback,
+};
+
+const element = renderReactRouteMatch(
+  router.state.match,
+  <h1>Not found</h1>,
+  renderOptions,
+);
+```
+
+With router-state error:
+
+```tsx
+const element = renderReactRouteMatch(
+  router.state.match,
+  <h1>Not found</h1>,
+  {
+    error: router.state.error,
+    errorFallback: AppErrorFallback,
+  },
+);
+```
+
+The helper wraps the result in an outer `Suspense` using:
+
+```ts
+options.loadingFallback ?? null
+```
+
+More specific route or layout loading fallbacks are installed by per-route boundaries.
+
+A primary no-match returns `fallback`.
+
+An empty slot, disabled slot, or slot no-match returns `null`.
+
+When `options.error` is rendered through a route-state error fallback, the reset callback is a no-op. Provider-level reset behavior belongs to `RouterProvider`.
 
 ## `renderRouteBoundary()`
 
 ```ts
-interface ResolvedLoadingFallback {
-  readonly view: RouteView;
-  readonly match: MatchedRoute;
-}
-
-interface ResolvedErrorFallback {
-  readonly view: RouteView;
-  readonly match: MatchedRoute;
-}
-
-interface InheritedRouteFallbacks {
-  readonly loading?: ResolvedLoadingFallback;
-  readonly error?: ResolvedErrorFallback;
-}
-
 function renderRouteBoundary(
   match: MatchedRoute,
   element: ReactNode,
   options?: RenderReactRouteMatchOptions,
-  fallbacks?: InheritedRouteFallbacks,
+  fallbacks?: {
+    readonly loading?: {
+      readonly view: RouteView;
+      readonly match: MatchedRoute;
+    };
+    readonly error?: {
+      readonly view: RouteView;
+      readonly match: MatchedRoute;
+    };
+  },
 ): ReactNode;
 ```
 
-This helper is public as a value, while the three fallback interfaces above are implementation-exported by the provider module but are not package-root type exports. Treat the inline shapes as the callable contract rather than importing them from an internal path.
+Renders one React route boundary around an element.
 
-The selected fallback owner's `MatchedRoute` is passed to loading/error components. Error boundaries reset when their child element changes. Slot-isolation context causes route boundaries to rethrow so the nearest `<Slot errorFallback>` can own the error.
+The value is public. The named fallback interfaces used internally are not exported from `@cookbook/router-react/provider`, so treat the inline shape above as the public callable contract.
+
+```tsx
+import { renderRouteBoundary } from '@cookbook/router-react/provider';
+
+const element = renderRouteBoundary(
+  match,
+  <RouteView />,
+  {
+    loadingFallback: <p>Loading…</p>,
+    errorFallback: AppErrorFallback,
+  },
+);
+```
+
+With inherited route fallbacks:
+
+```tsx
+const element = renderRouteBoundary(
+  childMatch,
+  <ChildRouteView />,
+  {
+    loadingFallback: <p>Loading…</p>,
+    errorFallback: AppErrorFallback,
+  },
+  {
+    loading: {
+      view: ParentLoadingFallback,
+      match: parentMatch,
+    },
+    error: {
+      view: ParentErrorFallback,
+      match: parentMatch,
+    },
+  },
+);
+```
+
+Boundary behavior:
+
+* selected loading fallback receives the fallback owner's `MatchedRoute`;
+* selected error fallback receives the fallback owner's `MatchedRoute`;
+* global error fallback receives the current matched route when no route/layout error fallback owns the failure;
+* render errors reset when the boundary's `match.id` changes;
+* slot-isolation context causes route boundaries to rethrow so the nearest `<Slot errorFallback>` can own the error.
+
+This helper is for custom render adapters. Regular applications should not call it.
 
 ## Fallback prop contracts
+
+### `RouteLoadingFallbackProps`
 
 ```ts
 interface RouteLoadingFallbackProps {
   readonly route: MatchedRoute;
 }
+```
 
+<TypeTable
+type={{
+route: {
+description: 'Matched route that owns the selected loading fallback.',
+type: 'MatchedRoute',
+},
+}}
+/>
+
+Route and layout loading fallback components receive the match that owns the selected loading view.
+
+```tsx
+import type { RouteLoadingFallbackProps } from '@cookbook/router-react/provider';
+
+export function RouteLoadingFallback({
+  route,
+}: RouteLoadingFallbackProps) {
+  return <p>Loading {route.id}…</p>;
+}
+```
+
+### `RouteErrorFallbackProps`
+
+```ts
 interface RouteErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
   readonly route: MatchedRoute;
 }
+```
 
+<TypeTable
+type={{
+error: {
+description: 'Render or route-state error handled by the route or layout boundary.',
+type: 'unknown',
+},
+reset: {
+description: 'Clears the React error-boundary state for render errors.',
+type: '() => void',
+},
+route: {
+description: 'Matched route that owns the selected error fallback.',
+type: 'MatchedRoute',
+},
+}}
+/>
+
+Route and layout error fallback components receive the match that owns the selected error view.
+
+```tsx
+import type { RouteErrorFallbackProps } from '@cookbook/router-react/provider';
+
+export function RouteErrorFallback({
+  error,
+  reset,
+  route,
+}: RouteErrorFallbackProps) {
+  return (
+    <section role="alert">
+      <h2>{route.id} failed</h2>
+      <pre>{String(error)}</pre>
+      <button onClick={reset}>Retry</button>
+    </section>
+  );
+}
+```
+
+### `RouterErrorFallbackProps`
+
+```ts
 interface RouterErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -168,8 +738,307 @@ interface RouterErrorFallbackProps {
 }
 ```
 
-Route and layout fallbacks receive the match that owns the selected fallback. The global router fallback may have no route when startup fails before a branch exists.
+<TypeTable
+type={{
+error: {
+description: 'Error handled by the provider-level fallback.',
+type: 'unknown',
+},
+reset: {
+description: 'Provider reset callback. RouterProvider uses it to start or refresh the router depending on current startup state.',
+type: '() => void',
+},
+route: {
+description: 'Matched route associated with the error when one exists.',
+type: 'MatchedRoute',
+optional: true,
+},
+}}
+/>
+
+`route` is optional. Startup failures and unmatched router errors may not have an active route.
+
+```tsx
+import type { RouterErrorFallbackProps } from '@cookbook/router-react/provider';
+
+export function AppErrorFallback({
+  error,
+  reset,
+  route,
+}: RouterErrorFallbackProps) {
+  return (
+    <main role="alert">
+      <h1>Router error</h1>
+      <p>{route ? route.id : 'No active route'}</p>
+      <pre>{String(error)}</pre>
+      <button onClick={reset}>Retry</button>
+    </main>
+  );
+}
+```
+
+## Public context values
+
+The provider entrypoint exports four public React context values.
+
+Most application code should use hooks and components instead. These contexts exist for framework adapters, render integrations, and diagnostics.
+
+### `RouterContext`
+
+```ts
+interface RouterContextValue {
+  readonly router: Router;
+  readonly state: RouterState;
+}
+
+const RouterContext: Context<RouterContextValue | null>;
+```
+
+<TypeTable
+type={{
+router: {
+description: 'Core router instance provided by RouterProvider.',
+type: 'Router',
+},
+state: {
+description: 'Current subscribed router state.',
+type: 'RouterState',
+},
+}}
+/>
+
+`useRouterContext()` is the safe public reader. Direct context reads must handle `null`.
+
+### `OutletContext`
+
+```ts
+interface OutletContextValue {
+  readonly context?: unknown;
+}
+
+const OutletContext: Context<OutletContextValue | null>;
+```
+
+<TypeTable
+type={{
+context: {
+description: 'Context provided by the nearest Outlet, Slot, or intercepted route rendering context.',
+type: 'unknown',
+optional: true,
+},
+}}
+/>
+
+`useOutletContext()` is the application-facing reader for this context.
+
+### `RouteRenderContext`
+
+```ts
+interface RouteRenderContextValue {
+  readonly match: MatchedRoute;
+}
+
+const RouteRenderContext: Context<RouteRenderContextValue | null>;
+```
+
+<TypeTable
+type={{
+match: {
+description: 'Matched route currently being rendered.',
+type: 'MatchedRoute',
+},
+}}
+/>
+
+This context is installed around route views, layout views, slot views, intercept views, and route fallback views.
+
+### `SlotRenderContext`
+
+```ts
+interface SlotRenderContextValue {
+  readonly ownerRouteId: string;
+  readonly slots: Readonly<Record<string, ReactNode>>;
+  readonly renderOptions?: RenderReactRouteMatchOptions;
+}
+
+const SlotRenderContext: Context<SlotRenderContextValue | null>;
+```
+
+<TypeTable
+type={{
+ownerRouteId: {
+description: 'Route ID that owns the current layout slot map.',
+type: 'string',
+},
+slots: {
+description: 'Rendered slot output keyed by slot name.',
+type: 'Readonly<Record<string, ReactNode>>',
+},
+renderOptions: {
+description: 'Render options propagated into slot rendering.',
+type: 'RenderReactRouteMatchOptions',
+optional: true,
+},
+}}
+/>
+
+`Slot` reads this context to render named slot output.
+
+These implementation contexts are not exported from `@cookbook/router-react/provider`:
+
+```text
+OutletRenderContext
+SlotErrorIsolationContext
+```
+
+Their accessor hooks are not public provider-entrypoint exports either:
+
+```text
+useOutletContextValue
+useOutletRenderContextValue
+useRouteRenderContext
+useSlotRenderContext
+```
+
+## Public export inventory
+
+`@cookbook/router-react/provider` exports these values:
+
+```text
+RouterProvider
+StaticRouterProvider
+renderReactRouteMatch
+renderRouteBoundary
+useRouterState
+
+RouterContext
+OutletContext
+RouteRenderContext
+SlotRenderContext
+useRouterContext
+```
+
+It exports these public types:
+
+```text
+RenderReactRouteMatchOptions
+RouteErrorFallbackProps
+RouteLoadingFallbackProps
+RouterErrorFallbackProps
+RouterProviderProps
+RouterScrollBehavior
+StaticRouterProviderProps
+
+OutletContextValue
+RouteRenderContextValue
+SlotRenderContextValue
+RouterContextValue
+```
+
+The package root re-exports the same public provider surface. The provider subpath is for narrower imports.
 
 ## Where this bites
 
-Starting the router before provider middleware is registered changes initial-navigation behavior. The warning is not cosmetic; your authorization or rewrite middleware may have missed the first route.
+### Provider middleware after startup is too late for the first route
+
+This is wrong when middleware must affect the initial location:
+
+```tsx
+await router.start();
+
+root.render(
+  <RouterProvider
+    router={router}
+    middleware={[authMiddleware]}
+  />,
+);
+```
+
+The router already resolved the first route.
+
+Use this:
+
+```tsx
+root.render(
+  <RouterProvider
+    router={router}
+    middleware={[authMiddleware]}
+  />,
+);
+```
+
+or this:
+
+```tsx
+router.useMiddleware(authMiddleware);
+await router.start();
+
+root.render(
+  <RouterProvider
+    router={router}
+    autoStart={false}
+  />,
+);
+```
+
+The warning is not decorative. Authorization, redirects, rewrites, and cancellation can miss the initial transition.
+
+### Static provider middleware is not SSR startup middleware
+
+This is too late for server request resolution:
+
+```tsx
+const router = createStaticRouter({ routes, request });
+await router.start();
+
+renderToString(
+  <StaticRouterProvider
+    router={router}
+    middleware={[authMiddleware]}
+  />,
+);
+```
+
+Register request middleware before startup:
+
+```ts
+const router = createStaticRouter({
+  routes,
+  request,
+  middleware: [authMiddleware],
+});
+
+await router.start();
+```
+
+React effects do not run during `renderToString()`.
+
+### Route error fallback and router error fallback are not the same contract
+
+Route fallback:
+
+```ts
+interface RouteErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+  readonly route: MatchedRoute;
+}
+```
+
+Router fallback:
+
+```ts
+interface RouterErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+  readonly route?: MatchedRoute;
+}
+```
+
+Provider-level fallback code must handle `route` being absent.
+
+### Render helpers are public, but still low-level
+
+`renderReactRouteMatch()` and `renderRouteBoundary()` are exported for custom render integrations. They are not a better `RouterProvider`.
+
+If an application calls them directly, it owns the wiring that the provider normally handles: subscription, startup, middleware lifecycle, hydration hash sync, scroll restoration, and provider reset behavior.

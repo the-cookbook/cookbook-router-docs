@@ -7,36 +7,153 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
 
+Outlets and slots render output that the core router already resolved.
+
+React does not discover child routes, match slot routes, or decide interception. The router does that before rendering. The React layer selects the resolved output, installs context providers, and isolates render errors when asked.
+
+The outlets subpath exports:
+
+```ts id="zsrw6b"
+import {
+  Outlet,
+  Slot,
+} from '@cookbook/router-react/outlets';
+
+import type {
+  OutletProps,
+  SlotErrorFallback,
+  SlotErrorFallbackProps,
+  SlotProps,
+} from '@cookbook/router-react/outlets';
+```
+
+`lazyRouteView()` is grouped on this page because it is used by route views, but it is exported from the package root:
+
+```ts id="vz2djf"
+import {
+  lazyRouteView,
+  type LazyRouteViewComponent,
+} from '@cookbook/router-react';
+```
+
 ## `Outlet`
 
-```ts
+```ts id="852anb"
 interface OutletProps<T = unknown> {
   readonly context?: T;
   readonly children?: ReactNode;
 }
 
-function Outlet<T = unknown>(props: OutletProps<T>): ReactElement | null;
+function Outlet<T = unknown>(
+  props: OutletProps<T>,
+): ReactElement | null;
 ```
 
-`Outlet` renders the next child output supplied by the current route-render boundary. Explicit `children` take precedence over router-provided output. `null`, `undefined`, and `false` render nothing; all other values are wrapped in `OutletContext.Provider` with the supplied context.
+`Outlet` renders the next child output supplied by the current route-render boundary.
 
-```tsx
-function AccountLayout() {
-  return <Outlet context={{ organizationId: 'acme' }} />;
+<TypeTable
+type={{
+context: {
+description: 'Context exposed to descendants through useOutletContext.',
+type: 'T',
+optional: true,
+},
+children: {
+description: 'Explicit outlet content. Non-nullish values replace router-provided outlet output.',
+type: 'ReactNode',
+optional: true,
+},
+}}
+/>
+
+Basic layout outlet:
+
+```tsx id="jmy47o"
+import { Outlet } from '@cookbook/router-react/outlets';
+
+export function AccountLayout() {
+  return (
+    <section>
+      <h1>Account</h1>
+      <Outlet context={{ organizationId: 'acme' }} />
+    </section>
+  );
 }
 ```
 
-Descendants consume that value with `useOutletContext()`. The context may be typed by generated `RouteOutletContext` contracts or a local generic.
+Descendant routes read that context with `useOutletContext()`:
+
+```tsx id="7lc4nq"
+import { useOutletContext } from '@cookbook/router-react/hooks';
+
+interface AccountContext {
+  readonly organizationId: string;
+}
+
+export function BillingPage() {
+  const context = useOutletContext<AccountContext>({
+    strict: true,
+  });
+
+  return (
+    <h2>
+      Billing for {context.organizationId}
+    </h2>
+  );
+}
+```
+
+### Outlet render selection
+
+`Outlet` selects output in this order:
+
+1. `props.children` when it is not `null` or `undefined`;
+2. router-provided outlet output from the current route-render context;
+3. `null`.
+
+Then it renders nothing when the selected output is:
+
+```ts id="6u1db1"
+null
+undefined
+false
+```
+
+This distinction matters:
+
+```tsx id="516ccg"
+<Outlet>
+  <p>Custom outlet content</p>
+</Outlet>
+```
+
+Custom children replace the router-provided outlet.
+
+```tsx id="rw7yqr"
+<Outlet>{false}</Outlet>
+```
+
+`false` replaces the router-provided outlet and renders nothing.
+
+```tsx id="z96ycm"
+<Outlet>{null}</Outlet>
+```
+
+`null` is treated as absent children, so the router-provided outlet is still used when one exists.
+
+Leaf routes can render `<Outlet />`; it resolves to `null` instead of recursively rendering the same route.
 
 ## `Slot`
 
-```ts
+```ts id="u6gz4e"
 interface SlotErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
 }
 
-type SlotErrorFallback = ComponentType<SlotErrorFallbackProps> | null;
+type SlotErrorFallback =
+  | ComponentType<SlotErrorFallbackProps>
+  | null;
 
 interface SlotProps<T = unknown> {
   readonly name: string;
@@ -44,72 +161,517 @@ interface SlotProps<T = unknown> {
   readonly errorFallback?: SlotErrorFallback;
 }
 
-function Slot<T = unknown>(props: SlotProps<T>): ReactElement | null;
+function Slot<T = unknown>(
+  props: SlotProps<T>,
+): ReactElement | null;
 ```
 
-`Slot` selects output already resolved for the named slot on the nearest active layout owner. It returns `null` outside a layout slot context, for an unknown name, or when that slot has no rendered output.
+`Slot` selects output already resolved for the named slot on the nearest active layout owner.
 
-The component provides its own outlet context to the slot subtree.
-
-### Slot error ownership
-
-The distinction is presence-based:
-
-- omit `errorFallback`: render errors bubble to the existing route/layout/provider boundary;
-- provide a component: isolate errors to the slot and render that component;
-- provide `null`: isolate errors and render nothing;
-- explicitly provide `undefined`: the prop is present, so the slot is isolated and renders nothing on error.
-
-```tsx
-<Slot
-  name="modal"
-  errorFallback={({ error, reset }) => (
-    <ModalError error={error} onRetry={reset} />
-  )}
+<TypeTable
+type={{
+name: {
+description: 'Named slot to render from the nearest layout slot context.',
+type: 'string',
+},
+context: {
+description: 'Context exposed to slot content through useOutletContext.',
+type: 'T',
+optional: true,
+},
+errorFallback: {
+description: 'Slot-local render-error fallback. Omit to let errors bubble.',
+type: 'SlotErrorFallback',
+optional: true,
+},
+}}
 />
+
+Layout with named slots:
+
+```tsx id="aoz4ij"
+import {
+  Outlet,
+  Slot,
+} from '@cookbook/router-react/outlets';
+
+export function DashboardLayout() {
+  return (
+    <section>
+      <aside>
+        <Slot
+          name="sidebar"
+          context={{ source: 'dashboard-sidebar' }}
+        />
+      </aside>
+
+      <main>
+        <Outlet />
+      </main>
+
+      <Slot name="modal" />
+    </section>
+  );
+}
 ```
 
-The local boundary resets when `reset()` is called or when the rendered slot children change.
+Slot content reads the nearest outlet context:
 
-`Slot` is not a global portal registry. Core route traversal owns slot matching, fallback selection, and interception; React only selects and isolates the resolved output.
+```tsx id="cc7grv"
+import { useOutletContext } from '@cookbook/router-react/hooks';
 
-## `lazyRouteView`
+interface SidebarContext {
+  readonly source: string;
+}
 
-```ts
+export function SidebarPanel() {
+  const context = useOutletContext<SidebarContext>({
+    strict: true,
+  });
+
+  return <p>{context.source}</p>;
+}
+```
+
+### Slot render selection
+
+`Slot` returns `null` when:
+
+* it is rendered outside a layout slot context;
+* the named slot does not exist on the nearest layout owner;
+* the named slot exists but has no rendered output;
+* a declaration-only slot has no active slot route or fallback output.
+
+It does not search the whole route tree for a matching name. Same-name nested slots are scoped to their layout owner.
+
+`Slot` is not a global portal registry. Core route traversal owns slot matching, fallback selection, and interception. React only selects and renders the resolved slot output.
+
+### Slot context and intercepted context
+
+`Slot context` is provided around the selected slot output.
+
+Intercepted navigation can also provide context:
+
+```tsx id="56z8en"
+<Link
+  to="documents.details"
+  params={{ documentId }}
+  intercept={{
+    slot: 'modal',
+    view: DocumentPreview,
+  }}
+  context={{ source: 'documents-list' }}
+>
+  Preview document
+</Link>
+```
+
+When intercepted route rendering provides its own context, that context can be closer to the intercepted view than the slot context. The intercepted navigation context wins for components rendered inside the intercepted view.
+
+That is intentional. Call-site context belongs to the navigation that opened the intercepted route.
+
+## Slot error ownership
+
+Slot error ownership is presence-based.
+
+| `errorFallback` prop | Behavior                                                                 |
+| -------------------- | ------------------------------------------------------------------------ |
+| omitted              | Render errors bubble to the nearest route, layout, or provider boundary. |
+| component            | Render errors are isolated to the slot and rendered by the component.    |
+| `null`               | Render errors are isolated to the slot and render nothing.               |
+| explicit `undefined` | Prop is present, so errors are isolated and render nothing.              |
+
+Inline fallback:
+
+```tsx id="6ouvvb"
+import { Slot } from '@cookbook/router-react/outlets';
+
+export function DashboardLayout() {
+  return (
+    <Slot
+      name="modal"
+      errorFallback={({ error, reset }) => (
+        <section role="alert">
+          <h2>Modal failed</h2>
+          <pre>{String(error)}</pre>
+          <button onClick={reset}>
+            Try again
+          </button>
+        </section>
+      )}
+    />
+  );
+}
+```
+
+Component fallback:
+
+```tsx id="fymnpx"
+import type {
+  SlotErrorFallbackProps,
+} from '@cookbook/router-react/outlets';
+import { Slot } from '@cookbook/router-react/outlets';
+
+function ModalErrorFallback({
+  error,
+  reset,
+}: SlotErrorFallbackProps) {
+  return (
+    <section role="alert">
+      <h2>Modal failed</h2>
+      <pre>{String(error)}</pre>
+      <button onClick={reset}>Reset</button>
+    </section>
+  );
+}
+
+export function DashboardLayout() {
+  return (
+    <Slot
+      name="modal"
+      errorFallback={ModalErrorFallback}
+    />
+  );
+}
+```
+
+Render nothing on slot failure:
+
+```tsx id="9e6zsa"
+<Slot name="modal" errorFallback={null} />
+```
+
+Omit the prop to let errors bubble:
+
+```tsx id="h6l5te"
+<Slot name="modal" />
+```
+
+The local slot boundary resets when:
+
+* its `reset()` callback is called;
+* the rendered slot children change.
+
+Slot error isolation intentionally beats route-owned slot error rendering. When `<Slot errorFallback>` is present, render errors inside that selected slot output belong to the slot boundary.
+
+## `SlotErrorFallbackProps`
+
+```ts id="71vabn"
+interface SlotErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+}
+```
+
+<TypeTable
+type={{
+error: {
+description: 'Render error thrown by content inside the slot-local boundary.',
+type: 'unknown',
+},
+reset: {
+description: 'Clears the slot-local error boundary state.',
+type: '() => void',
+},
+}}
+/>
+
+`SlotErrorFallbackProps` is intentionally smaller than route error fallback props. Slot fallbacks do not receive `route`.
+
+Route boundary fallback:
+
+```ts id="b35x1l"
+interface RouteErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+  readonly route: MatchedRoute;
+}
+```
+
+Slot boundary fallback:
+
+```ts id="xgpbk3"
+interface SlotErrorFallbackProps {
+  readonly error: unknown;
+  readonly reset: () => void;
+}
+```
+
+If the fallback needs route data, read it from route hooks while the route context is still available. Do not pretend the slot fallback contract includes it.
+
+## `lazyRouteView()`
+
+```ts id="5hd8ke"
 interface LazyRouteViewComponent<
-  Component extends ComponentType<any> = ComponentType<any>,
+  Component extends ComponentType<any> =
+    ComponentType<any>,
 > extends LazyExoticComponent<Component> {
   readonly preload: () => Promise<{
     readonly default: Component;
   }>;
 }
 
-function lazyRouteView<Component extends ComponentType<any>>(
-  load: () => Promise<{ readonly default: Component }>,
+function lazyRouteView<
+  Component extends ComponentType<any>,
+>(
+  load: () => Promise<{
+    readonly default: Component;
+  }>,
 ): LazyRouteViewComponent<Component>;
 ```
 
-The loader promise is memoized. `React.lazy` and every `preload()` call share the same promise, so hover prefetch, route preload, and first render do not issue duplicate imports.
+`lazyRouteView()` returns a React lazy component with a router-visible `preload()` method.
 
-```tsx
-const SettingsPage = lazyRouteView(() => import('./settings-page'));
+<TypeTable
+type={{
+load: {
+description: 'Loader returning a React.lazy-compatible module object with a default component export.',
+type: "() => Promise<{ readonly default: Component }>",
+},
+}}
+/>
 
-export const routes = defineRoutes([
-  {
-    id: 'settings',
-    path: '/settings',
-    view: SettingsPage,
-    modulePreload: SettingsPage.preload,
-  },
-] as const);
+<TypeTable
+type={{
+preload: {
+description: 'Memoized route-view preload hook attached to the lazy component.',
+type: "() => Promise<{ readonly default: Component }>",
+},
+}}
+/>
+
+Use it for lazy route views:
+
+```tsx id="iew6yh"
+import { defineRoute } from '@cookbook/router';
+import { lazyRouteView } from '@cookbook/router-react';
+
+const SettingsPage = lazyRouteView(() =>
+  import('./settings-page'),
+);
+
+export const settingsRoute = defineRoute({
+  id: 'settings',
+  path: '/settings',
+  view: SettingsPage,
+} as const);
 ```
 
-`preload` is a non-enumerable, non-writable property. The module must resolve to an object with a React component under `default`.
+For named exports:
+
+```tsx id="3u7ep5"
+import { defineRoute } from '@cookbook/router';
+import { lazyRouteView } from '@cookbook/router-react';
+
+const UsersPage = lazyRouteView(() =>
+  import('./users-page').then(({ UsersPage }) => ({
+    default: UsersPage,
+  })),
+);
+
+export const usersRoute = defineRoute({
+  id: 'users',
+  path: '/users',
+  view: UsersPage,
+} as const);
+```
+
+Do not add `modulePreload: SettingsPage.preload` just because the method exists. Route preloading already detects `view.preload` on lazy route views.
+
+Wrong:
+
+```tsx id="m6ib4g"
+export const settingsRoute = defineRoute({
+  id: 'settings',
+  path: '/settings',
+  view: SettingsPage,
+  modulePreload: SettingsPage.preload,
+} as const);
+```
+
+Right:
+
+```tsx id="ybcg9f"
+export const settingsRoute = defineRoute({
+  id: 'settings',
+  path: '/settings',
+  view: SettingsPage,
+} as const);
+```
+
+Route preloading runs view preload hooks for matched layout and route views.
+
+```tsx id="lv5hqe"
+<Link to="settings" prefetch="interaction">
+  Settings
+</Link>
+```
+
+That can warm the lazy route view before navigation.
+
+### Lazy view memoization
+
+The loader promise is memoized.
+
+These share the same promise:
+
+* `SettingsPage.preload()`;
+* route preloading;
+* link prefetching;
+* first React render through `React.lazy()`.
+
+The loader is called once for the lifetime of the returned lazy component.
+
+```tsx id="x1coy1"
+const SettingsPage = lazyRouteView(() =>
+  import('./settings-page'),
+);
+
+await SettingsPage.preload();
+await SettingsPage.preload();
+```
+
+Both calls use the same promise.
+
+If that promise rejects, the rejected promise is also retained. Create a new lazy component or reload the module if you need a fresh import attempt.
+
+### Lazy view property shape
+
+`preload` is attached with:
+
+```ts id="ep4kba"
+Object.defineProperty(Component, 'preload', {
+  enumerable: false,
+  configurable: false,
+  writable: false,
+});
+```
+
+That means:
+
+* it does not appear during ordinary property enumeration;
+* it cannot be reassigned;
+* it cannot be reconfigured.
+
+The module must resolve to:
+
+```ts id="mkn7f7"
+{
+  readonly default: Component;
+}
+```
+
+That is the same shape expected by `React.lazy()`.
 
 ## Public context values
 
-`OutletContext`, `RouteRenderContext`, and `SlotRenderContext` are exported for adapter and design-system integration. Application routes should prefer `Outlet`, `Slot`, and hooks rather than manually constructing render contexts.
+The public context values are exported from the provider surface, not the outlets subpath:
+
+```ts id="45c660"
+import {
+  OutletContext,
+  RouteRenderContext,
+  SlotRenderContext,
+} from '@cookbook/router-react/provider';
+```
+
+They are also re-exported by the package root.
+
+These contexts exist for adapters and design-system integrations. Application routes should prefer:
+
+```ts id="fiwldn"
+Outlet
+Slot
+useOutletContext()
+useParams()
+useRouteMeta()
+```
+
+Do not manually construct render contexts in application code. If a component needs to render child routes, render `<Outlet />`. If it needs named slot output, render `<Slot name="..." />`.
+
+## Export inventory
+
+`@cookbook/router-react/outlets` exports these values:
+
+```text id="y2ekql"
+Outlet
+Slot
+```
+
+It exports these public types:
+
+```text id="cdj5ot"
+OutletProps
+SlotErrorFallback
+SlotErrorFallbackProps
+SlotProps
+```
+
+The package root additionally exports:
+
+```text id="2y6mtp"
+lazyRouteView
+LazyRouteViewComponent
+```
+
+There is no public `@cookbook/router-react/lazy` subpath.
 
 ## Where this bites
 
-A slot fallback defined in route configuration is not the same thing as `<Slot errorFallback>`. The former supplies route content when no slot route matches; the latter catches React render failures inside the selected slot output.
+### `Outlet` null children do not erase the router outlet
+
+This does not suppress the router-provided outlet:
+
+```tsx id="r0i3l6"
+<Outlet>{null}</Outlet>
+```
+
+`null` is treated as absent children. Use `false` when you intentionally want to suppress outlet output:
+
+```tsx id="h3qjg2"
+<Outlet>{false}</Outlet>
+```
+
+### Slot configuration fallback is not `<Slot errorFallback>`
+
+A slot fallback in route configuration supplies route content when no slot route matches.
+
+`<Slot errorFallback>` catches React render failures inside selected slot output.
+
+They solve different problems.
+
+### `errorFallback={undefined}` still isolates the slot
+
+This isolates errors and renders nothing:
+
+```tsx id="xcl383"
+<Slot name="modal" errorFallback={undefined} />
+```
+
+The prop is present. Presence enables slot-local isolation.
+
+Omit the prop when errors should bubble:
+
+```tsx id="1zy1wh"
+<Slot name="modal" />
+```
+
+### `lazyRouteView()` is root-exported
+
+This import is wrong:
+
+```ts id="1npncb"
+import { lazyRouteView } from '@cookbook/router-react/outlets';
+```
+
+Use the package root:
+
+```ts id="gi8hu8"
+import { lazyRouteView } from '@cookbook/router-react';
+```
+
+### `modulePreload` is not needed for `lazyRouteView()`
+
+`lazyRouteView()` attaches `preload` to the view. The router discovers it during route preloading.
+
+Adding the same method as `modulePreload` is redundant at best and misleading at worst. Use `modulePreload` for route-module preload integration, not for ordinary React lazy route views.

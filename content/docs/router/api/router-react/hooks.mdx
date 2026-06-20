@@ -7,7 +7,53 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
 
-Every hook on this page reads `RouterContext` and throws the missing-provider diagnostic when used outside `RouterProvider` or `StaticRouterProvider`. The only state subscription that accepts a router directly is [`useRouterState(router)`](/docs/router/api/router-react/provider#userouterstaterouter).
+Cookbook Router hooks read resolved router state. They do not parse the URL again, and they do not invent route data after matching has already happened.
+
+Most hooks on this page read `RouterContext` and throw the missing-provider diagnostic when used outside `RouterProvider` or `StaticRouterProvider`.
+
+`useOutletContext()` is the exception. It reads `OutletContext`, not `RouterContext`. Without context it returns `undefined`, or throws the missing-outlet-context diagnostic when `strict: true` is used.
+
+The only state subscription that accepts a router directly is [`useRouterState(router)`](/docs/router/api/router-react/provider#userouterstaterouter).
+
+## Import surface
+
+The hooks entrypoint exports the application-facing hooks:
+
+```ts
+import {
+  useBlocker,
+  useHashParams,
+  useHref,
+  useLocation,
+  useMatches,
+  useNavigate,
+  useNavigation,
+  useOutletContext,
+  useParams,
+  useRouteMeta,
+  useRouter,
+  useSearchParams,
+  useUnknownSearchParams,
+} from '@cookbook/router-react/hooks';
+```
+
+The package root also re-exports them:
+
+```ts
+import { useNavigate } from '@cookbook/router-react';
+```
+
+`useRouterContext()` is public, but it belongs to the provider surface:
+
+```ts
+import { useRouterContext } from '@cookbook/router-react/provider';
+```
+
+or from the package root:
+
+```ts
+import { useRouterContext } from '@cookbook/router-react';
+```
 
 ## `useRouter()`
 
@@ -15,13 +61,59 @@ Every hook on this page reads `RouterContext` and throws the missing-provider di
 function useRouter(): Router;
 ```
 
-Returns the core router from context. Use it when a component needs an API that does not have a dedicated hook, such as `preload()`, `refresh()`, `serialize()`, or `match()`.
+Returns the core router from context.
+
+Use it when a component needs an API that does not have a narrower hook: `preload()`, `preloadHref()`, `refresh()`, `serialize()`, `match()`, `resolve()`, or `useMiddleware()`.
 
 ```tsx
-function RefreshButton() {
+import { useRouter } from '@cookbook/router-react/hooks';
+
+export function RefreshButton() {
   const router = useRouter();
-  return <button onClick={() => void router.refresh()}>Refresh route</button>;
+
+  return (
+    <button onClick={() => void router.refresh()}>
+      Refresh route
+    </button>
+  );
 }
+```
+
+Example with manual preloading:
+
+```tsx
+import { useRouter } from '@cookbook/router-react/hooks';
+
+interface WarmUserButtonProps {
+  readonly slug: string;
+}
+
+export function WarmUserButton({ slug }: WarmUserButtonProps) {
+  const router = useRouter();
+
+  return (
+    <button
+      onMouseEnter={() => {
+        void router.preload('users.details', {
+          params: { slug },
+        });
+      }}
+      onClick={() => {
+        void router.navigate.to('users.details', {
+          params: { slug },
+        });
+      }}
+    >
+      Open user
+    </button>
+  );
+}
+```
+
+Outside `RouterProvider` or `StaticRouterProvider`, this hook throws:
+
+```text
+Cookbook Router hooks must be used inside <RouterProvider> or <StaticRouterProvider>.
 ```
 
 ## `useRouterContext()`
@@ -35,7 +127,30 @@ interface RouterContextValue {
 }
 ```
 
-This is the public low-level integration hook. Application components normally prefer narrower hooks because they communicate intent and return smaller values.
+Returns the raw provider value: the router instance and the current router state.
+
+This is the low-level integration hook. Application components normally prefer narrower hooks because they reveal intent and avoid wiring themselves to the full state object.
+
+```tsx
+import { useRouterContext } from '@cookbook/router-react/provider';
+
+export function RouterDebugPanel() {
+  const { router, state } = useRouterContext();
+
+  return (
+    <aside>
+      <p>Started: {String(router.started)}</p>
+      <p>Navigation: {state.navigation}</p>
+      <p>Location: {state.location.href}</p>
+      <p>Matched: {state.match?.route.id ?? 'none'}</p>
+    </aside>
+  );
+}
+```
+
+Use this for custom integration components, debugging panels, or wrappers that need both `router` and `state`.
+
+Outside `RouterProvider` or `StaticRouterProvider`, it throws the missing-provider diagnostic.
 
 ## `useLocation()`
 
@@ -43,7 +158,55 @@ This is the public low-level integration hook. Application components normally p
 function useLocation(): RouterLocation;
 ```
 
-Returns the current router location, including `pathname`, `search`, `hash`, `href`, key, and history state. Parsed route URL state belongs to `useParams()`, `useSearchParams()`, `useUnknownSearchParams()`, and `useHashParams()`.
+Returns the current router location.
+
+The returned value includes:
+
+```ts
+interface RouterLocation {
+  readonly pathname: string;
+  readonly search: string;
+  readonly hash: string;
+  readonly href: string;
+  readonly state?: unknown;
+  readonly key: string;
+}
+```
+
+Use this when you need the address-like state, not parsed route contracts.
+
+```tsx
+import { useLocation } from '@cookbook/router-react/hooks';
+
+export function CurrentLocation() {
+  const location = useLocation();
+
+  return (
+    <dl>
+      <dt>Pathname</dt>
+      <dd>{location.pathname}</dd>
+
+      <dt>Search</dt>
+      <dd>{location.search || '(none)'}</dd>
+
+      <dt>Hash</dt>
+      <dd>{location.hash || '(none)'}</dd>
+
+      <dt>Href</dt>
+      <dd>{location.href}</dd>
+    </dl>
+  );
+}
+```
+
+Parsed route URL state belongs to:
+
+* `useParams()`
+* `useSearchParams()`
+* `useUnknownSearchParams()`
+* `useHashParams()`
+
+Do not manually parse `location.search` just to recover typed route state. That already happened before the hook ran.
 
 ## `useMatches()`
 
@@ -51,7 +214,60 @@ Returns the current router location, including `pathname`, `search`, `hash`, `hr
 function useMatches(): readonly MatchedRoute[];
 ```
 
-Returns the active primary branch from root to leaf, or `[]` when no route matches. Each entry includes its normalized route and parsed params. Named slot branches are resolved separately and are not appended to this array.
+Returns the active primary branch from root to leaf.
+
+When no route matches, it returns `[]`.
+
+Each branch entry includes the normalized route and parsed params. Named slot branches are resolved separately and are not appended to this array.
+
+```tsx
+import { useMatches } from '@cookbook/router-react/hooks';
+
+export function MatchTrail() {
+  const matches = useMatches();
+
+  if (!matches.length) {
+    return <p>No route matched.</p>;
+  }
+
+  return (
+    <ol>
+      {matches.map((match) => (
+        <li key={match.id}>
+          {match.id}
+        </li>
+      ))}
+    </ol>
+  );
+}
+```
+
+Example using route metadata:
+
+```tsx
+import { Link } from '@cookbook/router-react';
+import { useMatches } from '@cookbook/router-react/hooks';
+
+export function BreadcrumbsFromMatches() {
+  const matches = useMatches();
+
+  const crumbs = matches
+    .map((match) => match.route.meta?.breadcrumb)
+    .filter(Boolean);
+
+  return (
+    <nav aria-label="Breadcrumb">
+      {crumbs.map((crumb) => (
+        <Link key={crumb.to} to={crumb.to}>
+          {crumb.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+```
+
+Use `useRouteMeta()` instead when you need ancestor-aware merge behavior. `useMatches()` gives you the raw active branch.
 
 ## `useNavigation()`
 
@@ -59,7 +275,55 @@ Returns the active primary branch from root to leaf, or `[]` when no route match
 function useNavigation(): RouterNavigationState;
 ```
 
-Returns the current core navigation state. It is the same `state.navigation` value exposed by the router, including idle, pending, blocked, redirecting, and error transitions.
+Returns the current navigation state from `router.state.navigation`.
+
+Possible values are:
+
+```ts
+type RouterNavigationState =
+  | 'idle'
+  | 'pending'
+  | 'redirecting'
+  | 'blocked'
+  | 'error';
+```
+
+```tsx
+import { useNavigation } from '@cookbook/router-react/hooks';
+
+export function NavigationStatus() {
+  const navigation = useNavigation();
+
+  if (navigation === 'idle') {
+    return null;
+  }
+
+  return (
+    <p role="status">
+      Navigation: {navigation}
+    </p>
+  );
+}
+```
+
+Example with a pending indicator:
+
+```tsx
+import { useNavigation } from '@cookbook/router-react/hooks';
+
+export function TopBarProgress() {
+  const navigation = useNavigation();
+  const active =
+    navigation === 'pending' ||
+    navigation === 'redirecting';
+
+  return active ? (
+    <div role="status">Loading route…</div>
+  ) : null;
+}
+```
+
+This hook reports router transition state. It is not a replacement for route-local loading fallbacks.
 
 ## `useNavigate()`
 
@@ -67,21 +331,97 @@ Returns the current core navigation state. It is the same `state.navigation` val
 function useNavigate(): Router['navigate'];
 ```
 
-Returns the router's stable navigation object. Its route-ID overloads are narrowed by generated contracts.
+Returns the router's stable programmatic navigation object.
+
+Generated route contracts narrow route IDs, params, search, and hash.
 
 ```tsx
-function OpenUser({ id }: { readonly id: number }) {
+import { useNavigate } from '@cookbook/router-react/hooks';
+
+interface OpenUserProps {
+  readonly slug: string;
+}
+
+export function OpenUser({ slug }: OpenUserProps) {
   const navigate = useNavigate();
 
   return (
-    <button onClick={() => void navigate.to('users.show', { params: { id } })}>
+    <button
+      onClick={() => {
+        void navigate.to('users.details', {
+          params: { slug },
+        });
+      }}
+    >
       Open user
     </button>
   );
 }
 ```
 
-`to()` pushes, `replace()` replaces, and `back()`, `forward()`, and `go(delta)` move through history. Rejections remain visible to the caller; the hook does not swallow navigation failures.
+`to()` pushes a new history entry:
+
+```tsx
+import { useNavigate } from '@cookbook/router-react/hooks';
+
+export function CreateDocumentButton() {
+  const navigate = useNavigate();
+
+  return (
+    <button
+      onClick={() => {
+        void navigate.to('documents.create');
+      }}
+    >
+      Create document
+    </button>
+  );
+}
+```
+
+`replace()` replaces the current history entry:
+
+```tsx
+import { useNavigate } from '@cookbook/router-react/hooks';
+
+interface LoginCompleteProps {
+  readonly redirectTo: string;
+}
+
+export function LoginComplete({ redirectTo }: LoginCompleteProps) {
+  const navigate = useNavigate();
+
+  return (
+    <button
+      onClick={() => {
+        void navigate.replace(redirectTo, {
+          intercept: false,
+        });
+      }}
+    >
+      Continue
+    </button>
+  );
+}
+```
+
+`back()`, `forward()`, and `go(delta)` delegate to history:
+
+```tsx
+import { useNavigate } from '@cookbook/router-react/hooks';
+
+export function ModalBackButton() {
+  const navigate = useNavigate();
+
+  return (
+    <button onClick={() => navigate.back()}>
+      Close
+    </button>
+  );
+}
+```
+
+Navigation failures are not swallowed. The methods return the same promises as the core router.
 
 ## `useHref()`
 
@@ -96,43 +436,233 @@ function useHref<Route extends RouteId>(
 ): string;
 ```
 
-Builds an href through the active router without navigating. The object overload is useful when route ID and URL state are already grouped.
+Builds an href through the active router without navigating.
+
+Use it when you need a string for a non-router component, native element, metadata, or custom link wrapper.
 
 ```tsx
-const href = useHref('reports.month', {
-  params: { year: 2026, month: 6 },
-  search: { compare: true },
-});
+import { useHref } from '@cookbook/router-react/hooks';
+
+interface UserHrefProps {
+  readonly slug: string;
+}
+
+export function UserHref({ slug }: UserHrefProps) {
+  const href = useHref('users.details', {
+    params: { slug },
+  });
+
+  return <code>{href}</code>;
+}
 ```
 
-Missing or invalid required params throw during render. That is deliberate: broken URLs should fail where they are declared, not after a user clicks them.
+The object overload is useful when route ID and URL state are already grouped:
+
+```tsx
+import { useHref } from '@cookbook/router-react/hooks';
+
+export function ReportPermalink() {
+  const href = useHref({
+    route: 'reports.month',
+    params: {
+      year: 2026,
+      month: 6,
+    },
+    search: {
+      compare: true,
+    },
+  });
+
+  return <a href={href}>Copy report link</a>;
+}
+```
+
+Per-call URL build options are forwarded to `router.href()`:
+
+```tsx
+import { useHref } from '@cookbook/router-react/hooks';
+
+export function FilterHref() {
+  const href = useHref('products', {
+    search: {
+      tags: ['router', 'typescript'],
+    },
+    url: {
+      arrayFormat: 'comma',
+    },
+  });
+
+  return <code>{href}</code>;
+}
+```
+
+Missing required params or invalid path constraints throw during render. That is deliberate. Broken URLs should fail where they are declared, not after a user clicks them.
 
 ## `useParams()`
 
 ```ts
-function useParams<Route extends RouteId>(routeId: Route): RouteParams<Route>;
+function useParams<Route extends RouteId>(
+  routeId: Route,
+): RouteParams<Route>;
+
 function useParams(): RouteParams<RouteId>;
 ```
 
-Without a route ID, the hook first uses the current route-render context and otherwise returns the active match's merged params. With a route ID, it returns that active branch entry's params. Missing matches or inactive route IDs return an empty object typed to the requested contract.
+Returns parsed path params.
+
+Without a route ID, the hook first uses the current route render context. If no route render context is active, it returns the active match's merged params.
+
+With a route ID, it returns that active branch entry's params. Missing matches or inactive route IDs return an empty object typed to the requested route contract.
 
 ```tsx
-function UserPage() {
-  const { id } = useParams('users.show'); // number for {id:int}
-  return <UserRecord id={id} />;
+import { useParams } from '@cookbook/router-react/hooks';
+
+export function UserDetailsPage() {
+  const { slug } = useParams('users.details');
+
+  return <UserRecord slug={slug} />;
 }
 ```
+
+Built-in numeric constraints are parsed before the hook returns:
+
+```tsx
+import { useParams } from '@cookbook/router-react/hooks';
+
+export function InvoicePage() {
+  const { id } = useParams('invoices.details');
+
+  return <InvoiceRecord id={id} />;
+}
+```
+
+For a route path like this:
+
+```ts
+{
+  id: 'invoices.details',
+  path: '/invoices/{id:int}',
+}
+```
+
+`id` is a number.
+
+When a parent layout needs its own params, pass the parent route ID:
+
+```tsx
+import { Outlet } from '@cookbook/router-react';
+import { useParams } from '@cookbook/router-react/hooks';
+
+export function OrganizationLayout() {
+  const { organizationId } = useParams('organizations');
+
+  return (
+    <section>
+      <h1>Organization {organizationId}</h1>
+      <Outlet />
+    </section>
+  );
+}
+```
+
+An inactive route ID returns `{}`:
+
+```tsx
+const params = useParams('users.details');
+// {} when the active branch does not contain "users.details"
+```
+
+Do not destructure required fields from an inactive route. Ask for params from the route that is actually active.
 
 ## `useSearchParams()`
 
 ```ts
-function useSearchParams<Route extends RouteId>(routeId: Route): RouteSearch<Route>;
+function useSearchParams<Route extends RouteId>(
+  routeId: Route,
+): RouteSearch<Route>;
+
 function useSearchParams(): RouteSearch<RouteId>;
 ```
 
-Returns the active match's already-parsed declared search values. Passing an inactive route ID returns an empty object. Defaults and value coercion were already applied by URLKit during matching.
+Returns the active match's already-parsed declared search values.
 
-The hook does not provide a setter. Build or navigate to a new URL with `Link`, `useNavigate()`, or `router.href()`.
+Passing an inactive route ID returns `{}`.
+
+Defaults, coercion, invalid-search recovery, and array parsing were already applied by URLKit during matching.
+
+```tsx
+import { useSearchParams } from '@cookbook/router-react/hooks';
+
+export function UsersTable() {
+  const search = useSearchParams('users');
+
+  return (
+    <UserGrid
+      page={search.page}
+      q={search.q}
+      role={search.role}
+      status={search.status}
+    />
+  );
+}
+```
+
+Example with array search params:
+
+```tsx
+import { useSearchParams } from '@cookbook/router-react/hooks';
+
+export function ProductFilters() {
+  const { tags = [] } = useSearchParams('products');
+
+  return (
+    <ul>
+      {tags.map((tag) => (
+        <li key={tag}>{tag}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+The hook does not provide a setter.
+
+Use `Link`, `useNavigate()`, `useHref()`, or the core router API to build a new URL:
+
+```tsx
+import { useNavigate, useSearchParams } from '@cookbook/router-react/hooks';
+
+export function NextUsersPageButton() {
+  const navigate = useNavigate();
+  const search = useSearchParams('users');
+
+  return (
+    <button
+      onClick={() => {
+        void navigate.to('users', {
+          search: {
+            ...search,
+            page: search.page + 1,
+          },
+        });
+      }}
+    >
+      Next page
+    </button>
+  );
+}
+```
+
+Hook-level URL options are not supported:
+
+```tsx
+// Wrong. The hook reads already-resolved router state.
+useSearchParams('products', {
+  url: { arrayFormat: 'repeat' },
+});
+```
+
+Put URL parsing policy on the router, route, static match, or URL-building call.
 
 ## `useUnknownSearchParams()`
 
@@ -140,9 +670,48 @@ The hook does not provide a setter. Build or navigate to a new URL with `Link`, 
 function useUnknownSearchParams(): RouterUnknownSearchParams;
 ```
 
-Returns undeclared query-string values preserved under `unknownSearch: 'preserve'`. It always returns an object; no active match or no preserved values produces `{}`.
+Returns undeclared query-string values preserved by `unknownSearch: 'preserve'`.
 
-Declared search belongs to `useSearchParams()`. The two sets are kept separate so untyped campaign or partner parameters cannot masquerade as validated route state.
+It always returns an object. No active match or no preserved values produces `{}`.
+
+```tsx
+import {
+  useSearchParams,
+  useUnknownSearchParams,
+} from '@cookbook/router-react/hooks';
+
+export function CampaignAwareProducts() {
+  const search = useSearchParams('products');
+  const unknownSearch = useUnknownSearchParams();
+
+  return (
+    <ProductGrid
+      page={search.page}
+      campaign={unknownSearch.utm_campaign}
+      source={unknownSearch.utm_source}
+    />
+  );
+}
+```
+
+Declared search belongs to `useSearchParams()`. Unknown search belongs here.
+
+The two sets are separate so untyped campaign, analytics, or partner parameters cannot masquerade as validated route state.
+
+Example router configuration:
+
+```ts
+import { createRouter } from '@cookbook/router';
+
+export const router = createRouter({
+  routes,
+  url: {
+    unknownSearch: 'preserve',
+  },
+});
+```
+
+Without `unknownSearch: 'preserve'`, undeclared search params are stripped from the resolved match and this hook returns `{}`.
 
 ## `useHashParams()`
 
@@ -155,7 +724,62 @@ function useHashParams<Route extends RouteId = RouteId>(
 ): ResolvedRouteHash<Route>;
 ```
 
-Returns the parsed hash value. It returns `null` when there is no active match, the requested route is not active, or no hash is present.
+Returns the URLKit-parsed current hash fragment.
+
+It returns `null` when:
+
+* there is no active match;
+* the requested route ID is not active;
+* no hash is present.
+
+```tsx
+import { useHashParams } from '@cookbook/router-react/hooks';
+
+export function SettingsTabs() {
+  const tab = useHashParams('settings');
+
+  return (
+    <Tabs value={tab ?? 'profile'}>
+      <Tab value="profile">Profile</Tab>
+      <Tab value="security">Security</Tab>
+      <Tab value="billing">Billing</Tab>
+    </Tabs>
+  );
+}
+```
+
+For a route hash descriptor like this:
+
+```ts
+{
+  id: 'settings',
+  path: '/settings',
+  hash: {
+    type: 'enum',
+    values: ['profile', 'security', 'billing'],
+    optional: true,
+  },
+}
+```
+
+the hook returns:
+
+```ts
+'profile' | 'security' | 'billing' | null
+```
+
+Hash values are returned without the leading `#`.
+
+Hook-level URL options are not supported:
+
+```tsx
+// Wrong. The hook reads the already-parsed match.
+useHashParams('settings', {
+  url: { invalidHash: 'error' },
+});
+```
+
+Configure hash parsing behavior before matching, not inside a component reading match state.
 
 ## `useBlocker()`
 
@@ -172,21 +796,65 @@ interface BlockerState {
 function useBlocker(options: UseBlockerOptions): BlockerState;
 ```
 
-When `when` is falsy, no router or browser-unload blocker is registered and `{ blocked: false }` is returned. When truthy:
+Registers a router blocker and browser unload blocker while `when` is truthy.
 
-- in-app navigation is blocked;
-- when `message` and `window.confirm` are available, confirmation decides whether navigation proceeds;
-- browser unload registers `beforeunload`; browsers control the final generic wording;
-- unmounting or changing dependencies removes the registrations.
+When `when` is falsy, no blocker is registered and the hook returns:
+
+```ts
+{ blocked: false }
+```
+
+When `when` is truthy:
+
+* in-app router navigation is blocked;
+* if `message` and `window.confirm` are available, confirmation decides whether navigation proceeds;
+* browser unload registers `beforeunload`;
+* browsers control final unload wording;
+* unmounting or changing dependencies removes the registrations.
 
 ```tsx
-const { blocked } = useBlocker({
-  when: form.formState.isDirty,
-  message: 'Discard unsaved changes?',
-});
+import * as React from 'react';
+import {
+  useBlocker,
+  useNavigate,
+} from '@cookbook/router-react/hooks';
+
+export function MessageComposer() {
+  const navigate = useNavigate();
+
+  const [message, setMessage] = React.useState('');
+
+  const { blocked } = useBlocker({
+    when: Boolean(message),
+    message:
+      'Your message has not been sent. Leave this page and discard your draft?',
+  });
+
+  return (
+    <form>
+      <textarea
+        value={message}
+        onChange={(event) => setMessage(event.currentTarget.value)}
+      />
+
+      {blocked ? (
+        <p>You have an unsent draft.</p>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={() => navigate.back()}
+      >
+        Close
+      </button>
+    </form>
+  );
+}
 ```
 
 `blocked` reflects whether blocking is currently enabled. It is not a historical record of the last transition.
+
+When no `message` is supplied, router navigation is blocked without a confirmation prompt.
 
 ## `useOutletContext()`
 
@@ -207,17 +875,94 @@ function useOutletContext<Context>(
 ): Context;
 ```
 
-Reads context supplied by the nearest `Outlet` or `Slot`. The route-ID overload narrows through generated outlet-context contracts. The generic overload is useful before generation or for local context shapes.
+Reads context supplied by the nearest `Outlet` or `Slot`.
 
-When context is absent, the default result is `undefined`. With `strict: true`, the hook throws the missing-outlet-context diagnostic. In the route-ID overload, the route ID is included in that diagnostic.
+The route-ID overload narrows through generated outlet-context contracts. The generic overload is useful before generation or for local context shapes.
+
+When context is absent, the default result is `undefined`.
+
+With `strict: true`, the hook throws the missing-outlet-context diagnostic. In the route-ID overload, the route ID is included in that diagnostic.
+
+Layout example:
 
 ```tsx
+import { Outlet } from '@cookbook/router-react';
+
 interface AccountContext {
   readonly organizationId: string;
 }
 
-const context = useOutletContext<AccountContext>({ strict: true });
+export function AccountLayout() {
+  const context: AccountContext = {
+    organizationId: 'acme',
+  };
+
+  return (
+    <section>
+      <Outlet context={context} />
+    </section>
+  );
+}
 ```
+
+Descendant route example:
+
+```tsx
+import { useOutletContext } from '@cookbook/router-react/hooks';
+
+interface AccountContext {
+  readonly organizationId: string;
+}
+
+export function BillingPage() {
+  const context = useOutletContext<AccountContext>({
+    strict: true,
+  });
+
+  return (
+    <h1>
+      Billing for {context.organizationId}
+    </h1>
+  );
+}
+```
+
+Route-ID overload example:
+
+```tsx
+import { useOutletContext } from '@cookbook/router-react/hooks';
+
+export function AccountChildPage() {
+  const context = useOutletContext('account', {
+    strict: true,
+  });
+
+  return <p>{context.organizationId}</p>;
+}
+```
+
+Slot context works the same way:
+
+```tsx
+import { Slot } from '@cookbook/router-react';
+
+export function ShellLayout() {
+  return (
+    <>
+      <main>
+        <Outlet />
+      </main>
+
+      <Slot
+        name="modal"
+        context={{ source: 'shell' }}
+      />
+    </>
+  );
+}
+```
+
+A component rendered inside that slot can read the provided context with `useOutletContext()`.
 
 ## `useRouteMeta()`
 
@@ -234,29 +979,218 @@ Public overloads:
 function useRouteMeta(): RegisteredRouteMeta<RouteId>;
 
 function useRouteMeta(
-  options: UseRouteMetaOptions & { readonly merge?: RouteMetaMergeInput },
+  options: UseRouteMetaOptions & {
+    readonly merge?: undefined | RouteMetaMergeInput;
+  },
 ): RegisteredRouteMeta<RouteId>;
 
 function useRouteMeta(
-  options: UseRouteMetaOptions & { readonly merge: false },
+  options: UseRouteMetaOptions & {
+    readonly merge: false;
+  },
 ): readonly RegisteredRouteMeta<string>[];
 
 function useRouteMeta<Route extends string>(
   routeId: Route,
-  options?: UseRouteMetaOptions,
-): RegisteredRouteMeta<Route> | readonly RegisteredRouteMeta<Route>[];
+): RegisteredRouteMeta<Route>;
+
+function useRouteMeta<Route extends string>(
+  routeId: Route,
+  options: UseRouteMetaOptions & {
+    readonly merge?: undefined | RouteMetaMergeInput;
+  },
+): RegisteredRouteMeta<Route>;
+
+function useRouteMeta<Route extends string>(
+  routeId: Route,
+  options: UseRouteMetaOptions & {
+    readonly merge: false;
+  },
+): readonly RegisteredRouteMeta<Route>[];
 ```
 
-Without a route ID, the hook prefers the current render-context match; outside a route view it uses the active leaf. With a route ID, an active branch entry is used when available, otherwise the normalized route tree is queried.
+Without a route ID, the hook prefers the current render-context match. Outside a route view, it uses the active leaf.
 
-- `includeAncestors: false` is the default and selects one route.
-- `includeAncestors: true` builds root-to-target metadata.
-- omitted `merge` returns one merged object using core defaults.
-- `merge: false` returns ordered metadata objects without composition.
-- a merge string or object forwards to `mergeRouteMetaChain()`.
+With a route ID, an active branch entry is used when available. Otherwise the normalized route tree is queried.
 
-Unknown targets resolve to an empty object or empty array rather than throwing.
+* `includeAncestors: false` is the default and selects one route.
+* `includeAncestors: true` builds root-to-target metadata.
+* omitted `merge` returns one merged object using core defaults.
+* `merge: false` returns ordered metadata objects without composition.
+* a merge string or object forwards to `mergeRouteMetaChain()`.
+
+Unknown targets resolve to `{}` or `[]`, not an exception.
+
+Local metadata example:
+
+```tsx
+import { useRouteMeta } from '@cookbook/router-react/hooks';
+
+export function PageTitle() {
+  const meta = useRouteMeta();
+
+  return <h1>{meta.title ?? 'Untitled'}</h1>;
+}
+```
+
+Target route example:
+
+```tsx
+import { useRouteMeta } from '@cookbook/router-react/hooks';
+
+export function UsersSectionLabel() {
+  const meta = useRouteMeta('users');
+
+  return <span>{meta.title ?? 'Users'}</span>;
+}
+```
+
+Ancestor-aware breadcrumbs with custom merge behavior:
+
+```tsx
+import { Link } from '@cookbook/router-react';
+import { useRouteMeta } from '@cookbook/router-react/hooks';
+
+export function Breadcrumbs() {
+  const meta = useRouteMeta({
+    includeAncestors: true,
+    merge: {
+      keys: {
+        breadcrumb: 'append',
+      },
+    },
+  });
+
+  const breadcrumbs = meta.breadcrumb ?? [];
+
+  return (
+    <nav aria-label="Breadcrumb">
+      {breadcrumbs.map((item) => (
+        <Link key={item.to} to={item.to}>
+          {item.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+```
+
+Ordered metadata without merging:
+
+```tsx
+import { useRouteMeta } from '@cookbook/router-react/hooks';
+
+export function RawMetaChain() {
+  const chain = useRouteMeta({
+    includeAncestors: true,
+    merge: false,
+  });
+
+  return (
+    <pre>
+      {JSON.stringify(chain, null, 2)}
+    </pre>
+  );
+}
+```
+
+Leaf-wins merge mode:
+
+```tsx
+import { useRouteMeta } from '@cookbook/router-react/hooks';
+
+export function ChromeMode() {
+  const meta = useRouteMeta({
+    includeAncestors: true,
+    merge: 'leaf',
+  });
+
+  return meta.chrome?.sidebar === false ? null : (
+    <AppSidebar />
+  );
+}
+```
 
 ## Where this bites
 
-These hooks subscribe to state; they do not reinterpret it. Changing `arrayFormat`, unknown-search policy, defaults, or parsing behavior inside a component is too late. Put those policies on the route/router or on the call that builds or matches the URL.
+These hooks subscribe to state; they do not reinterpret it.
+
+If `arrayFormat`, `unknownSearch`, defaults, invalid search recovery, invalid hash recovery, path matching, or path constraints are wrong, fixing them inside a component is too late.
+
+Wrong:
+
+```tsx
+// This API does not exist.
+const search = useSearchParams('products', {
+  url: { arrayFormat: 'comma' },
+});
+```
+
+Right:
+
+```ts
+import { createRouter } from '@cookbook/router';
+
+export const router = createRouter({
+  routes,
+  url: {
+    arrayFormat: 'comma',
+    unknownSearch: 'preserve',
+  },
+});
+```
+
+Or put the policy on the route:
+
+```ts
+import { defineRoute } from '@cookbook/router';
+
+export const productsRoute = defineRoute({
+  id: 'products',
+  path: '/products',
+  search: {
+    tags: {
+      type: 'string',
+      many: true,
+      optional: true,
+    },
+  },
+  url: {
+    arrayFormat: 'comma',
+  },
+} as const);
+```
+
+A hook with a route ID does not activate that route.
+
+```tsx
+const params = useParams('users.details');
+```
+
+If `users.details` is not in the active branch, `params` is `{}`. The hook is a reader, not a matcher.
+
+`useOutletContext()` is not a router-state hook. It only sees the nearest `Outlet` or `Slot` context.
+
+```tsx
+const context = useOutletContext<AccountContext>();
+```
+
+Without an outlet or slot context, this returns `undefined`.
+
+Use strict mode when absence is a bug:
+
+```tsx
+const context = useOutletContext<AccountContext>({
+  strict: true,
+});
+```
+
+Most other hooks require a router provider. Rendering them outside the provider is not a degraded mode. It is an application wiring error.
+
+```tsx
+// Throws.
+function OutsideProvider() {
+  const router = useRouter();
+  return <button onClick={() => void router.refresh()} />;
+}
+```
