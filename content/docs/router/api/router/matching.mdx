@@ -1,28 +1,136 @@
 ---
 title: "Matching API"
-description: "Normalize, flatten, rank, and match route candidates with deterministic branch and slot results."
+description: "Flatten, rank, and match normalized route candidates with deterministic branch and slot results."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
 
+The `@cookbook/router/matching` entrypoint exposes the low-level path-matching pipeline.
+
+```ts docs
+import {
+  flattenRoutes,
+  matchRoutes,
+  rankRoutes,
+} from '@cookbook/router/matching';
+```
+
+It works on `NormalizedRoute[]`.
+
+That is the first trap. Matching is not route authoring. It is not full URL resolution. It is the path-candidate layer after route definitions have already been validated and normalized.
+
+Use router methods such as `router.match()` when you need normal application behavior. Use these helpers when you are building diagnostics, tests, visualization, static analysis, or a custom integration.
+
+## Public exports
+
+`@cookbook/router/matching` exports these values:
+
+```text
+flattenRoutes
+rankRoutes
+matchRoutes
+```
+
+It does not export named types.
+
+Use route-config types from `@cookbook/router/route-config` when you need to annotate matching state:
+
+```ts
+import type {
+  MatchedRoute,
+  NormalizedRoute,
+  RankedRoute,
+  RouteMatch,
+  ResolvedSlot,
+  ResolvedSlots,
+} from '@cookbook/router/route-config';
+```
+
 ## Pipeline
 
-The public matching helpers operate on normalized routes. The safe tree path is `validateResolvedRouteTree()` or router creation, which validates before normalization.
+The safe pipeline is:
 
-## `normalizeRoutes(routes, pathOptions?)`
+```ts
+import { validateResolvedRouteTree } from '@cookbook/router/route-config';
+import {
+  flattenRoutes,
+  matchRoutes,
+  rankRoutes,
+} from '@cookbook/router/matching';
+
+const normalized = validateResolvedRouteTree(routes);
+
+const flat = flattenRoutes(normalized);
+const ranked = rankRoutes(normalized);
+const match = matchRoutes(normalized, '/users/42');
+```
+
+`validateResolvedRouteTree()` belongs to `@cookbook/router/route-config`. It validates first, then returns normalized routes.
+
+`normalizeRoutes()` also belongs to `@cookbook/router/route-config`. It derives a normalized tree, but it is not the safe “validate everything” path by itself.
+
+If you feed garbage into matching, matching will not become your validator. It will just make the garbage harder to debug.
+
+## Related route-config helpers
+
+These helpers are commonly used before matching, but they are not exported from `@cookbook/router/matching`:
+
+```ts
+import {
+  normalizeRoutes,
+  validateResolvedRouteTree,
+  validateRoutes,
+} from '@cookbook/router/route-config';
+```
 
 ```ts
 function normalizeRoutes(
   routes: readonly RouteDefinition[],
   pathOptions?: RouterPathOptions,
 ): readonly NormalizedRoute[];
+
+function validateRoutes(
+  routes: readonly RouteDefinition[],
+  pathOptions?: RouterPathOptions,
+): void;
+
+function validateResolvedRouteTree(
+  routes: readonly RouteDefinition[],
+  pathOptions?: RouterPathOptions,
+): readonly NormalizedRoute[];
 ```
 
-Normalization derives `localPath`, `fullPath`, `parentId`, inherited parameter definitions, score, declaration order, normalized layouts/slots, and configured intercept records. It preserves the original declared definition on `normalized.route`.
+Use `validateResolvedRouteTree()` when an integration needs both validation and normalized output.
 
-Normalization is cached downstream by normalized-array identity, but normalization itself returns a new tree.
+```ts
+const normalized = validateResolvedRouteTree([
+    {
+      id: 'users',
+      path: '/users',
+      children: [
+        {
+          id: 'users.details',
+          path: '{id:int}',
+        },
+      ],
+    },
+  ] as const);
+```
+
+Custom path constraints are not passed to the matching helpers through `pathOptions`.
+
+Register them before matching, or validate/compose routes through APIs that accept `pathConstraints`.
+
+```ts
+import { registerPathConstraints } from '@cookbook/router/path';
+import { validateResolvedRouteTree } from '@cookbook/router/route-config';
+
+registerPathConstraints({ slug });
+
+const normalized = validateResolvedRouteTree(routes);
+```
 
 ## `flattenRoutes(routes)`
 
@@ -32,7 +140,65 @@ function flattenRoutes(
 ): readonly NormalizedRoute[];
 ```
 
-Returns depth-first pre-order: a route, then its descendants. The result is cached in a `WeakMap` by the input array identity. Slot route trees are already represented through normalized slot structures; this helper walks primary `children`.
+Returns a depth-first pre-order list from a normalized primary route tree.
+
+The order is:
+
+1. route;
+2. then its children;
+3. then each descendant using the same rule.
+
+```ts
+import { validateResolvedRouteTree } from '@cookbook/router/route-config';
+import { flattenRoutes } from '@cookbook/router/matching';
+
+const normalized = validateResolvedRouteTree([
+    {
+      id: 'root',
+      path: '/',
+      children: [
+        {
+          id: 'home',
+          index: true,
+        },
+        {
+          id: 'users',
+          path: 'users',
+          children: [
+            {
+              id: 'users.details',
+              path: '{id:int}',
+            },
+          ],
+        },
+      ],
+    },
+  ] as const);
+
+const ids = flattenRoutes(normalized).map(
+  (route) => route.id,
+);
+```
+
+Result:
+
+```ts
+[
+  'root',
+  'home',
+  'users',
+  'users.details',
+]
+```
+
+The result is cached in a `WeakMap` by the input normalized-array identity.
+
+```ts
+flattenRoutes(normalized) === flattenRoutes(normalized);
+// true
+```
+
+Slot route trees are not traversed as ordinary primary children by this helper. Slot routes are represented under normalized slot configuration.
 
 ## `rankRoutes(routes)`
 
@@ -42,68 +208,633 @@ function rankRoutes(
 ): readonly RankedRoute[];
 ```
 
-Pathless routes are excluded from direct candidates. Sorting uses:
+Returns ranked path candidates.
 
-1. Higher route score.
-2. Greater full-path segment depth.
-3. Lower normalization order.
+Pathless routes are excluded from direct candidates because they do not have a `fullPath` to match.
 
-Each result receives a zero-based `rank`. Equal specificity remains deterministic because declared order survives normalization.
+Sorting uses:
+
+1. higher route score;
+2. greater full-path segment depth;
+3. lower normalization order.
+
+Each result receives a zero-based `rank`.
+
+```ts
+import { validateResolvedRouteTree } from '@cookbook/router/route-config';
+import { rankRoutes } from '@cookbook/router/matching';
+
+const normalized = validateResolvedRouteTree([
+    {
+      id: 'users.catch',
+      path: '/users/{*path}',
+    },
+    {
+      id: 'users.show',
+      path: '/users/{id:int}',
+    },
+    {
+      id: 'users.new',
+      path: '/users/new',
+    },
+  ] as const);
+
+const ranked = rankRoutes(normalized).map(
+  (route) => route.id,
+);
+```
+
+Result:
+
+```ts
+[
+  'users.new',
+  'users.show',
+  'users.catch',
+]
+```
+
+Static paths beat constrained params. Constrained params beat wildcards. Declaration order is only the final tie-breaker.
+
+```ts
+const normalized = validateResolvedRouteTree([
+    {
+      id: 'first',
+      path: '/{first}',
+    },
+    {
+      id: 'second',
+      path: '/{second}',
+    },
+  ] as const);
+
+rankRoutes(normalized).map((route) => route.id);
+// ['first', 'second']
+```
+
+Like `flattenRoutes()`, ranked output is cached by normalized-array identity.
+
+```ts
+rankRoutes(normalized) === rankRoutes(normalized);
+// true
+```
 
 ## `matchRoutes(routes, pathname, pathOptions?, options?)`
 
 ```ts
-interface MatchRoutesOptions {
-  readonly routerUrl?: RouterUrlOptions;
-  readonly callUrl?: RouterUrlOptions;
-  readonly pathConstraints?: RouterPathConstraints;
-}
-
 function matchRoutes(
   routes: readonly NormalizedRoute[],
   pathname: string,
   pathOptions?: RouterPathOptions,
-  options?: MatchRoutesOptions,
+  options?: {
+    readonly routerUrl?: RouterUrlOptions;
+    readonly callUrl?: RouterUrlOptions;
+    readonly pathConstraints?: RouterPathConstraints;
+  },
 ): RouteMatch<string> | null;
 ```
 
-The first ranked candidate whose path parses successfully wins. The result contains:
+Matches a pathname against ranked normalized route candidates.
+
+The first ranked candidate whose path params parse successfully wins.
+
+```ts
+import { validateResolvedRouteTree } from '@cookbook/router/route-config';
+import { matchRoutes } from '@cookbook/router/matching';
+
+const normalized = validateResolvedRouteTree([
+    {
+      id: 'users.dynamic',
+      path: '/users/{id:int}',
+    },
+    {
+      id: 'users.new',
+      path: '/users/new',
+    },
+  ] as const);
+
+matchRoutes(normalized, '/users/new')?.id;
+// 'users.new'
+
+matchRoutes(normalized, '/users/42')?.params;
+// { id: 42 }
+
+matchRoutes(normalized, '/users/abc');
+// null
+```
+
+`matchRoutes()` receives a pathname, not a full URL.
+
+That means the returned match always starts with:
+
+```ts
+search: {}
+hash: undefined
+href: pathname
+```
+
+For full URL matching with search and hash parsing, use `router.match()` or the runtime router.
+
+```ts
+const match = router.match(
+  '/users/42?tab=settings#activity',
+);
+```
+
+Use `matchRoutes()` when you deliberately want the path layer.
+
+## Matching options
+
+The `options` object can pass URL policy into the path parser.
+
+```ts
+matchRoutes(
+  normalized,
+  '/Files/a%2Fb/c',
+  {},
+  {
+    callUrl: {
+      pathMatch: {
+        sensitive: true,
+        decode: true,
+        trailing: false,
+        strict: false,
+        wildcardFormat: 'array',
+      },
+    },
+  },
+);
+```
+
+<TypeTable
+  type={{
+    routerUrl: {
+      description: 'Router-level URL policy used when constructing route URL contracts for matching.',
+      type: 'RouterUrlOptions',
+      optional: true,
+    },
+    callUrl: {
+      description: 'Per-call URL policy overrides, including pathMatch options.',
+      type: 'RouterUrlOptions',
+      optional: true,
+    },
+    pathConstraints: {
+      description: 'Custom path constraints available to URLKit while matching params.',
+      type: 'RouterPathConstraints',
+      optional: true,
+    },
+  }}
+/>
+
+There is also an internal contract-store optimization in the implementation. It is not a named public type from this entrypoint, so do not build user-facing examples around it.
+
+## Branch construction
+
+The matched branch is ordered from root or pathless layout ancestry to leaf.
+
+Each `MatchedRoute` carries only the params visible at that route level.
+
+```ts
+const normalized = validateResolvedRouteTree([
+    {
+      id: 'organizations',
+      path:
+        '/organizations/{organizationId:regex([0-9a-fA-F-]+)}',
+      children: [
+        {
+          id: 'organizations.users.show',
+          path: 'users/{userId:int}',
+        },
+      ],
+    },
+  ] as const);
+
+const match = matchRoutes(
+  normalized,
+  '/organizations/123e4567-e89b-12d3-a456-426614174000/users/7',
+);
+```
+
+Branch IDs:
+
+```ts
+match?.branch.map((entry) => entry.id);
+// [
+//   'organizations',
+//   'organizations.users.show',
+// ]
+```
+
+Leaf params:
+
+```ts
+match?.params;
+// {
+//   organizationId:
+//     '123e4567-e89b-12d3-a456-426614174000',
+//   userId: 7,
+// }
+```
+
+Branch params:
+
+```ts
+match?.branch[0]?.params;
+// {
+//   organizationId:
+//     '123e4567-e89b-12d3-a456-426614174000',
+// }
+
+match?.branch[1]?.params;
+// {
+//   organizationId:
+//     '123e4567-e89b-12d3-a456-426614174000',
+//   userId: 7,
+// }
+```
+
+Pathless ancestors are restored through `parentId` even though they are never ranked as direct path candidates.
+
+## Static nested paths
+
+Nested child paths with a leading slash are still joined under the parent after normalization.
+
+```ts
+const normalized = validateResolvedRouteTree([
+    {
+      id: 'policies',
+      path: '/policies',
+      children: [
+        {
+          id: 'terms-of-service',
+          path: '/terms-of-service',
+        },
+      ],
+    },
+  ] as const);
+
+matchRoutes(
+  normalized,
+  '/policies/terms-of-service',
+)?.id;
+// 'terms-of-service'
+
+matchRoutes(
+  normalized,
+  '/terms-of-service',
+);
+// null
+```
+
+This is different from modular route composition with `parent`, where absolute child paths are rejected by `defineRouteTree()`.
+
+## Route match contract
 
 ```ts
 interface RouteMatch<Route extends string = string> {
   readonly id: Route;
   readonly pathname: string;
+  readonly search: Route extends RouteId
+    ? RouteSearch<Route>
+    : ParsedRouteSearch;
+  readonly unknownSearch?: ParsedUnknownRouteSearch;
+  readonly hash: Route extends RouteId
+    ? RouteHash<Route>
+    : ParsedRouteHash;
   readonly href: string;
   readonly route: NormalizedRoute;
   readonly branch: readonly MatchedRoute[];
-  readonly params: Record<string, unknown>;
-  readonly search: Record<string, unknown>;
-  readonly unknownSearch?: RouterUnknownSearchParams;
-  readonly hash: unknown;
+  readonly params: Route extends RouteId
+    ? RouteParams<Route>
+    : Record<string, unknown>;
   readonly slots: ResolvedSlots;
   readonly intercepted?: ResolvedInterceptedRoute;
 }
 ```
 
-This low-level function receives a pathname, so its initial search object is empty and hash is absent. Full router matching uses the URL-state pipeline to add typed search/hash state and URL policies.
+<TypeTable
+  type={{
+    id: {
+      description: 'Matched route ID.',
+      type: 'Route',
+    },
+    pathname: {
+      description: 'Pathname that was matched.',
+      type: 'string',
+    },
+    search: {
+      description: 'Parsed declared search state in full runtime matching. matchRoutes returns an empty object because it only receives a pathname.',
+      type: 'RouteSearch<Route> | ParsedRouteSearch',
+    },
+    unknownSearch: {
+      description: 'Preserved undeclared search params in full runtime matching when unknownSearch is preserve. matchRoutes does not set it.',
+      type: 'ParsedUnknownRouteSearch',
+      optional: true,
+    },
+    hash: {
+      description: 'Parsed hash state in full runtime matching. matchRoutes returns undefined because it only receives a pathname.',
+      type: 'RouteHash<Route> | ParsedRouteHash',
+    },
+    href: {
+      description: 'Resolved href. matchRoutes sets this to the input pathname.',
+      type: 'string',
+    },
+    route: {
+      description: 'Leaf normalized route.',
+      type: 'NormalizedRoute',
+    },
+    branch: {
+      description: 'Matched branch from root or pathless ancestry to leaf.',
+      type: 'readonly MatchedRoute[]',
+    },
+    params: {
+      description: 'Parsed leaf params. Built-in constraints such as int return parsed values.',
+      type: 'RouteParams<Route> | Record<string, unknown>',
+    },
+    slots: {
+      description: 'Resolved slot state grouped by owner route ID and slot name.',
+      type: 'ResolvedSlots',
+    },
+    intercepted: {
+      description: 'Active intercepted route in runtime state. matchRoutes does not create call-site interception by itself.',
+      type: 'ResolvedInterceptedRoute',
+      optional: true,
+    },
+  }}
+/>
 
-### Branch construction
+## `MatchedRoute`
 
-The matched branch is ordered from root/layout ancestry to leaf. Each `MatchedRoute` carries the params visible at that point. Pathless ancestors are restored through parent IDs even though they never ranked as direct candidates.
+```ts
+interface MatchedRoute {
+  readonly id: string;
+  readonly route: NormalizedRoute;
+  readonly params: Record<string, unknown>;
+}
+```
 
-### Slots
+<TypeTable
+  type={{
+    id: {
+      description: 'Matched branch route ID.',
+      type: 'string',
+    },
+    route: {
+      description: 'Normalized route for this branch entry.',
+      type: 'NormalizedRoute',
+    },
+    params: {
+      description: 'Parsed params visible at this branch level.',
+      type: 'Record<string, unknown>',
+    },
+  }}
+/>
 
-Slot route trees are resolved for every branch owner. A slot result can be `matched`, `fallback`, `empty`, `disabled`, or `not-found`, with owner, params, branch, and fallback metadata where relevant.
+## Slot resolution
+
+`matchRoutes()` resolves slots for every route in the active branch that owns layout slots.
+
+```ts
+const normalized = validateResolvedRouteTree([
+    {
+      id: 'dashboard',
+      path: '/dashboard',
+      layout: {
+        slots: {
+          modal: {
+            routes: [
+              {
+                id: 'dashboard.modal',
+                path: 'modal/{id:int}',
+              },
+            ],
+          },
+          sidebar: SidebarFallback,
+        },
+      },
+      children: [
+        {
+          id: 'dashboard.show',
+          path: 'show/{id:int}',
+        },
+      ],
+    },
+  ] as const);
+
+const match = matchRoutes(
+  normalized,
+  '/dashboard/show/7',
+);
+```
+
+The primary branch is:
+
+```ts
+match?.branch.map((entry) => entry.id);
+// ['dashboard', 'dashboard.show']
+```
+
+Slot state is grouped by owner route ID, then slot name:
+
+```ts
+match?.slots.dashboard.modal.status;
+// 'empty'
+
+match?.slots.dashboard.sidebar.status;
+// 'fallback'
+```
+
+### `ResolvedSlots`
+
+```ts
+type ResolvedSlots =
+  Readonly<
+    Record<
+      string,
+      Readonly<Record<string, ResolvedSlot>>
+    >
+  >;
+```
+
+### `ResolvedSlot`
+
+```ts
+type ResolvedSlotStatus =
+  | 'matched'
+  | 'fallback'
+  | 'empty'
+  | 'disabled'
+  | 'not-found';
+
+interface ResolvedSlot {
+  readonly ownerRouteId: string;
+  readonly name: string;
+  readonly status: ResolvedSlotStatus;
+  readonly config: NormalizedRouteSlotConfig;
+  readonly match?: MatchedRoute;
+  readonly branch?: readonly MatchedRoute[];
+  readonly fallback?: NormalizedRouteSlotFallback;
+  readonly params: Record<string, unknown>;
+  readonly meta?: RouteMeta;
+  readonly view?: RouteView;
+}
+```
+
+<TypeTable
+  type={{
+    ownerRouteId: {
+      description: 'Route ID that owns the slot.',
+      type: 'string',
+    },
+    name: {
+      description: 'Slot name.',
+      type: 'string',
+    },
+    status: {
+      description: 'Resolved slot state.',
+      type: 'ResolvedSlotStatus',
+    },
+    config: {
+      description: 'Normalized slot configuration.',
+      type: 'NormalizedRouteSlotConfig',
+    },
+    match: {
+      description: 'Matched slot route when status is matched.',
+      type: 'MatchedRoute',
+      optional: true,
+    },
+    branch: {
+      description: 'Matched slot branch when status is matched.',
+      type: 'readonly MatchedRoute[]',
+      optional: true,
+    },
+    fallback: {
+      description: 'Normalized slot fallback when status is fallback.',
+      type: 'NormalizedRouteSlotFallback',
+      optional: true,
+    },
+    params: {
+      description: 'Parsed params for the resolved slot state.',
+      type: 'Record<string, unknown>',
+    },
+    meta: {
+      description: 'Resolved slot metadata.',
+      type: 'RouteMeta',
+      optional: true,
+    },
+    view: {
+      description: 'Resolved slot view.',
+      type: 'RouteView',
+      optional: true,
+    },
+  }}
+/>
+
+Status meanings:
+
+| Status      | Meaning                                                        |
+| ----------- | -------------------------------------------------------------- |
+| `matched`   | A slot route matched the current pathname.                     |
+| `fallback`  | No slot route matched, but the slot has fallback view content. |
+| `empty`     | No slot route matched and no fallback view exists.             |
+| `disabled`  | Slot config is disabled in resolved state.                     |
+| `not-found` | Public render-state status for unresolved slot routing.        |
+
+Normal matching from authored slot config currently produces `matched`, `fallback`, or `empty`. `disabled` and `not-found` remain part of the public slot state contract because render integrations must be able to handle them.
 
 ## Validation relationship
 
+Matching does not replace validation.
+
 ```ts
-function validateRoutes(routes, pathOptions?): void;
-function validateResolvedRouteTree(routes, pathOptions?): readonly NormalizedRoute[];
+import {
+  normalizeRoutes,
+  validateResolvedRouteTree,
+  validateRoutes,
+} from '@cookbook/router/route-config';
 ```
 
-Validation rejects duplicate IDs and normalized paths, invalid index/pathless/redirect combinations, malformed layouts, slots, intercepts, descriptors, unsafe keys, inherited parameter collisions, and invalid PathKit patterns.
+```ts
+validateRoutes(routes);
+
+const normalized = normalizeRoutes(routes);
+
+const safeNormalized = validateResolvedRouteTree(routes);
+```
+
+`validateRoutes()` rejects invalid route identity, duplicate route IDs, duplicate normalized paths, invalid index/pathless/redirect combinations, malformed layouts, malformed slots, malformed intercepts, invalid URL descriptors, unsafe keys, inherited parameter collisions, and invalid PathKit patterns.
+
+`normalizeRoutes()` derives full paths, inherited params, scores, order, slots, and intercept metadata. It can validate path contracts while normalizing, but it is not complete route-tree validation.
+
+`validateResolvedRouteTree()` validates first and then normalizes.
+
+Use that when you do not want the router to be the first thing that finds your bad tree.
+
+## What this API does not do
+
+`matchRoutes()` does not:
+
+* parse `?search`;
+* parse `#hash`;
+* apply middleware;
+* run redirects;
+* run rewrites;
+* run lifecycle hooks;
+* perform call-site interception;
+* commit navigation;
+* preload route modules;
+* start or dispose a router.
+
+It matches a pathname against already-normalized route candidates. Nothing more.
 
 ## Where this bites
 
-Do not call `normalizeRoutes()` on untrusted declared input and assume the output is valid. Use `validateResolvedRouteTree()` when an integration needs both validation and normalization.
+### Normalized does not mean valid
+
+This is not enough for untrusted or generated input:
+
+```ts
+const normalized = normalizeRoutes(routes);
+const match = matchRoutes(normalized, '/users/42');
+```
+
+Use this instead:
+
+```ts
+const normalized = validateResolvedRouteTree(routes);
+
+const match = matchRoutes(normalized, '/users/42');
+```
+
+### `matchRoutes()` ignores query strings and hashes
+
+This is wrong:
+
+```ts
+matchRoutes(
+  normalized,
+  '/users/42?tab=settings#activity',
+);
+```
+
+`matchRoutes()` expects a pathname. Use the runtime router for full hrefs:
+
+```ts
+router.match(
+  '/users/42?tab=settings#activity',
+);
+```
+
+### Pathless routes are branch entries, not candidates
+
+A pathless layout can appear in `match.branch`.
+
+It will not appear in `rankRoutes()` because direct candidates need `fullPath`.
+
+That is the point. Layouts wrap routes; they do not compete with them.
+
+### Candidate ranking is deterministic, not forgiving
+
+If two routes have equal specificity, declaration order decides.
+
+Do not rely on “obvious intent.” Put the static route in the tree and let ranking prove it, or use validation/tests to catch ambiguous design.

@@ -1,17 +1,40 @@
 ---
 title: "Path API"
-description: "Public path options and custom-constraint APIs exported by the current root-only @cookbook/router package."
+description: "Path analysis, slash pruning, path-match options, and custom path constraint APIs exported by @cookbook/router/path."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
 
-Cookbook Router uses `@cookbook/pathkit` for route-pattern grammar, matching, and path compilation. The current package publishes one root entrypoint and exposes the constraint registry plus Router path option contracts. Internal tokenization, matching, and compilation modules are not public imports.
+The `@cookbook/router/path` entrypoint exposes Router path analysis, slash-pruning utilities, path-match option contracts, and custom path constraint registration.
 
-For route-authoring syntax and examples, see [Path routes and constraints](/docs/router/concepts/path-routes-and-constraints).
+Cookbook Router delegates route-pattern grammar, path compilation, and param matching to URLKit. The Router package exposes only the stable path API needed by route declarations, router creation, tests, diagnostics, and generated integrations.
 
-## Public export boundary
+```ts
+import {
+  analyzePathPattern,
+  createPathConstraint,
+  getPathConstraint,
+  hasPathConstraint,
+  normalizePathOptions,
+  prunePathname,
+  registerPathConstraints,
+  resetPathConstraints,
+  unregisterPathConstraint,
+} from '@cookbook/router/path';
+
+import type {
+  AnalyzedPathPattern,
+  PathPruneOption,
+  RouterPathConstraint,
+  RouterPathConstraints,
+  RouterPathMatchOptions,
+  RouterPathOptions,
+} from '@cookbook/router/path';
+```
+
+The package root re-exports the common path constraint helpers and router path option types:
 
 ```ts
 import {
@@ -30,39 +53,170 @@ import type {
 } from '@cookbook/router';
 ```
 
-There is no published `@cookbook/router/path` entrypoint in the current package manifest.
+The root does not re-export every path subpath helper. Use `@cookbook/router/path` for path-specific utilities such as `analyzePathPattern()`, `normalizePathOptions()`, `prunePathname()`, `resetPathConstraints()`, and `PathPruneOption`.
+
+For route-authoring syntax and examples, see [Path routes and constraints](/docs/router/concepts/path-routes-and-constraints).
+
+## `PathPruneOption`
+
+```ts
+type PathPruneOption =
+  | 'all'
+  | 'duplication'
+  | 'trailing'
+  | false;
+```
+
+Controls slash normalization.
+
+| Value           | Behavior                                 | `/users//42/` becomes |
+| --------------- | ---------------------------------------- | --------------------- |
+| `'all'`         | Remove duplicate and trailing slashes.   | `/users/42`           |
+| `'duplication'` | Remove duplicate slashes only.           | `/users/42/`          |
+| `'trailing'`    | Remove trailing slashes only.            | `/users//42`          |
+| `false`         | Preserve duplicate and trailing slashes. | `/users//42/`         |
 
 ## `RouterPathOptions`
 
 ```ts
 interface RouterPathOptions {
-  readonly prune?: 'all' | 'duplication' | 'trailing' | false;
+  readonly prune?: PathPruneOption;
 }
 ```
 
-`prune` controls slash normalization during route validation, matching, href generation, and canonicalization.
+<TypeTable
+  type={{
+    prune: {
+      description: 'Slash-pruning mode used during validation, normalization, matching, href generation, and canonicalization.',
+      type: "PathPruneOption",
+      default: "'all'",
+      optional: true,
+    },
+  }}
+/>
 
-| Value | Behavior | `/users//42/` becomes |
-| --- | --- | --- |
-| `'all'` | Remove duplicate and trailing slashes. Default. | `/users/42` |
-| `'duplication'` | Remove duplicate slashes only. | `/users/42/` |
-| `'trailing'` | Remove trailing slashes only. | `/users//42` |
-| `false` | Preserve the pathname as declared. | `/users//42/` |
-
-`RouterPathOptions` can be supplied to route declaration and router creation:
+`RouterPathOptions` can be supplied while defining routes:
 
 ```ts
-const routes = defineRoutes(routeDefinitions, {
-  pathOptions: { prune: 'all' },
-});
+import { defineRoutes } from '@cookbook/router/route-config';
 
-const router = createRouter({
+export const routes = defineRoutes(
+  [
+    {
+      id: 'users.details',
+      path: '/users//{id:int}/',
+    },
+  ] as const,
+  {
+    pathOptions: {
+      prune: 'all',
+    },
+  },
+);
+```
+
+It can also be supplied while creating a router:
+
+```ts
+import { createRouter } from '@cookbook/router/runtime';
+
+export const router = createRouter({
   routes,
-  pathOptions: { prune: 'all' },
+  pathOptions: {
+    prune: 'all',
+  },
 });
 ```
 
-Route-declaration options apply while paths are validated. Router options apply while raw definitions are normalized, matched, and used to build hrefs. Keep them consistent when definitions and runtime creation happen in different modules.
+Route-declaration options apply while paths are validated and normalized. Router options apply when the router receives raw route arrays and when runtime APIs build or match paths. Keep them consistent when declarations and runtime creation live in different modules.
+
+## `DEFAULT_PATH_OPTIONS`
+
+```ts
+const DEFAULT_PATH_OPTIONS: {
+  readonly prune: 'all';
+};
+```
+
+Default router path options.
+
+```ts
+DEFAULT_PATH_OPTIONS.prune;
+// 'all'
+```
+
+This is exported from `@cookbook/router/path`, not from the package root.
+
+## `normalizePathOptions(options?)`
+
+```ts
+function normalizePathOptions(
+  options?: RouterPathOptions,
+): Required<RouterPathOptions>;
+```
+
+Fills omitted path options with Router defaults.
+
+```ts
+import { normalizePathOptions } from '@cookbook/router/path';
+
+normalizePathOptions();
+// { prune: 'all' }
+
+normalizePathOptions({ prune: false });
+// { prune: false }
+```
+
+Use this in diagnostics, adapters, and tests that need to show the effective path policy.
+
+## `prunePathname(pathname, options?)`
+
+```ts
+function prunePathname(
+  pathname: string,
+  options?: RouterPathOptions,
+): string;
+```
+
+Applies slash pruning to a pathname.
+
+```ts
+import { prunePathname } from '@cookbook/router/path';
+
+prunePathname('/users//42/');
+// '/users/42'
+
+prunePathname('/users//42/', {
+  prune: 'duplication',
+});
+// '/users/42/'
+
+prunePathname('/users//42/', {
+  prune: 'trailing',
+});
+// '/users//42'
+
+prunePathname('/users//42/', {
+  prune: false,
+});
+// '/users//42/'
+```
+
+Empty input normalizes to root:
+
+```ts
+prunePathname('');
+// '/'
+```
+
+The root path stays stable:
+
+```ts
+prunePathname('/');
+// '/'
+```
+
+This helper only prunes slashes. It does not parse route patterns, validate params, decode segments, or match routes.
 
 ## `RouterPathMatchOptions`
 
@@ -81,16 +235,44 @@ These options configure serialized pathname matching through `RouterUrlOptions.p
 
 <TypeTable
   type={{
-    trailing: { description: 'Allows one final delimiter while matching.', type: 'boolean', optional: true },
-    strict: { description: 'Surfaces constraint failures rather than treating them as an ordinary route miss.', type: 'boolean', optional: true },
-    sensitive: { description: 'Enables case-sensitive path matching.', type: 'boolean', optional: true },
-    end: { description: 'Controls whether matching must consume the complete pathname. Reserved for prefix-routing integrations.', type: 'boolean', optional: true },
-    wildcardFormat: { description: 'Controls PathKit wildcard capture representation before Router normalizes resolved params.', type: "'string' | 'array'", optional: true },
-    decode: { description: 'Enables standard decoding, disables it, or supplies a custom segment decoder.', type: 'boolean | ((value: string) => string)', optional: true },
+    trailing: {
+      description: 'Allows one final delimiter while matching.',
+      type: 'boolean',
+      optional: true,
+    },
+    strict: {
+      description: 'Surfaces constraint failures instead of treating them as ordinary route misses.',
+      type: 'boolean',
+      optional: true,
+    },
+    sensitive: {
+      description: 'Enables case-sensitive path matching.',
+      type: 'boolean',
+      optional: true,
+    },
+    end: {
+      description: 'Controls whether matching must consume the complete pathname. Mostly useful for prefix-routing integrations.',
+      type: 'boolean',
+      optional: true,
+    },
+    wildcardFormat: {
+      description: 'Controls wildcard capture representation before Router-normalized params are exposed.',
+      type: "'string' | 'array'",
+      optional: true,
+    },
+    decode: {
+      description: 'Enables standard decoding, disables decoding, or supplies a custom segment decoder.',
+      type: 'boolean | ((value: string) => string)',
+      optional: true,
+    },
   }}
 />
 
+Router-level matching policy:
+
 ```ts
+import { createRouter } from '@cookbook/router/runtime';
+
 const router = createRouter({
   routes,
   url: {
@@ -102,7 +284,116 @@ const router = createRouter({
 });
 ```
 
-Route-level and call-site URL options can override router defaults where the receiving API accepts resolution policies. Href build APIs do not accept match-only policies.
+Per-call matching policy:
+
+```ts
+const match = router.match('/Files/README', {
+  url: {
+    pathMatch: {
+      sensitive: true,
+    },
+  },
+});
+```
+
+`pathMatch` is a matching policy. Href build APIs do not use match-only options.
+
+## `analyzePathPattern(pattern)`
+
+```ts
+interface AnalyzedPathPattern {
+  readonly params: readonly RouteParamDefinition[];
+  readonly score: number;
+  readonly depth: number;
+}
+
+function analyzePathPattern(
+  pattern: string,
+): AnalyzedPathPattern;
+```
+
+Analyzes a PathKit route pattern and returns Router metadata used by normalization and ranking.
+
+<TypeTable
+  type={{
+    params: {
+      description: 'Param definitions discovered in the pattern.',
+      type: 'readonly RouteParamDefinition[]',
+    },
+    score: {
+      description: 'Specificity score used by route ranking. Literal segments score highest, params next, wildcards lowest.',
+      type: 'number',
+    },
+    depth: {
+      description: 'Segment depth of the parsed pattern.',
+      type: 'number',
+    },
+  }}
+/>
+
+Root pattern:
+
+```ts
+analyzePathPattern('/');
+// {
+//   params: [],
+//   score: 0,
+//   depth: 0,
+// }
+```
+
+Literal segments:
+
+```ts
+analyzePathPattern('/users/settings');
+// {
+//   params: [],
+//   score: 10,
+//   depth: 2,
+// }
+```
+
+Params, constraints, and wildcards:
+
+```ts
+analyzePathPattern(
+  '/files/{type:list(image|video)}/{*path?}',
+);
+```
+
+Result shape:
+
+```ts
+{
+  score: 9,
+  depth: 3,
+  params: [
+    {
+      name: 'type',
+      constraints: [
+        {
+          type: 'list',
+          params: 'image|video',
+        },
+      ],
+      wildcard: false,
+      optional: false,
+      token: '{type:list(image|video)}',
+    },
+    {
+      name: 'path',
+      constraints: [],
+      wildcard: true,
+      optional: true,
+      token: '{*path?}',
+    },
+  ],
+}
+```
+
+The returned analysis object, `params` array, param entries, constraint arrays, and constraint entries are frozen.
+
+`analyzePathPattern()` is a diagnostic and integration helper. It is not a replacement for route-tree validation.
 
 ## Constraint contracts
 
@@ -114,7 +405,9 @@ type RouterPathConstraints = Readonly<
 >;
 ```
 
-`RouterPathConstraint` is the PathKit validation contract. A custom constraint normally provides:
+`RouterPathConstraint` is URLKit’s path constraint validation contract.
+
+A custom constraint normally provides:
 
 ```ts
 interface ConstraintValidation {
@@ -123,14 +416,51 @@ interface ConstraintValidation {
     value: string | number | boolean | undefined,
     params: string,
   ) => void;
-  readonly verify: (paramName: string, params: string) => void;
-  readonly toRegExp?: (params: string) => string;
+
+  readonly verify: (
+    paramName: string,
+    params: string,
+  ) => void;
+
+  readonly toRegExp?: (
+    params: string,
+  ) => string;
 }
 ```
 
-`parse()` validates matched or generated values. `verify()` validates the declared constraint arguments. `toRegExp()` supplies a segment-matching regular-expression source when the constraint needs custom matching syntax.
+<TypeTable
+  type={{
+    parse: {
+      description: 'Validates a matched or generated param value. Throw to reject the value.',
+      type: '(paramName: string, value: string | number | boolean | undefined, params: string) => void',
+    },
+    verify: {
+      description: 'Validates constraint arguments from the route pattern. Throw to reject the declaration.',
+      type: '(paramName: string, params: string) => void',
+    },
+    toRegExp: {
+      description: 'Returns regex source text for segment matching when the constraint needs custom syntax.',
+      type: '(params: string) => string',
+      optional: true,
+    },
+  }}
+/>
 
-## `createPathConstraint()`
+The regex return value is source text, not a JavaScript regex literal.
+
+Correct:
+
+```ts
+return '[a-z0-9-]+';
+```
+
+Wrong:
+
+```ts
+return '/[a-z0-9-]+/';
+```
+
+## `createPathConstraint(definition)`
 
 ```ts
 function createPathConstraint(
@@ -138,29 +468,60 @@ function createPathConstraint(
 ): RouterPathConstraint;
 ```
 
-Creates a PathKit-compatible constraint object. This is a direct public re-export from `@cookbook/pathkit`.
+Creates a URLKit-compatible path constraint.
 
 ```ts
-const slug = createPathConstraint({
+import {
+  createPathConstraint,
+} from '@cookbook/router/path';
+
+export const slug = createPathConstraint({
   parse(paramName, value) {
-    if (typeof value !== 'string' || !/^[a-z0-9-]+$/.test(value)) {
-      throw new Error(`Parameter "${paramName}" must be a valid slug.`);
+    if (
+      typeof value !== 'string' ||
+      !/^[a-z0-9-]+$/.test(value)
+    ) {
+      throw new Error(
+        `Parameter "${paramName}" must be a valid slug.`,
+      );
     }
   },
+
   verify(_paramName, params) {
-    if (params.trim()) {
+    if (params) {
       throw new Error('slug does not accept parameters.');
     }
   },
+
   toRegExp() {
     return '[a-z0-9-]+';
   },
 });
 ```
 
-The regex return value is source text, not a JavaScript regex literal. Return `'[a-z0-9-]+'`, not `'/[a-z0-9-]+/'`.
+Use the constraint in route options:
 
-## `registerPathConstraints()`
+```ts
+import { defineRoutes } from '@cookbook/router/route-config';
+
+export const routes = defineRoutes(
+  [
+    {
+      id: 'posts.show',
+      path: '/posts/{slug:slug}',
+    },
+  ] as const,
+  {
+    pathConstraints: {
+      slug,
+    },
+  },
+);
+```
+
+Custom constraints remain `string` in generated contracts unless combined with a numeric built-in constraint.
+
+## `registerPathConstraints(constraints?)`
 
 ```ts
 function registerPathConstraints(
@@ -168,14 +529,33 @@ function registerPathConstraints(
 ): void;
 ```
 
-Registers each constraint name with PathKit and clears Router's cached path machinery so subsequent validation, matching, and compilation use the new behavior.
+Registers custom constraints with URLKit’s process-level path registry.
 
-- `undefined` is a no-op.
-- an empty or whitespace-only name throws `Router path constraint names must be non-empty strings.`
-- registration is process-global.
-- registering an existing name follows PathKit registry behavior.
+```ts
+import { registerPathConstraints } from '@cookbook/router/path';
 
-Route modules should normally register through the declaration that uses the constraint:
+registerPathConstraints({
+  slug,
+});
+```
+
+Behavior:
+
+* `undefined` is a no-op;
+* passing the same constraint object reference again is a no-op;
+* registration is process-global;
+* existing names are overwritten for contracts created or activated afterwards;
+* empty or whitespace-only names throw.
+
+Empty-name diagnostic:
+
+```text
+Path constraint name must be a non-empty string.
+```
+
+`registerPathConstraints()` does not retroactively rewrite already-normalized route metadata. Register constraints before validation, router creation, matching, href generation, or CLI route loading.
+
+Preferred route-authoring pattern:
 
 ```ts
 export const routes = defineRoutes(
@@ -183,28 +563,52 @@ export const routes = defineRoutes(
     {
       id: 'posts.show',
       path: '/posts/{slug:slug}',
-      view: PostPage,
     },
   ] as const,
   {
-    pathConstraints: { slug },
+    pathConstraints: {
+      slug,
+    },
   },
 );
 ```
 
-`defineRoutes()` validates immediately, so supplying the constraint later only to `createRouter()` is too late for an already-executed `defineRoutes()` call.
+`defineRoutes()` validates immediately. Supplying the constraint later only to `createRouter()` is too late for that already-executed validation call.
 
-Use `createRouter({ pathConstraints })` when the router receives raw route arrays that were not already validated by `defineRoutes()` or `defineRouteTree()`.
-
-## `hasPathConstraint()`
+Use router-level `pathConstraints` only when the router receives raw route arrays that were not already validated by `defineRoutes()` or `defineRouteTree()`:
 
 ```ts
-function hasPathConstraint(name: string): boolean;
+const router = createRouter({
+  routes: [
+    {
+      id: 'posts.show',
+      path: '/posts/{slug:slug}',
+    },
+  ],
+  pathConstraints: {
+    slug,
+  },
+});
 ```
 
-Reports whether the process-level PathKit registry currently contains the name. This is useful for diagnostics and collision-safe test setup; it does not prove every runtime environment registered the same implementation.
+## `hasPathConstraint(name)`
 
-## `getPathConstraint()`
+```ts
+function hasPathConstraint(
+  name: string,
+): boolean;
+```
+
+Reports whether URLKit’s process-level path registry currently contains the name.
+
+```ts
+hasPathConstraint('slug');
+// true
+```
+
+Use it for diagnostics and test setup. It does not prove that every environment registered the same implementation.
+
+## `getPathConstraint(name)`
 
 ```ts
 function getPathConstraint(
@@ -212,41 +616,317 @@ function getPathConstraint(
 ): RouterPathConstraint | undefined;
 ```
 
-Returns the registered constraint object when available. Treat the returned object as registry state, not route-local configuration.
-
-## `unregisterPathConstraint()`
+Returns the registered constraint object when available.
 
 ```ts
-function unregisterPathConstraint(name: string): void;
+const constraint = getPathConstraint('slug');
+
+if (!constraint) {
+  throw new Error('slug constraint was not registered.');
+}
 ```
 
-Removes a PathKit constraint from the process-level registry. It is mainly intended for test isolation.
+Treat the returned object as registry state, not as route-local configuration.
 
-Direct unregistration is a PathKit re-export and does not independently run Router's registration cache-clear path. Avoid dynamically swapping application constraints after route creation. Prefer stable startup registration and unique names.
+## `unregisterPathConstraint(name)`
+
+```ts
+function unregisterPathConstraint(
+  name: string,
+): void;
+```
+
+Removes one constraint from URLKit’s process-level registry.
+
+```ts
+unregisterPathConstraint('slug');
+```
+
+This is mainly for test isolation. Avoid dynamically swapping application constraints after route creation.
+
+The wrapper also clears Router’s active constraint reference, so a later `registerPathConstraints()` call with the same object can register again.
+
+## `resetPathConstraints()`
+
+```ts
+function resetPathConstraints(): void;
+```
+
+Clears Router’s active constraint reference and resets URLKit’s process-level path constraint registry.
+
+```ts
+import { resetPathConstraints } from '@cookbook/router/path';
+
+afterEach(() => {
+  resetPathConstraints();
+});
+```
+
+This helper is exported from `@cookbook/router/path`. It is not re-exported by the root package.
+
+Use it in tests that register custom constraints. Do not call it in application runtime unless you are intentionally tearing down a router test environment.
 
 ## Built-in constraint grammar
 
-| Constraint | Pattern | Resolved Router type |
-| --- | --- | --- |
-| Unconstrained | `{slug}` | `string` |
-| `int` | `{id:int}` | `number` |
-| `decimal` | `{price:decimal}` | `number` |
-| `uuid` | `{id:uuid}` | `string` |
-| `min` | `{price:min(1)}` | `number` |
-| `max` | `{price:max(10)}` | `number` |
-| `range` | `{page:range(1,100)}` | `number` |
-| `minlength` | `{slug:minlength(3)}` | `string` |
-| `maxlength` | `{slug:maxlength(50)}` | `string` |
-| `list` | `{view:list(grid\|list)}` | `string` |
-| `regex` | `{slug:regex([a-z0-9-]+)}` | `string` |
-| Wildcard | `{*path}` | `readonly string[]` |
+| Constraint    | Pattern                    | Resolved Router type |
+| ------------- | -------------------------- | -------------------- |
+| unconstrained | `{slug}`                   | `string`             |
+| `int`         | `{id:int}`                 | `number`             |
+| `decimal`     | `{price:decimal}`          | `number`             |
+| `uuid`        | `{id:uuid}`                | `string`             |
+| `min`         | `{price:min(1)}`           | `number`             |
+| `max`         | `{price:max(10)}`          | `number`             |
+| `range`       | `{page:range(1,100)}`      | `number`             |
+| `minlength`   | `{slug:minlength(3)}`      | `string`             |
+| `maxlength`   | `{slug:maxlength(50)}`     | `string`             |
+| `list`        | `{view:list(grid\|list)}`  | `string`             |
+| `regex`       | `{slug:regex([a-z0-9-]+)}` | `string`             |
+| wildcard      | `{*path}`                  | `readonly string[]`  |
 
-A numeric built-in anywhere in a constraint chain makes the resolved URLKit/Router param a number. Arbitrary custom constraints remain `string` in generated contracts unless combined with a numeric built-in.
+A numeric built-in anywhere in the constraint chain makes the resolved Router param a number.
+
+```ts
+{
+  id: 'products.page',
+  path: '/products/{page:int}',
+}
+```
+
+The resolved param is:
+
+```ts
+{
+  page: number;
+}
+```
+
+Arbitrary custom constraints remain `string` in generated contracts unless they are combined with a numeric built-in.
+
+```ts
+{
+  id: 'posts.show',
+  path: '/posts/{slug:slug}',
+}
+```
+
+The resolved param is:
+
+```ts
+{
+  slug: string;
+}
+```
+
+Wildcard params resolve to arrays:
+
+```ts
+{
+  id: 'files',
+  path: '/files/{*path}',
+}
+```
+
+The resolved param is:
+
+```ts
+{
+  path: readonly string[];
+}
+```
 
 ## Environment consistency
 
-Custom constraints are executable configuration. Browser, server, tests, CLI route loading, and build plugins must load the same names before they validate or resolve routes. A generated contract can describe `{slug:slug}`, but it cannot ship the JavaScript implementation of `slug` into another process.
+Custom constraints are executable configuration.
+
+Every environment that validates, matches, or builds paths must load the same names before using routes:
+
+* browser;
+* server;
+* tests;
+* CLI route loading;
+* build plugins;
+* static generation;
+* SSR request handlers.
+
+A generated contract can describe `{slug:slug}`, but it cannot carry the JavaScript implementation of `slug` into another process.
+
+Keep constraint definitions in one module and import them wherever route loading happens.
+
+```ts
+// path-constraints.ts
+import { createPathConstraint } from '@cookbook/router/path';
+
+export const pathConstraints = {
+  slug: createPathConstraint({
+    parse(paramName, value) {
+      if (
+        typeof value !== 'string' ||
+        !/^[a-z0-9-]+$/.test(value)
+      ) {
+        throw new Error(
+          `Parameter "${paramName}" must be a valid slug.`,
+        );
+      }
+    },
+    verify() {},
+    toRegExp: () => '[a-z0-9-]+',
+  }),
+};
+```
+
+Use that same object in route loading:
+
+```ts
+defineRoutes(routes, {
+  pathConstraints,
+});
+```
+
+and in config/build tooling when routes are loaded outside the app process.
+
+## Export inventory
+
+`@cookbook/router/path` exports these values:
+
+```text
+DEFAULT_PATH_OPTIONS
+analyzePathPattern
+createPathConstraint
+getPathConstraint
+hasPathConstraint
+normalizePathOptions
+prunePathname
+registerPathConstraints
+resetPathConstraints
+unregisterPathConstraint
+```
+
+It exports these public types:
+
+```text
+AnalyzedPathPattern
+PathPruneOption
+RouterPathConstraint
+RouterPathConstraints
+RouterPathMatchOptions
+RouterPathOptions
+```
+
+The root package re-exports these values:
+
+```text
+createPathConstraint
+getPathConstraint
+hasPathConstraint
+registerPathConstraints
+unregisterPathConstraint
+```
+
+The root package re-exports these types:
+
+```text
+RouterPathConstraint
+RouterPathConstraints
+RouterPathMatchOptions
+RouterPathOptions
+```
+
+The root package does not re-export:
+
+```text
+DEFAULT_PATH_OPTIONS
+AnalyzedPathPattern
+PathPruneOption
+analyzePathPattern
+normalizePathOptions
+prunePathname
+resetPathConstraints
+```
 
 ## Where this bites
 
-A function existing under `packages/router/src/path` does not make it public. The package manifest and root `src/index.ts` are the contract. Import only the five constraint values and four path types listed on this page.
+### The path subpath is public
+
+This is valid:
+
+```ts
+import {
+  createPathConstraint,
+  prunePathname,
+} from '@cookbook/router/path';
+```
+
+The old “root-only” wording is wrong for the current package.
+
+### Registration after validation is too late
+
+This validates immediately:
+
+```ts
+const routes = defineRoutes([
+  {
+    id: 'posts.show',
+    path: '/posts/{slug:slug}',
+  },
+] as const);
+```
+
+Registering `slug` later cannot make that earlier validation succeed.
+
+Pass constraints into `defineRoutes()` or `defineRouteTree()`:
+
+```ts
+const routes = defineRoutes(routeDefinitions, {
+  pathConstraints: {
+    slug,
+  },
+});
+```
+
+### Registry state is process-global
+
+This is fine in a single test:
+
+```ts
+registerPathConstraints({ slug });
+```
+
+It is risky across a large test suite unless you reset:
+
+```ts
+afterEach(() => {
+  resetPathConstraints();
+});
+```
+
+### Regex source is not a regex literal
+
+Correct:
+
+```ts
+toRegExp() {
+  return '[a-z0-9-]+';
+}
+```
+
+Wrong:
+
+```ts
+toRegExp() {
+  return '/[a-z0-9-]+/';
+}
+```
+
+PathKit expects source text.
+
+### `prunePathname()` is not matching
+
+This only normalizes slashes:
+
+```ts
+prunePathname('/users//42/');
+```
+
+It does not verify that `/users/42` matches any route, and it does not parse `{id:int}`.
+
+Use `matchRoutes()` or `router.match()` for matching.

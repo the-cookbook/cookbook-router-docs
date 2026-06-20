@@ -1,41 +1,123 @@
 ---
 title: "Diagnostics API"
-description: "Exact public error factories for href generation, provider context, hydration, and middleware targets."
+description: "Exact public error factories for href generation, provider context, outlet context, hydration, and middleware targets."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
 
-The factories return `Error` objects with stable, contextual messages. They do not log, mutate state, or throw by themselves.
+The `@cookbook/router/diagnostics` entrypoint exports error factories used by the router runtime and framework adapters.
+
+```ts
+import {
+  createGeneratedHrefMismatchError,
+  createHydrationMismatchError,
+  createInvalidParamError,
+  createMalformedRedirectError,
+  createMissingOutletContextError,
+  createMissingParamError,
+  createMissingPathError,
+  createMissingProviderError,
+  createUnknownRouteError,
+} from '@cookbook/router/diagnostics';
+```
+
+The package root re-exports the same factories:
+
+```ts
+import { createUnknownRouteError } from '@cookbook/router';
+```
+
+The factories return ordinary `Error` objects with contextual messages.
+
+They do not:
+
+* log;
+* throw;
+* mutate router state;
+* attach custom error subclasses;
+* attach error codes.
+
+They are useful for framework adapters, design-system wrappers, tests, and integrations that need the same diagnostics as the runtime.
+
+## Public exports
+
+`@cookbook/router/diagnostics` exports these values:
+
+```text
+createGeneratedHrefMismatchError
+createHydrationMismatchError
+createInvalidParamError
+createMalformedRedirectError
+createMissingOutletContextError
+createMissingParamError
+createMissingPathError
+createMissingProviderError
+createUnknownRouteError
+```
+
+It exports no public types.
+
+`formatDiagnosticValue()` is implementation detail. Its behavior is visible in produced messages, but it is not a public import.
 
 ## `createUnknownRouteError(routeId)`
 
 ```ts
-function createUnknownRouteError(routeId: string): Error;
+function createUnknownRouteError(
+  routeId: string,
+): Error;
 ```
+
+<TypeTable
+  type={{
+    routeId: {
+      description: 'Route ID that could not be found in the current route lookup.',
+      type: 'string',
+    },
+  }}
+/>
 
 Message:
 
 ```text
-Cannot generate href because route "..." is not registered. Check the route id or regenerate .cookbook-router/contracts.ts.
+Cannot generate href because route "users.show" is not registered. Check the route id or regenerate .cookbook-router/contracts.ts.
 ```
 
-Used when a route-ID operation cannot find the requested route. The generated-contract hint is deliberate: stale declarations can make an invalid ID compile.
+Used when a route-ID operation cannot find the requested route.
+
+The generated-contract hint is intentional. A stale `register.d.ts` can make a route ID type-check even after the route has been removed.
+
+```ts
+throw createUnknownRouteError('users.show');
+```
 
 ## `createMissingPathError(routeId)`
 
 ```ts
-function createMissingPathError(routeId: string): Error;
+function createMissingPathError(
+  routeId: string,
+): Error;
 ```
+
+<TypeTable
+  type={{
+    routeId: {
+      description: 'Route ID that exists but cannot produce a standalone URL path.',
+      type: 'string',
+    },
+  }}
+/>
 
 Message:
 
 ```text
-Cannot generate href for route "..." because it does not resolve to a URL path. Use a path or index route, or navigate to a concrete child route.
+Cannot generate href for route "root" because it does not resolve to a URL path. Use a path or index route, or navigate to a concrete child route.
 ```
 
-Pathless layout/group routes can participate in a branch, but they cannot produce a standalone href.
+Used when href generation targets a pathless layout or grouping route.
+
+Pathless routes can participate in a matched branch. They cannot be standalone navigation targets.
 
 ## `createMissingParamError(...)`
 
@@ -48,6 +130,35 @@ function createMissingParamError(
 ): Error;
 ```
 
+<TypeTable
+  type={{
+    routeId: {
+      description: 'Route ID whose path requires the missing parameter.',
+      type: 'string',
+    },
+    paramName: {
+      description: 'Path parameter name.',
+      type: 'string',
+    },
+    token: {
+      description: 'Declared path token or constraint text.',
+      type: 'string',
+    },
+    value: {
+      description: 'Received value. Usually undefined for this factory.',
+      type: 'unknown',
+      },
+  }}
+/>
+
+Message:
+
+```text
+Route "users.show" expected param "id" to satisfy "{id:int}", but received undefined.
+```
+
+Used when a route href cannot be built because a required path param is absent.
+
 ## `createInvalidParamError(...)`
 
 ```ts
@@ -59,15 +170,43 @@ function createInvalidParamError(
 ): Error;
 ```
 
-Both currently produce the same diagnostic shape:
+<TypeTable
+  type={{
+    routeId: {
+      description: 'Route ID whose path rejected the parameter value.',
+      type: 'string',
+    },
+    paramName: {
+      description: 'Path parameter name.',
+      type: 'string',
+    },
+    token: {
+      description: 'Declared path token or constraint text.',
+      type: 'string',
+    },
+    value: {
+      description: 'Received invalid value.',
+      type: 'unknown',
+    },
+  }}
+/>
+
+Message:
 
 ```text
-Route "..." expected param "..." to satisfy "...", but received ... .
+Route "users.show" expected param "id" to satisfy "{id:int}", but received "abc".
 ```
 
-`token` is the declared path token/constraint description. `value` is formatted as JSON where possible; strings are quoted and `undefined`/`null` remain explicit.
+`createMissingParamError()` and `createInvalidParamError()` currently produce the same message shape.
 
-The factories are separate because “absent” and “present but invalid” are different call-site conditions even when users need the same repair: provide a value accepted by the route token.
+They remain separate factories because the call-site conditions are different:
+
+| Factory                     | Condition                                                    |
+| --------------------------- | ------------------------------------------------------------ |
+| `createMissingParamError()` | A required param was absent.                                 |
+| `createInvalidParamError()` | A param was present but failed the path token or constraint. |
+
+The user-facing repair is usually the same: pass a value accepted by the route path token.
 
 ## `createGeneratedHrefMismatchError(...)`
 
@@ -79,41 +218,90 @@ function createGeneratedHrefMismatchError(
 ): Error;
 ```
 
+<TypeTable
+  type={{
+    routeId: {
+      description: 'Route ID used to build the href.',
+      type: 'string',
+    },
+    href: {
+      description: 'Generated href that failed to match back to the route.',
+      type: 'string',
+    },
+    routePath: {
+      description: 'Route full path pattern expected to accept the href.',
+      type: 'string',
+    },
+  }}
+/>
+
 Message:
 
 ```text
-Generated href "..." for route "..." does not satisfy route path "...". Check params, basename, and path constraints.
+Generated href "/users/abc" for route "users.show" does not satisfy route path "/users/{id:int}". Check params, basename, and path constraints.
 ```
 
-This catches build/match asymmetry after an href is assembled. Custom path constraints should parse and compile consistently.
+Used after an href is built but fails to match back to the route that produced it.
+
+This is a build/match symmetry check. Custom path constraints should parse and build consistently.
 
 ## `createMissingProviderError(hookName)`
 
 ```ts
-function createMissingProviderError(hookName: string): Error;
+function createMissingProviderError(
+  hookName: string,
+): Error;
 ```
+
+<TypeTable
+  type={{
+    hookName: {
+      description: 'Hook or API name that requires router context.',
+      type: 'string',
+    },
+  }}
+/>
 
 Message:
 
 ```text
-... must be used inside <RouterProvider> or <StaticRouterProvider>.
+useRouter must be used inside <RouterProvider> or <StaticRouterProvider>.
 ```
 
-React hooks pass their own API name so the failure points to the exact consumer.
+Used by React integration hooks and context readers.
+
+Hooks pass their own public API name so the error points to the failing consumer.
 
 ## `createMissingOutletContextError(routeId?)`
 
 ```ts
-function createMissingOutletContextError(routeId: string | undefined): Error;
+function createMissingOutletContextError(
+  routeId: string | undefined,
+): Error;
 ```
 
-Message without a route ID:
+<TypeTable
+  type={{
+    routeId: {
+      description: 'Optional route ID associated with the strict outlet-context read.',
+      type: 'string | undefined',
+    },
+  }}
+/>
+
+Without a route ID:
 
 ```text
 Outlet context was requested in strict mode, but no context was provided by the parent Outlet or Slot.
 ```
 
-With a route ID, the message inserts `for route "..."` after `Outlet context`.
+With a route ID:
+
+```text
+Outlet context for route "dashboard.home" was requested in strict mode, but no context was provided by the parent Outlet or Slot.
+```
+
+Used when `useOutletContext({ strict: true })` cannot find context from a parent `<Outlet />` or `<Slot />`.
 
 ## `createHydrationMismatchError(serverHref, clientHref)`
 
@@ -124,47 +312,193 @@ function createHydrationMismatchError(
 ): Error;
 ```
 
+<TypeTable
+  type={{
+    serverHref: {
+      description: 'Href serialized by the server router.',
+      type: 'string',
+    },
+    clientHref: {
+      description: 'Current client history href during hydration.',
+      type: 'string',
+    },
+  }}
+/>
+
 Message:
 
 ```text
-Hydration data was created for "...", but the client history is currently at "...". Recreate the router with matching hydration data or omit hydrationData for client-only rendering.
+Hydration data was created for "/server", but the client history is currently at "/client". Recreate the router with matching hydration data or omit hydrationData for client-only rendering.
 ```
 
-Hydration matching compares pathname and search. A hash-only difference is treated separately because fragments do not reach the server.
+Used when hydration data and client history do not describe the same pathname/search startup location.
+
+Hash-only differences are handled separately. Fragments do not reach the server, so a browser-only hash can legitimately differ during SSR hydration.
 
 ## `createMalformedRedirectError(to)`
 
 ```ts
-function createMalformedRedirectError(to: unknown): Error;
+function createMalformedRedirectError(
+  to: unknown,
+): Error;
 ```
+
+<TypeTable
+  type={{
+    to: {
+      description: 'Malformed middleware redirect or rewrite target.',
+      type: 'unknown',
+    },
+  }}
+/>
 
 Message:
 
 ```text
-Middleware redirect target must be a non-empty string, but received ... .
+Middleware redirect target must be a non-empty string, but received undefined.
 ```
 
-It covers both the `redirect()`/`rewrite()` helpers and malformed structured middleware results.
+This factory is used for both:
+
+* middleware helper calls such as `redirect(to)` and `rewrite(to)`;
+* malformed structured middleware results such as `{ type: 'redirect', to }` or `{ type: 'rewrite', to }`.
+
+The message says “redirect target” even for rewrite validation. That is the current public diagnostic text.
 
 ## Message-value formatting
 
-The internal formatter is not exported, but its behavior is observable:
+The formatter is not public, but the behavior is observable through the diagnostics above.
 
-- strings are JSON-quoted;
-- `undefined` and `null` are printed literally;
-- objects/arrays use `JSON.stringify()` when possible;
-- otherwise the value is converted with `String()`.
+| Value                    | Rendered in message                                                    |
+| ------------------------ | ---------------------------------------------------------------------- |
+| string                   | JSON-quoted string                                                     |
+| `undefined`              | `undefined`                                                            |
+| `null`                   | `null`                                                                 |
+| JSON-serializable object | compact `JSON.stringify()` output                                      |
+| other value              | `String(value)` fallback when JSON serialization does not produce text |
 
-## Testing
+Examples:
 
 ```ts
-expect(() => router.href('missing.route')).toThrow(
+createInvalidParamError(
+  'users.show',
+  'id',
+  '{id:int}',
+  'abc',
+).message;
+// Route "users.show" expected param "id" to satisfy "{id:int}", but received "abc".
+```
+
+```ts
+createMalformedRedirectError({
+  to: '',
+}).message;
+// Middleware redirect target must be a non-empty string, but received {"to":""}.
+```
+
+Circular objects are not a supported public formatting contract. Do not pass them to diagnostics expecting rich formatting.
+
+## Testing diagnostics
+
+Prefer asserting the stable fragment that your code owns.
+
+```ts
+expect(() => {
+  router.href('missing.route');
+}).toThrow(
   'Cannot generate href because route "missing.route" is not registered.',
 );
 ```
 
-Assert the meaningful stable fragment unless your test specifically owns the complete diagnostic contract.
+Use exact full-message assertions only when the test is specifically locking the diagnostics contract.
+
+```ts
+expect(
+  createMissingParamError(
+    'users.show',
+    'id',
+    '{id:int}',
+    undefined,
+  ).message,
+).toBe(
+  'Route "users.show" expected param "id" to satisfy "{id:int}", but received undefined.',
+);
+```
 
 ## Scope
 
-These nine factories are the complete public diagnostics factory surface. Route-definition errors, static-extraction errors, and build-plugin failures are direct errors documented in the [Error Reference](/docs/router/errors).
+These nine factories are the complete public diagnostics factory surface.
+
+They cover:
+
+* unknown route IDs;
+* missing URL paths;
+* missing path params;
+* invalid path params;
+* generated href mismatch;
+* missing React provider context;
+* missing outlet context;
+* hydration href mismatch;
+* malformed middleware redirect/rewrite targets.
+
+They do not cover every router error.
+
+Route-definition validation errors, URL descriptor errors, static extraction errors, CLI errors, and build-plugin failures are direct errors documented in the [Error Reference](/docs/router/errors).
+
+## Where this bites
+
+### The diagnostics subpath is public
+
+Use this:
+
+```ts
+import { createUnknownRouteError } from '@cookbook/router/diagnostics';
+```
+
+or the package root:
+
+```ts
+import { createUnknownRouteError } from '@cookbook/router';
+```
+
+Do not deep-import from implementation files:
+
+```ts
+import { createUnknownRouteError } from '@cookbook/router/dist/diagnostics/router-errors';
+```
+
+### The factories do not throw
+
+This only creates an error:
+
+```ts
+const error = createUnknownRouteError('missing.route');
+```
+
+Throw it yourself when needed:
+
+```ts
+throw createUnknownRouteError('missing.route');
+```
+
+### `formatDiagnosticValue()` is not public
+
+This is wrong:
+
+```ts
+import { formatDiagnosticValue } from '@cookbook/router/diagnostics';
+```
+
+Use the factories. The formatter is implementation detail.
+
+### Missing and invalid params share a message shape
+
+Do not infer missing-vs-invalid from the text alone.
+
+The call site knows which factory it used. The rendered message intentionally points users at the same repair: provide a value accepted by the path token.
+
+### Hydration mismatch is not the hash-refresh path
+
+`createHydrationMismatchError()` is for server/client pathname or search mismatches.
+
+A hash-only difference is not this diagnostic. Hash fragments do not reach the server, so the client can refresh after hydration to reconcile them.

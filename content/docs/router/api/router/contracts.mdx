@@ -7,11 +7,33 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
 
+Core contracts are the root type surface exported by `@cookbook/router`.
+
+They define generated route registration, route-indexed URL state, authored routes, normalized routes, matches, middleware, lifecycle hooks, slots, intercepts, metadata, runtime state, history state, URL policy, path options, rendering callbacks, and serialization.
+
+There is no public `@cookbook/router/contracts` subpath. Import these contracts from the package root or from their owning subpath.
+
 ## Generated registration
 
 ```ts
 interface Register {}
+```
 
+`Register` is the module-augmentation hook used by generated route contracts.
+
+The generated `register.d.ts` augments it with a concrete `contracts` property:
+
+```ts
+interface Register {
+  contracts: RouterContracts;
+}
+```
+
+Without augmentation, router APIs remain permissive.
+
+## `RouterContracts`
+
+```ts
 interface RouterContracts {
   params?: Record<string, Record<string, unknown>>;
   paramsInput?: Record<string, Record<string, unknown>>;
@@ -24,70 +46,561 @@ interface RouterContracts {
 }
 ```
 
-The generated `register.d.ts` augments `Register` with a concrete `contracts` property. Without augmentation, package APIs remain permissive.
+<TypeTable
+type={{
+params: {
+description: 'Parsed path params keyed by route ID.',
+type: 'Record<string, Record<string, unknown>>',
+optional: true,
+},
+paramsInput: {
+description: 'Href/navigation path param input keyed by route ID.',
+type: 'Record<string, Record<string, unknown>>',
+optional: true,
+},
+search: {
+description: 'Parsed declared search state keyed by route ID.',
+type: 'Record<string, Record<string, unknown>>',
+optional: true,
+},
+searchInput: {
+description: 'Href/navigation search input keyed by route ID.',
+type: 'Record<string, Record<string, unknown>>',
+optional: true,
+},
+hash: {
+description: 'Parsed hash contract keyed by route ID. Routes that reject hash input can use never.',
+type: 'Record<string, string | undefined | never>',
+optional: true,
+},
+meta: {
+description: 'Generated route metadata keyed by route ID.',
+type: 'Record<string, Record<string, unknown>>',
+optional: true,
+},
+paths: {
+description: 'Generated route path strings keyed by route ID.',
+type: 'Record<string, string>',
+optional: true,
+},
+outletContext: {
+description: 'Outlet context types keyed by route ID.',
+type: 'Record<string, unknown>',
+optional: true,
+},
+}}
+/>
+
+Most applications should not author `RouterContracts` by hand. The CLI or bundler plugin generates this shape from route definitions.
+
+## `RegisteredContracts`
+
+```ts
+type RegisteredContracts =
+  Register extends {
+    contracts: infer Contracts;
+  }
+    ? Contracts
+    : RouterContracts;
+```
+
+`RegisteredContracts` is the active contract model after module augmentation.
+
+When no generated registration exists, it falls back to the permissive `RouterContracts` shape.
 
 ## Route-indexed contracts
 
 ```ts
-type RouteId = keyof RegisteredContracts['paths'] & string;
-type RouteParams<Route extends string> = /* parsed params */;
-type RouteParamsInput<Route extends string> = /* href input params */;
-type RouteSearch<Route extends string> = /* parsed search */;
-type RouteSearchInput<Route extends string> = /* href input search */;
-type RouteHash<Route extends string> = /* parsed hash */;
-type RouteHashInput<Route extends string> = /* bare, #prefixed, or null input */;
-type RegisteredRouteMeta<Route extends string> = /* generated metadata */;
-type RouteOutletContext<Route extends string> = /* generated outlet context */;
+type RouteId =
+  RegisteredContracts extends {
+    paths: infer Paths;
+  }
+    ? keyof Paths & string
+    : string;
 ```
 
-Parsed and input contracts differ deliberately. Defaulted search fields are present after parsing but optional while building. Wildcard path input accepts a slash-delimited string or primitive segment array; parsed wildcard params are readonly string arrays.
+`RouteId` is the generated route ID union when contracts are registered.
+
+Without generated `paths`, it falls back to `string`.
+
+```ts
+type RouteParams<Route extends string> =
+  RegisteredContracts extends {
+    params: infer Params;
+  }
+    ? Route extends keyof Params
+      ? Params[Route]
+      : Record<string, unknown>
+    : Record<string, unknown>;
+
+type RouteParamsInput<Route extends string> =
+  RegisteredContracts extends {
+    paramsInput: infer ParamsInput;
+  }
+    ? Route extends keyof ParamsInput
+      ? ParamsInput[Route]
+      : RouteParams<Route>
+    : RouteParams<Route>;
+
+type RouteSearch<Route extends string> =
+  RegisteredContracts extends {
+    search: infer Search;
+  }
+    ? Route extends keyof Search
+      ? Search[Route]
+      : Record<string, unknown>
+    : Record<string, unknown>;
+
+type RouteSearchInput<Route extends string> =
+  RegisteredContracts extends {
+    searchInput: infer SearchInput;
+  }
+    ? Route extends keyof SearchInput
+      ? SearchInput[Route]
+      : RouteSearch<Route>
+    : RouteSearch<Route>;
+```
+
+```ts
+type RouteHash<Route extends string> =
+  RegisteredContracts extends {
+    hash: infer Hash;
+  }
+    ? Route extends keyof Hash
+      ? Hash[Route]
+      : string | null
+    : string | null;
+
+type RouteHashInput<Route extends string> =
+  [RouteHash<Route>] extends [never]
+    ? never
+    :
+        | RouteHash<Route>
+        | null
+        | (
+            Extract<RouteHash<Route>, string> extends infer HashString
+              ? HashString extends string
+                ? `#${HashString}`
+                : never
+              : never
+          );
+```
+
+```ts
+type RegisteredRouteMeta<Route extends string> =
+  RegisteredContracts extends {
+    meta: infer Meta;
+  }
+    ? Route extends keyof Meta
+      ? Meta[Route]
+      : Record<string, unknown>
+    : Record<string, unknown>;
+
+type RouteOutletContext<Route extends string> =
+  RegisteredContracts extends {
+    outletContext: infer OutletContext;
+  }
+    ? Route extends keyof OutletContext
+      ? OutletContext[Route]
+      : unknown
+    : unknown;
+```
+
+<TypeTable
+type={{
+RouteId: {
+description: 'Generated route ID union, or string without generated paths.',
+type: 'type',
+},
+RouteParams: {
+description: 'Parsed path params for a route ID.',
+type: 'type',
+},
+RouteParamsInput: {
+description: 'Href/navigation path param input for a route ID.',
+type: 'type',
+},
+RouteSearch: {
+description: 'Parsed declared search state for a route ID.',
+type: 'type',
+},
+RouteSearchInput: {
+description: 'Href/navigation search input for a route ID.',
+type: 'type',
+},
+RouteHash: {
+description: 'Parsed hash state for a route ID.',
+type: 'type',
+},
+RouteHashInput: {
+description: 'Href/navigation hash input for a route ID.',
+type: 'type',
+},
+RegisteredRouteMeta: {
+description: 'Generated route metadata for a route ID.',
+type: 'type',
+},
+RouteOutletContext: {
+description: 'Generated outlet context for a route ID.',
+type: 'type',
+},
+}}
+/>
+
+Parsed and input contracts differ deliberately.
+
+Defaulted search fields are present after parsing but optional while building. Wildcard path input accepts a slash-delimited string or primitive segment array. Parsed wildcard params are readonly string arrays.
+
+## `RouteUrlOptions`
+
+```ts
+interface RouteUrlOptions<Route extends string> {
+  readonly params?: RouteParamsInput<Route>;
+  readonly search?: RouteSearchInput<Route>;
+  readonly hash?: RouteHashInput<Route>;
+}
+```
+
+`RouteUrlOptions` is the generated per-route URL-state input shared by href generation, route resolution, navigation, preloading, and React link contracts.
+
+It is not the same as `RouterUrlOptions`.
+
+| Contract                 | Purpose                                                                                       |
+| ------------------------ | --------------------------------------------------------------------------------------------- |
+| `RouteUrlOptions<Route>` | Per-route typed params/search/hash input.                                                     |
+| `RouterUrlOptions`       | Runtime URL policy: array format, defaults, invalid state, unknown search, and path matching. |
+
+## Authored route contracts
+
+```ts
+type RouteView = unknown;
+
+type RouteMeta = Record<string, unknown>;
+
+type RouteSearchSchema =
+  Readonly<Record<string, StaticSearchField>>;
+
+type RouteHashSchema = StaticHashDescriptor;
+```
+
+`RouteView` is opaque. The core router never calls it. Rendering integrations decide what a view means.
+
+`RouteMeta` is application-owned data. The core router copies it through authored, normalized, and matched state but does not interpret it.
+
+## `RouteDefinition`
+
+```ts
+interface RouteDefinition {
+  readonly id: string;
+  readonly path?: string;
+  readonly index?: boolean;
+  readonly view?: RouteView;
+  readonly layout?: RouteLayoutDefinition;
+  readonly children?: readonly RouteDefinition[];
+  readonly intercepts?: RouteIntercepts;
+  readonly redirect?: RouteRedirect;
+  readonly search?: RouteSearchSchema;
+  readonly url?: RouterUrlOptions;
+  readonly hash?: RouteHashSchema;
+  readonly meta?: RouteMeta;
+  readonly preload?: RoutePreload;
+  readonly modulePreload?: RouteModulePreload;
+  readonly loading?: RouteView;
+  readonly error?: RouteView;
+  readonly lifecycle?: RouteLifecycle;
+  readonly middleware?: readonly Middleware[];
+}
+```
+
+<TypeTable
+type={{
+id: {
+description: 'Stable route identifier used by matching, href generation, contracts, metadata, and diagnostics.',
+type: 'string',
+},
+path: {
+description: 'Local path pattern. Omitted only for valid pathless layout/group routes.',
+type: 'string',
+optional: true,
+},
+index: {
+description: 'Marks the default child at the parent path.',
+type: 'boolean',
+optional: true,
+},
+view: {
+description: 'Renderer-owned route view.',
+type: 'RouteView',
+optional: true,
+},
+layout: {
+description: 'Layout shell, shared fallbacks, and named slots.',
+type: 'RouteLayoutDefinition',
+optional: true,
+},
+children: {
+description: 'Nested route definitions.',
+type: 'readonly RouteDefinition[]',
+optional: true,
+},
+intercepts: {
+description: 'Route-configured slot intercepts keyed by slot name.',
+type: 'RouteIntercepts',
+optional: true,
+},
+redirect: {
+description: 'Static redirect target.',
+type: 'RouteRedirect',
+optional: true,
+},
+search: {
+description: 'Static URLKit search descriptor.',
+type: 'RouteSearchSchema',
+optional: true,
+},
+url: {
+description: 'Route-level URL policy.',
+type: 'RouterUrlOptions',
+optional: true,
+},
+hash: {
+description: 'Static URLKit hash descriptor.',
+type: 'RouteHashSchema',
+optional: true,
+},
+meta: {
+description: 'Application-owned route metadata.',
+type: 'RouteMeta',
+optional: true,
+},
+preload: {
+description: 'Application-owned route preload hook.',
+type: 'RoutePreload',
+optional: true,
+},
+modulePreload: {
+description: 'Route-module preloader used by generated/runtime integrations.',
+type: 'RouteModulePreload',
+optional: true,
+},
+loading: {
+description: "Loading fallback for this route's own view.",
+type: 'RouteView',
+optional: true,
+},
+error: {
+description: "Error fallback for this route's own view.",
+type: 'RouteView',
+optional: true,
+},
+lifecycle: {
+description: 'Route-local lifecycle hooks.',
+type: 'RouteLifecycle',
+optional: true,
+},
+middleware: {
+description: 'Route-local middleware.',
+type: 'readonly Middleware[]',
+optional: true,
+},
+}}
+/>
+
+## `RouteDeclaration`
+
+```ts
+interface RouteDeclaration
+  extends Omit<RouteDefinition, 'children'> {
+  readonly parent?: string;
+  readonly order?: number;
+  readonly children?: readonly RouteDeclaration[];
+}
+```
+
+<TypeTable
+type={{
+parent: {
+description: 'Parent route ID used by modular route composition.',
+type: 'string',
+optional: true,
+},
+order: {
+description: 'Sibling ordering hint consumed by defineRouteTree.',
+type: 'number',
+optional: true,
+},
+children: {
+description: 'Inline modular child declarations.',
+type: 'readonly RouteDeclaration[]',
+optional: true,
+},
+}}
+/>
+
+`parent` and `order` are composition-only fields. Runtime route definitions do not keep them.
+
+## Layout contracts
+
+```ts
+interface RouteLayoutDefinition {
+  readonly view?: RouteView;
+  readonly loading?: RouteView;
+  readonly error?: RouteView;
+  readonly slots?: RouteSlotDefinitions;
+}
+```
+
+```ts
+interface RouteSlotConfig {
+  readonly view?: RouteView;
+  readonly routes?: readonly RouteDefinition[];
+  readonly meta?: RouteMeta;
+}
+
+type RouteSlotDefinition =
+  | RouteView
+  | RouteSlotConfig
+  | true;
+
+type RouteSlotDefinitions =
+  Readonly<Record<string, RouteSlotDefinition>>;
+```
+
+<TypeTable
+type={{
+view: {
+description: 'Layout shell view or slot fallback view, depending on the owning contract.',
+type: 'RouteView',
+optional: true,
+},
+loading: {
+description: 'Layout-owned loading fallback inherited by descendants.',
+type: 'RouteView',
+optional: true,
+},
+error: {
+description: 'Layout-owned error fallback inherited by descendants.',
+type: 'RouteView',
+optional: true,
+},
+slots: {
+description: 'Named slot definitions owned by a layout.',
+type: 'RouteSlotDefinitions',
+optional: true,
+},
+routes: {
+description: 'Nested route tree resolved inside a named slot.',
+type: 'readonly RouteDefinition[]',
+optional: true,
+},
+meta: {
+description: 'Slot metadata copied to normalized slot state.',
+type: 'RouteMeta',
+optional: true,
+},
+}}
+/>
+
+A slot shorthand may be:
+
+| Shape                    | Meaning                                                |
+| ------------------------ | ------------------------------------------------------ |
+| `true`                   | Enabled slot without fallback content.                 |
+| `RouteView`              | Enabled slot with fallback view.                       |
+| `{ view, routes, meta }` | Configured fallback, nested slot routes, and metadata. |
+
+## Redirect contracts
+
+```ts
+type RouteRedirect =
+  | string
+  | {
+      readonly route: string;
+      readonly params?: Record<string, unknown>;
+      readonly search?: Record<string, unknown>;
+      readonly hash?: string | null;
+    };
+```
+
+A string redirect is a literal href. An object redirect targets a route ID and builds an href from params, search, and hash.
+
+## Interception contracts
+
+```ts
+interface RouteInterceptConfig {
+  readonly to: string | readonly string[];
+  readonly view: RouteView;
+}
+
+type RouteIntercepts =
+  Readonly<Record<string, RouteInterceptConfig>>;
+```
+
+Route-configured intercepts are keyed by slot name.
+
+```ts
+interface CallSiteInterceptInput {
+  readonly slot: string;
+  readonly view?: RouteView;
+}
+
+type InterceptInput =
+  | false
+  | string
+  | CallSiteInterceptInput;
+```
+
+A string `InterceptInput` selects a configured slot. An object supplies a slot and optional view. `false` disables configured interception for one href/navigation call.
+
+```ts
+interface InterceptHistoryState {
+  readonly __cookbookRouterIntercept: {
+    readonly slot: string;
+    readonly sourceRouteId: string;
+    readonly targetRouteId: string;
+    readonly viewKey?: string;
+    readonly previousHref: string;
+    readonly context?: unknown;
+  };
+}
+```
+
+`InterceptHistoryState` is router-owned browser history state. Do not forge it manually.
+
+```ts
+interface ResolvedIntercept {
+  readonly slot: string;
+  readonly sourceRouteId: string;
+  readonly targetRouteId: string;
+  readonly view: RouteView;
+  readonly previousLocation: string;
+  readonly configured: boolean;
+  readonly context?: unknown;
+}
+```
+
+`ResolvedIntercept` is the normalized transition-time intercept state used by runtime and rendering integration.
 
 ## Normalized route contracts
 
-`NormalizedRoute` contains `route`, `localPath`, `fullPath`, `parentId`, normalized children, parameter definitions, score, order, layouts/slots, intercepts, metadata, lifecycle, and middleware. `RankedRoute` adds `rank`. `MatchedRoute` pairs a normalized route with parsed params. `RouteMatch` adds branch, href, search, hash, unknown search, slots, and optional intercepted state.
-
-## Middleware
-
 ```ts
-interface MiddlewareContext {
-  readonly route: MatchedRoute;
-  readonly location: RouterLocation;
-  readonly params: Record<string, unknown>;
-  readonly search: ParsedRouteSearch | Record<string, unknown>;
-  readonly unknownSearch?: ParsedUnknownRouteSearch;
-  readonly hash: ParsedRouteHash | unknown;
-  redirect(to: string): MiddlewareResult;
-  rewrite(to: string): MiddlewareResult;
-  cancel(): MiddlewareResult;
+interface RouteParamConstraint {
+  readonly type: string;
+  readonly params: string;
 }
 
-type MiddlewareResult =
-  | void
-  | false
-  | Response
-  | { readonly type: 'redirect'; readonly to: string }
-  | { readonly type: 'rewrite'; readonly to: string }
-  | { readonly type: 'cancel' };
+interface RouteParamDefinition {
+  readonly name: string;
+  readonly constraints: readonly RouteParamConstraint[];
+  readonly wildcard: boolean;
+  readonly optional: boolean;
+  readonly token: string;
+}
 ```
 
-## Lifecycle
+`RouteParamDefinition` is derived from route path tokens during normalization.
 
-`GlobalLifecycle` and `RouteLifecycle` expose before/after/error hooks around resolved transitions. Context includes from/to matches, URL state, location, action, and errors where applicable. Lifecycle observes transitions; middleware can change their outcome.
-
-## Slots and intercepts
-
-Contracts include `RouteSlotConfig`, `RouteSlotDefinition`, `RouteSlotDefinitions`, `RouteInterceptConfig`, and `RouteIntercepts`. Runtime contracts include normalized slot configs, resolved slots, and intercepted route state. A slot shorthand may be a view, `{ view, routes, meta }`, or `true`.
-
-## Metadata
-
-`RouteMetaEntry` includes route ID, generated params, generated metadata, normalized route, and optional active `MatchedRoute`. Merge contracts support a global mode and per-key overrides.
-
-## Public type inventory
-
-The package root also exports router creation/options, history, URL policy, path constraint, rendering callback/context, navigation/intercept, preload, route descriptor, serialization, and fallback contracts documented on their owning API pages.
-
-
-## Normalized layout and slot contracts
+`token` preserves the full path token for diagnostics. `constraints` stores each constraint name and raw argument string.
 
 ```ts
 interface NormalizedRouteSlotFallback {
@@ -106,9 +619,8 @@ interface NormalizedRouteSlotConfig {
   readonly disabled: boolean;
 }
 
-type NormalizedRouteSlots = Readonly<
-  Record<string, NormalizedRouteSlotConfig>
->;
+type NormalizedRouteSlots =
+  Readonly<Record<string, NormalizedRouteSlotConfig>>;
 
 interface NormalizedRouteLayout {
   readonly view?: RouteView;
@@ -116,38 +628,141 @@ interface NormalizedRouteLayout {
 }
 ```
 
-Slot shorthand is resolved before matching. `fallback: undefined` means no fallback was declared; `fallback: null` represents an explicitly enabled slot without fallback content. Nested slot routes are normalized independently and retain owner/name metadata.
-
-## Normalized path-parameter contracts
+`fallback: undefined` means no fallback was declared. `fallback: null` represents an explicitly enabled slot without fallback content.
 
 ```ts
-interface RouteParamConstraint {
-  readonly type: string;
-  readonly params: string;
+interface NormalizedRoute {
+  readonly id: string;
+  readonly localPath?: string;
+  readonly fullPath?: string;
+  readonly parentId?: string;
+  readonly children: readonly NormalizedRoute[];
+  readonly layout?: NormalizedRouteLayout;
+  readonly view?: RouteView;
+  readonly params: readonly RouteParamDefinition[];
+  readonly index: boolean;
+  readonly score: number;
+  readonly pathDepth: number;
+  readonly order: number;
+  readonly route: RouteDefinition;
+  readonly meta?: RouteMeta;
+  readonly lifecycle?: RouteLifecycle;
+  readonly middleware?: readonly Middleware[];
+  readonly slotOwnerId?: string;
+  readonly slotName?: string;
+  readonly slotRoute: boolean;
+  readonly intercepts: readonly {
+    readonly sourceRouteId: string;
+    readonly slot: string;
+    readonly targetRouteId: string;
+    readonly view: RouteView;
+  }[];
 }
 
-interface RouteParamDefinition {
-  readonly name: string;
-  readonly constraints: readonly RouteParamConstraint[];
-  readonly wildcard: boolean;
-  readonly optional: boolean;
-  readonly token: string;
+interface RankedRoute extends NormalizedRoute {
+  readonly rank: number;
 }
 ```
 
-`RouteParamDefinition` is derived from PathKit token created during normalization. `token` preserves the complete token for diagnostics, while `constraints` stores each constraint name and its raw argument string. It describes route structure; generated `RouteParams` and `RouteParamsInput` describe application values.
+`NormalizedRoute` is derived state. Author route trees as `RouteDefinition`, not as `NormalizedRoute`.
 
-## Preload and lifecycle contexts
+## Match contracts
 
 ```ts
-interface RoutePreloadContext<Route extends string = string> {
+interface MatchedRoute {
+  readonly id: string;
+  readonly route: NormalizedRoute;
+  readonly params: Record<string, unknown>;
+}
+```
+
+```ts
+interface RouteMatch<Route extends string = string> {
+  readonly id: Route;
+  readonly pathname: string;
+  readonly search: Route extends RouteId
+    ? RouteSearch<Route>
+    : Record<string, string | readonly string[]>;
+  readonly unknownSearch?: RouterUnknownSearchParams;
+  readonly hash: Route extends RouteId
+    ? RouteHash<Route>
+    : string | undefined;
+  readonly href: string;
+  readonly route: NormalizedRoute;
+  readonly branch: readonly MatchedRoute[];
+  readonly params: Route extends RouteId
+    ? RouteParams<Route>
+    : Record<string, unknown>;
+  readonly slots: ResolvedSlots;
+  readonly intercepted?: ResolvedInterceptedRoute;
+}
+```
+
+`RouteMatch` is the public matched-route state for the current or requested location.
+
+When generated contracts are registered, `params`, `search`, and `hash` narrow by route ID.
+
+## Resolved slots and intercepted route state
+
+```ts
+interface ResolvedSlot {
+  readonly ownerRouteId: string;
+  readonly name: string;
+  readonly status:
+    | 'matched'
+    | 'fallback'
+    | 'empty'
+    | 'disabled'
+    | 'not-found';
+  readonly config: NormalizedRouteSlotConfig;
+  readonly match?: MatchedRoute;
+  readonly branch?: readonly MatchedRoute[];
+  readonly fallback?: NormalizedRouteSlotFallback;
+  readonly params: Record<string, unknown>;
+  readonly meta?: RouteMeta;
+  readonly view?: RouteView;
+}
+
+type ResolvedSlots =
+  Readonly<
+    Record<
+      string,
+      Readonly<Record<string, ResolvedSlot>>
+    >
+  >;
+```
+
+```ts
+interface ResolvedInterceptedRoute {
+  readonly slot: string;
+  readonly sourceRouteId: string;
+  readonly targetRouteId: string;
+  readonly previousHref: string;
+  readonly match: RouteMatch;
+  readonly view: RouteView;
+  readonly context?: unknown;
+}
+```
+
+`ResolvedSlots` is grouped by owner route ID, then slot name.
+
+`ResolvedInterceptedRoute` describes an active intercepted target rendered into a slot while the source branch remains mounted.
+
+## Preload contracts
+
+```ts
+interface RoutePreloadContext<
+  Route extends string = string,
+> {
   readonly route: MatchedRoute;
   readonly match: RouteMatch<Route>;
   readonly location: RouterLocation;
   readonly params: Record<string, unknown>;
-  readonly search: ParsedRouteSearch | Record<string, unknown>;
-  readonly unknownSearch?: ParsedUnknownRouteSearch;
-  readonly hash: ParsedRouteHash | unknown;
+  readonly search:
+    | Record<string, string | readonly string[]>
+    | Record<string, unknown>;
+  readonly unknownSearch?: RouterUnknownSearchParams;
+  readonly hash: string | undefined | unknown;
   readonly signal: AbortSignal;
 }
 
@@ -155,10 +770,97 @@ type RoutePreload = (
   context: RoutePreloadContext,
 ) => void | Promise<void>;
 
-type RouteModulePreload = () => void | Promise<void>;
+type RouteModulePreload =
+  () => void | Promise<void>;
 ```
 
-`RoutePreloadContext.signal` is aborted when the speculative work is superseded. Preloading does not commit navigation, run middleware, or mutate router state.
+`RoutePreloadContext.signal` is aborted when speculative work is superseded.
+
+Preloading warms route work. It does not commit navigation, run middleware, or mutate router state.
+
+## Middleware contracts
+
+```ts
+interface MiddlewareContext {
+  readonly route: MatchedRoute;
+  readonly location: RouterLocation;
+  readonly params: Record<string, unknown>;
+  readonly search:
+    | Record<string, string | readonly string[]>
+    | Record<string, unknown>;
+  readonly unknownSearch?: RouterUnknownSearchParams;
+  readonly hash: string | undefined | unknown;
+  redirect: (to: string) => MiddlewareResult;
+  rewrite: (to: string) => MiddlewareResult;
+  cancel: () => MiddlewareResult;
+}
+```
+
+```ts
+type MiddlewareResult =
+  | void
+  | false
+  | Response
+  | {
+      readonly type: 'redirect';
+      readonly to: string;
+    }
+  | {
+      readonly type: 'rewrite';
+      readonly to: string;
+    }
+  | {
+      readonly type: 'cancel';
+    };
+
+type Middleware = (
+  context: MiddlewareContext,
+) => MiddlewareResult | Promise<MiddlewareResult>;
+```
+
+<TypeTable
+type={{
+route: {
+description: 'Matched branch entry currently being evaluated.',
+type: 'MatchedRoute',
+},
+location: {
+description: 'Target router location.',
+type: 'RouterLocation',
+},
+params: {
+description: 'Parsed path params for this route context.',
+type: 'Record<string, unknown>',
+},
+search: {
+description: 'Parsed declared or generic search state.',
+type: 'Record<string, string | readonly string[]> | Record<string, unknown>',
+},
+unknownSearch: {
+description: 'Preserved undeclared search state.',
+type: 'RouterUnknownSearchParams',
+optional: true,
+},
+hash: {
+description: 'Parsed hash state.',
+type: 'string | undefined | unknown',
+},
+redirect: {
+description: 'Creates a structured redirect result.',
+type: '(to: string) => MiddlewareResult',
+},
+rewrite: {
+description: 'Creates a structured rewrite result.',
+type: '(to: string) => MiddlewareResult',
+},
+cancel: {
+description: 'Creates a structured cancellation result.',
+type: '() => MiddlewareResult',
+},
+}}
+/>
+
+## Lifecycle contracts
 
 ```ts
 interface RouteLifecycleContext {
@@ -166,77 +868,113 @@ interface RouteLifecycleContext {
   readonly to: RouteMatch | null;
   readonly location: RouterLocation;
   readonly params: Record<string, unknown>;
-  readonly search: ParsedRouteSearch | Record<string, unknown>;
-  readonly unknownSearch?: ParsedUnknownRouteSearch;
-  readonly hash: ParsedRouteHash | unknown;
+  readonly search:
+    | Record<string, string | readonly string[]>
+    | Record<string, unknown>;
+  readonly unknownSearch?: RouterUnknownSearchParams;
+  readonly hash: string | undefined | unknown;
 }
 ```
 
-Route and global lifecycle hooks share `RouteLifecycleContext`. Route `beforeEnter` and `beforeLeave`, plus global `beforeNavigate`, may return `false` to cancel. Lifecycle observes or cancels; redirects and rewrites belong to middleware.
-
-## Interception contracts
-
 ```ts
-interface CallSiteInterceptInput {
-  readonly slot: string;
-  readonly view?: RouteView;
-}
-
-type InterceptInput = false | string | CallSiteInterceptInput;
-```
-
-A string selects a configured slot. An object manually supplies a slot and optional view. `false` disables configured interception for one href/navigation call.
-
-```ts
-interface InterceptHistoryState {
-  readonly __cookbookRouterIntercept: {
-    readonly slot: string;
-    readonly sourceRouteId: string;
-    readonly targetRouteId: string;
-    readonly viewKey?: string;
-    readonly previousHref: string;
-    readonly context?: unknown;
-  };
+interface RouteLifecycle {
+  readonly beforeEnter?: (
+    context: RouteLifecycleContext,
+  ) => boolean | void | Promise<boolean | void>;
+  readonly afterEnter?: (
+    context: RouteLifecycleContext,
+  ) => void | Promise<void>;
+  readonly beforeLeave?: (
+    context: RouteLifecycleContext,
+  ) => boolean | void | Promise<boolean | void>;
+  readonly onError?: (
+    error: unknown,
+    context: RouteLifecycleContext,
+  ) => void | Promise<void>;
 }
 ```
 
-The router stores `InterceptHistoryState` so browser back can close intercepted UI and restore the previous primary branch. Treat the property as router-owned state; do not forge it manually.
-
-## URL policy aliases
-
 ```ts
-type RouterUrlArrayFormat = 'repeat' | 'comma';
-type RouterUnknownSearchPolicy = UnknownSearchBehavior;
-type RouterInvalidUrlStatePolicy = 'recover' | 'no-match' | 'error';
+interface GlobalLifecycle {
+  readonly beforeNavigate?: (
+    context: RouteLifecycleContext,
+  ) => boolean | void | Promise<boolean | void>;
+  readonly afterNavigate?: (
+    context: RouteLifecycleContext,
+  ) => void | Promise<void>;
+  readonly onNavigationError?: (
+    error: unknown,
+    context: RouteLifecycleContext,
+  ) => void | Promise<void>;
+}
 ```
 
-- `repeat` serializes arrays as `?tag=a&tag=b`; `comma` uses `?tag=a,b`.
-- `RouterUnknownSearchPolicy` controls stripping, preserving, or rejecting undeclared query keys according to URLKit's `UnknownSearchBehavior`.
-- `recover` omits invalid optional/defaulted URL state where possible; `no-match` rejects the candidate; `error` keeps the path candidate and surfaces the failure in router error state.
+Route and global lifecycle hooks share `RouteLifecycleContext`.
 
-`RouteUrlOptions<Route>` is the generated per-route alias used by typed URL APIs. It resolves to the URL options available for that registered route rather than introducing a second runtime policy shape.
+`beforeEnter`, `beforeLeave`, and `beforeNavigate` may return `false` to cancel. Redirects and rewrites belong to middleware.
 
-## Metadata merge contracts
+## Runtime option contracts
 
 ```ts
-type RouteMetaMergeMode =
-  | 'leaf'
-  | 'shallow'
-  | 'deep'
-  | 'append'
-  | 'prepend';
-
-interface RouteMetaMergeOptions {
-  readonly default?: RouteMetaMergeMode;
-  readonly keys?: Readonly<Record<string, RouteMetaMergeMode>>;
+interface CreateRouterOptions {
+  readonly routes: readonly RouteDefinition[];
+  readonly basename?: string;
+  readonly middleware?: readonly Middleware[];
+  readonly lifecycle?: GlobalLifecycle;
+  readonly hydrationData?: SerializedRouterState;
+  readonly history?: RouterHistory;
+  readonly pathOptions?: RouterPathOptions;
+  readonly pathConstraints?: RouterPathConstraints;
+  readonly url?: RouterUrlOptions;
+  readonly maxRedirectDepth?: number;
+  readonly maxRedirectionDepth?: number;
 }
 
-type RouteMetaMergeInput = RouteMetaMergeMode | RouteMetaMergeOptions;
+interface CreateMemoryRouterOptions
+  extends Omit<CreateRouterOptions, 'history'> {
+  readonly initialEntries?: readonly string[];
+  readonly initialIndex?: number;
+}
+
+interface CreateStaticRouterOptions
+  extends Omit<CreateRouterOptions, 'history' | 'url'> {
+  readonly url?: string | URL | Request;
+  readonly request?: Request;
+  readonly routerUrl?: RouterUrlOptions;
+}
 ```
 
-`default` selects the merge mode for keys without an override. `keys` lets individual metadata fields use another strategy. `leaf` keeps the nearest value; `shallow` merges one object level; `deep` recursively merges object values; `append` and `prepend` compose array-like metadata in branch order.
+```ts
+interface HrefOptions<Route extends string>
+  extends RouteUrlOptions<Route> {
+  readonly url?: RouterUrlBuildOptions;
+  readonly intercept?: InterceptInput;
+  readonly context?: unknown;
+  readonly preventScrollReset?: boolean;
+}
 
-## Navigation state
+interface NavigateOptions<Route extends string>
+  extends HrefOptions<Route> {
+  readonly route: Route;
+}
+
+interface PreloadOptions<Route extends string>
+  extends HrefOptions<Route> {
+  readonly signal?: AbortSignal;
+}
+
+interface MatchOptions {
+  readonly url?: RouterUrlOptions;
+}
+
+interface PreloadHrefOptions extends MatchOptions {
+  readonly signal?: AbortSignal;
+}
+```
+
+`HrefOptions` extends route-indexed URL input with runtime navigation metadata.
+
+## Router runtime contracts
 
 ```ts
 type RouterNavigationState =
@@ -247,8 +985,569 @@ type RouterNavigationState =
   | 'error';
 ```
 
-This is transition state, not route-match state. The router may retain the previous committed match while navigation is pending, blocked, redirecting, or failing.
+```ts
+interface RouterState {
+  readonly location: RouterLocation;
+  readonly match: RouteMatch | null;
+  readonly navigation: RouterNavigationState;
+  readonly error?: unknown;
+  readonly previousLocation?: RouterLocation;
+}
+
+interface SerializedRouterState {
+  readonly location: RouterLocation;
+  readonly navigation: RouterNavigationState;
+}
+```
+
+`RouterNavigationState` is transition state, not route-match state. The router may retain the previous committed match while navigation is pending, blocked, redirecting, or failing.
+
+## History contracts
+
+```ts
+type HistoryAction =
+  | 'push'
+  | 'replace'
+  | 'pop'
+  | 'hash';
+
+interface HistoryEvent {
+  readonly action: HistoryAction;
+  readonly location: RouterLocation;
+}
+
+interface RouterLocation {
+  readonly pathname: string;
+  readonly search: string;
+  readonly hash: string;
+  readonly href: string;
+  readonly state?: unknown;
+  readonly key: string;
+}
+
+interface RouterHistory {
+  readonly location: RouterLocation;
+  readonly mode?: 'browser' | 'memory' | 'static';
+  redirectExternal?: (
+    href: string,
+    mode: 'push' | 'replace',
+  ) => void;
+  push(href: string, state?: unknown): void;
+  replace(href: string, state?: unknown): void;
+  back(): void;
+  forward(): void;
+  go(delta: number): void;
+  listen(
+    listener: (event: HistoryEvent) => void,
+  ): () => void;
+}
+```
+
+`href` must equal `pathname + search + hash` and must not contain an origin.
+
+## URL policy contracts
+
+```ts
+type RouterUrlArrayFormat =
+  | 'repeat'
+  | 'comma';
+
+type RouterUnknownSearchPolicy =
+  | 'strip'
+  | 'preserve'
+  | 'error';
+
+type RouterInvalidUrlStatePolicy =
+  | 'recover'
+  | 'no-match'
+  | 'error';
+
+type RouterUnknownSearchParams =
+  Record<string, unknown>;
+```
+
+```ts
+interface RouterUrlOptions {
+  readonly arrayFormat?: RouterUrlArrayFormat;
+  readonly defaults?: 'include' | 'omit';
+  readonly invalidSearch?: RouterInvalidUrlStatePolicy;
+  readonly invalidHash?: RouterInvalidUrlStatePolicy;
+  readonly unknownSearch?: RouterUnknownSearchPolicy;
+  readonly pathMatch?: RouterPathMatchOptions;
+}
+
+interface RouterUrlBuildOptions {
+  readonly arrayFormat?: RouterUrlArrayFormat;
+  readonly defaults?: 'include' | 'omit';
+}
+```
+
+```ts
+interface RouterRouteSearchParseOptions
+  extends RouterPathMatchOptions {
+  readonly arrayFormat?: RouterUrlArrayFormat;
+  readonly unknownSearch?: RouterUnknownSearchPolicy;
+  readonly invalidSearch?: 'error' | 'omit';
+}
+
+interface ResolveUrlOptionsInput {
+  readonly router?: RouterUrlOptions;
+  readonly route?: RouterUrlOptions;
+  readonly call?: RouterUrlOptions;
+}
+```
+
+`RouterUrlOptions` controls runtime URL policy. `RouterUrlBuildOptions` is the smaller serialization-only policy.
+
+## Path contracts
+
+```ts
+interface RouterPathOptions {
+  readonly prune?: 'all' | 'duplication' | 'trailing' | false;
+}
+
+interface RouterPathMatchOptions {
+  readonly trailing?: boolean;
+  readonly strict?: boolean;
+  readonly sensitive?: boolean;
+  readonly end?: boolean;
+  readonly wildcardFormat?: 'string' | 'array';
+  readonly decode?: boolean | ((value: string) => string);
+}
+```
+
+```ts
+type RouterPathConstraint = ConstraintValidation;
+
+type RouterPathConstraints =
+  Readonly<Record<string, RouterPathConstraint>>;
+```
+
+The root exports the common path option and constraint contracts. More path-specific contracts, such as `PathPruneOption` and `AnalyzedPathPattern`, belong to `@cookbook/router/path`.
+
+## URL contract types
+
+```ts
+interface RouterRouteUrlDescriptor {
+  readonly path?: string;
+  readonly search?: RouteSearchSchema;
+  readonly hash?: RouteHashSchema;
+  readonly url?: RouterUrlOptions;
+}
+
+interface CreateRouterRouteUrlContractOptions {
+  readonly routerUrl?: RouterUrlOptions;
+  readonly callUrl?: RouterUrlOptions;
+  readonly pathConstraints?: RouterPathConstraints;
+  readonly routeId?: string;
+}
+```
+
+```ts
+interface RouterRouteUrlContract {
+  readonly pattern: string | undefined;
+  parse(
+    input: string | URL,
+    options?: RouterRouteSearchParseOptions,
+  ): unknown;
+  match(
+    input: string | URL,
+    options?: RouterRouteSearchParseOptions,
+  ): boolean;
+  build(
+    input: unknown,
+    options?: RouterUrlBuildOptions,
+  ): string;
+  parsePathname:
+    | ((
+        pathname: string,
+        options?: RouterPathMatchOptions,
+      ) => unknown)
+    | never;
+  buildPath:
+    | ((params: unknown) => string)
+    | never;
+  parseSearch(
+    input: string | URLSearchParams,
+    options?: RouterRouteSearchParseOptions,
+  ): unknown;
+  buildSearch(
+    search: unknown,
+    options?: RouterUrlBuildOptions,
+  ): string;
+  parseHash(input: unknown): unknown;
+  buildHash(
+    hash?: unknown,
+    options?: RouterUrlBuildOptions,
+  ): string;
+}
+```
+
+`UrlContractRouteDescriptor` is exported from `@cookbook/router/url-state`, not from the root package.
+
+## Metadata contracts
+
+```ts
+interface RouteMetaEntry<
+  Route extends string = RouteId,
+> {
+  readonly id: Route;
+  readonly params: Route extends RouteId
+    ? RouteParams<Route>
+    : Record<string, unknown>;
+  readonly meta: Route extends RouteId
+    ? RegisteredRouteMeta<Route>
+    : Record<string, unknown>;
+  readonly route: NormalizedRoute;
+  readonly match?: MatchedRoute;
+}
+```
+
+```ts
+interface RouteMetaChainOptions {
+  readonly includeAncestors?: boolean;
+}
+
+type RouteMetaMergeMode =
+  | 'leaf'
+  | 'shallow'
+  | 'deep'
+  | 'append'
+  | 'prepend';
+
+interface RouteMetaMergeOptions {
+  readonly default?: RouteMetaMergeMode;
+  readonly keys?: Readonly<
+    Record<string, RouteMetaMergeMode>
+  >;
+}
+
+type RouteMetaMergeInput =
+  | RouteMetaMergeMode
+  | RouteMetaMergeOptions;
+```
+
+Merge modes:
+
+| Mode      | Contract                                                 |
+| --------- | -------------------------------------------------------- |
+| `leaf`    | Nearest value wins.                                      |
+| `shallow` | Plain objects merge one level.                           |
+| `deep`    | Plain objects merge recursively.                         |
+| `append`  | Values are coerced to arrays and appended root-to-leaf.  |
+| `prepend` | Values are coerced to arrays and prepended leaf-to-root. |
+
+## Rendering contracts
+
+```ts
+interface RenderRouteMatchOptions<
+  View = RouteView,
+  Output = unknown,
+> {
+  readonly error?: unknown;
+  readonly fallback: Output;
+  readonly renderView: (
+    view: View,
+    context: RouteViewContext<Output>,
+  ) => Output;
+  readonly renderLayout?: (
+    view: View,
+    context: RouteLayoutViewContext<Output>,
+  ) => Output;
+  readonly renderLoading?: (
+    view: View,
+    context: RouteLoadingViewContext<Output>,
+  ) => Output;
+  readonly renderError?: (
+    view: View,
+    context: RouteErrorViewContext<Output>,
+  ) => Output;
+  readonly renderSlot?: (
+    view: View,
+    context: RouteSlotViewContext<Output>,
+  ) => Output;
+  readonly renderIntercept?: (
+    view: View,
+    context: RouteInterceptViewContext<Output>,
+  ) => Output;
+  readonly renderBoundary?: (
+    outlet: Output,
+    context: RouteBoundaryViewContext<View, Output>,
+  ) => Output;
+  readonly renderEmpty?: (
+    context: RouteEmptyViewContext,
+  ) => Output;
+}
+```
+
+```ts
+interface RouteViewContext<Output = unknown> {
+  readonly match: MatchedRoute;
+  readonly outlet: Output;
+  readonly slots: Readonly<Record<string, Output>>;
+}
+
+interface RouteLayoutViewContext<Output = unknown>
+  extends RouteViewContext<Output> {
+  readonly ownerRouteId: string;
+}
+
+interface RouteLoadingViewContext<Output = unknown>
+  extends RouteViewContext<Output> {
+  readonly source: 'route' | 'layout';
+}
+
+interface RouteErrorViewContext<Output = unknown>
+  extends RouteViewContext<Output> {
+  readonly error: unknown;
+  readonly source: 'route' | 'layout';
+}
+```
+
+```ts
+interface RouteSlotViewContext<Output = unknown>
+  extends RouteViewContext<Output> {
+  readonly ownerRouteId: string;
+  readonly name: string;
+  readonly slot: ResolvedSlot;
+  readonly params: Record<string, unknown>;
+}
+
+interface RouteInterceptViewContext<Output = unknown>
+  extends RouteViewContext<Output> {
+  readonly ownerRouteId: string;
+  readonly name: string;
+  readonly intercepted: ResolvedInterceptedRoute;
+  readonly context?: unknown;
+}
+```
+
+```ts
+interface ResolvedRouteFallback<
+  View = RouteView,
+> {
+  readonly view: View;
+  readonly match: MatchedRoute;
+  readonly source: 'route' | 'layout';
+}
+
+interface RouteBoundaryViewContext<
+  View = RouteView,
+  Output = unknown,
+> extends RouteViewContext<Output> {
+  readonly loading?: ResolvedRouteFallback<View>;
+  readonly error?: ResolvedRouteFallback<View>;
+  readonly isLeaf: boolean;
+}
+
+interface RouteEmptyViewContext {
+  readonly reason:
+    | 'empty-branch'
+    | 'empty-route'
+    | 'empty-slot'
+    | 'disabled-slot'
+    | 'not-found';
+  readonly match?: MatchedRoute;
+  readonly slot?: ResolvedSlot;
+}
+```
+
+These are renderer-neutral contracts. They describe traversal and ownership. They do not invoke framework rendering.
+
+## Generated search descriptor contract
+
+```ts
+type MergedSearchDescriptors<
+  Descriptors extends readonly RouteSearchSchema[],
+> = /* merged static search descriptor object */;
+```
+
+`MergedSearchDescriptors` is the public type returned by `mergeSearch()` for preserving merged static search descriptor inference.
+
+## Root type inventory
+
+The package root exports these generated-registration contracts:
+
+```text
+Register
+RegisteredContracts
+RouterContracts
+
+RouteId
+RouteParams
+RouteParamsInput
+RouteSearch
+RouteSearchInput
+RouteHash
+RouteHashInput
+RegisteredRouteMeta
+RouteOutletContext
+RouteUrlOptions
+```
+
+It exports these authored and normalized route contracts:
+
+```text
+GlobalLifecycle
+MatchedRoute
+Middleware
+MiddlewareContext
+MiddlewareResult
+NormalizedRoute
+NormalizedRouteLayout
+NormalizedRouteSlotConfig
+NormalizedRouteSlotFallback
+NormalizedRouteSlots
+RankedRoute
+RouteDeclaration
+RouteDefinition
+RouteHashSchema
+RouteInterceptConfig
+RouteIntercepts
+RouteLayoutDefinition
+RouteLifecycle
+RouteLifecycleContext
+RouteMatch
+RouteMeta
+RouteModulePreload
+RouteParamConstraint
+RouteParamDefinition
+RoutePreload
+RoutePreloadContext
+RouteRedirect
+RouteSearchSchema
+RouteSlotConfig
+RouteSlotDefinition
+RouteSlotDefinitions
+RouteView
+ResolvedInterceptedRoute
+ResolvedSlot
+ResolvedSlots
+```
+
+It exports these route-definition helper option contracts:
+
+```text
+DefineRouteTreeOptions
+DefineRoutesOptions
+MergedSearchDescriptors
+```
+
+It exports these runtime contracts:
+
+```text
+CreateMemoryRouterOptions
+CreateRouterOptions
+CreateStaticRouterOptions
+
+HrefOptions
+MatchOptions
+NavigateOptions
+PreloadHrefOptions
+PreloadOptions
+
+Router
+RouterState
+SerializedRouterState
+RouterNavigationState
+```
+
+It exports these history contracts:
+
+```text
+HistoryAction
+HistoryEvent
+RouterHistory
+RouterLocation
+```
+
+It exports these path contracts:
+
+```text
+RouterPathConstraint
+RouterPathConstraints
+RouterPathMatchOptions
+RouterPathOptions
+```
+
+It exports these URL-state contracts:
+
+```text
+CreateRouterRouteUrlContractOptions
+ResolveUrlOptionsInput
+RouterInvalidUrlStatePolicy
+RouterRouteSearchParseOptions
+RouterRouteUrlContract
+RouterRouteUrlDescriptor
+RouterUnknownSearchParams
+RouterUnknownSearchPolicy
+RouterUrlArrayFormat
+RouterUrlBuildOptions
+RouterUrlOptions
+```
+
+It exports these interception contracts:
+
+```text
+CallSiteInterceptInput
+InterceptHistoryState
+InterceptInput
+ResolvedIntercept
+```
+
+It exports these metadata contracts:
+
+```text
+RouteMetaChainOptions
+RouteMetaEntry
+RouteMetaMergeInput
+RouteMetaMergeMode
+RouteMetaMergeOptions
+```
+
+It exports these rendering contracts:
+
+```text
+RenderRouteMatchOptions
+ResolvedRouteFallback
+RouteBoundaryViewContext
+RouteEmptyViewContext
+RouteErrorViewContext
+RouteInterceptViewContext
+RouteLayoutViewContext
+RouteLoadingViewContext
+RouteSlotViewContext
+RouteViewContext
+```
+
+## Not root public import targets
+
+These names are implementation details or subpath-only details and should not be documented as root imports:
+
+```text
+InternalHref
+NavigationOptions
+NoInferRoute
+NormalizedIntercept
+ParsedRouteHash
+ParsedRouteSearch
+ParsedUnknownRouteSearch
+RegisteredRouteMatch
+ResolveInterceptOptions
+ResolvedSlotStatus
+RouteInterceptTarget
+RouteNavigationOptions
+TransitionOptions
+TransitionResult
+UrlContractRouteDescriptor
+```
+
+Some of them appear inside source files or internal signatures. That does not make them stable root API.
 
 ## Where this bites
 
-Do not hand-author `RouterContracts` unless integrating another generator. The generated shape is coupled to route normalization, URL descriptors, and path constraints; a manual approximation can compile and still disagree with runtime behavior.
+Do not hand-author `RouterContracts` unless integrating another generator.
+
+The generated shape is coupled to route normalization, URL descriptors, path constraints, search/default semantics, hash policy, slot ownership, and emitted route IDs.
+
+A manual approximation can compile and still disagree with runtime behavior.

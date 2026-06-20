@@ -10,7 +10,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 The links entrypoint exports router-aware anchors and the browser escape-hatch helper they use internally.
 
-```ts id="ojr0s5"
+```ts
 import {
   Link,
   NavLink,
@@ -33,7 +33,7 @@ The package root re-exports the same public link surface.
 
 ## `Link`
 
-```ts id="1tp3y0"
+```ts
 type LinkPrefetch =
   | false
   | 'hover'
@@ -70,7 +70,7 @@ Use `route` or its alias `to` for generated, contract-checked internal URLs.
 
 Use `href` for external destinations or deliberate browser-native navigation.
 
-```tsx id="ntqx5z"
+```tsx
 import { Link } from '@cookbook/router-react/links';
 
 export function UserActivityLink() {
@@ -89,7 +89,7 @@ export function UserActivityLink() {
 
 Explicit external link:
 
-```tsx id="ylvmdv"
+```tsx
 import { Link } from '@cookbook/router-react/links';
 
 export function ExternalDocsLink() {
@@ -107,7 +107,7 @@ export function ExternalDocsLink() {
 
 Explicit internal href without a route ID:
 
-```tsx id="a4b1vj"
+```tsx
 import { Link } from '@cookbook/router-react/links';
 
 export function NativeInternalLink() {
@@ -193,7 +193,7 @@ optional: true,
 
 `route` wins over `to` when both are supplied:
 
-```tsx id="wzs0cv"
+```tsx
 <Link route="users.details" to="users.index" params={{ slug }}>
   User
 </Link>
@@ -203,7 +203,7 @@ The component uses `users.details`.
 
 When `href` is supplied, it controls the rendered anchor URL:
 
-```tsx id="gf5e6e"
+```tsx
 <Link
   to="users.details"
   params={{ slug: 'ada-lovelace' }}
@@ -215,7 +215,7 @@ When `href` is supplied, it controls the rendered anchor URL:
 
 The rendered `<a>` receives:
 
-```html id="n48cav"
+```html
 <a href="/manual-user-url">User</a>
 ```
 
@@ -231,7 +231,7 @@ Do not mix `href` with `route` or `to` unless you intentionally want different n
 
 If that handler calls `event.preventDefault()`, router navigation is skipped.
 
-```tsx id="w1mxjj"
+```tsx
 <Link
   to="users.details"
   params={{ slug }}
@@ -265,7 +265,7 @@ Router navigation happens only when all of these are true:
 * the href is not `mailto:`, `tel:`, or cross-origin HTTP(S);
 * a `route` or `to` ID exists.
 
-```tsx id="fmwfk7"
+```tsx
 <Link to="documents.details" params={{ documentId }}>
   Open document
 </Link>
@@ -273,7 +273,7 @@ Router navigation happens only when all of these are true:
 
 With `replace`, the click calls `router.navigate.replace()` instead of `router.navigate.to()`:
 
-```tsx id="rprvot"
+```tsx
 <Link to="login" replace>
   Sign in
 </Link>
@@ -281,7 +281,7 @@ With `replace`, the click calls `router.navigate.replace()` instead of `router.n
 
 With `intercept={false}`, configured interception is bypassed for that navigation:
 
-```tsx id="j2uqn9"
+```tsx
 <Link
   to="documents.details"
   params={{ documentId }}
@@ -293,7 +293,7 @@ With `intercept={false}`, configured interception is bypassed for that navigatio
 
 With a call-site intercept, the destination route can render through a slot:
 
-```tsx id="s6j229"
+```tsx
 <Link
   to="documents.details"
   params={{ documentId }}
@@ -313,7 +313,7 @@ If a link must not navigate, do not render it as an enabled link, remove the des
 
 ## `LinkPrefetch`
 
-```ts id="tesdvi"
+```ts
 type LinkPrefetch =
   | false
   | 'hover'
@@ -332,7 +332,7 @@ type LinkPrefetch =
 
 Prefetch calls `router.preloadHref()`.
 
-```tsx id="g5nav3"
+```tsx
 <Link to="users.details" params={{ slug }} prefetch="hover">
   User
 </Link>
@@ -340,7 +340,7 @@ Prefetch calls `router.preloadHref()`.
 
 Focus prefetch:
 
-```tsx id="e59qry"
+```tsx
 <Link to="settings" prefetch="focus">
   Settings
 </Link>
@@ -348,7 +348,7 @@ Focus prefetch:
 
 Interaction prefetch:
 
-```tsx id="z2vq9w"
+```tsx
 <Link to="reports" prefetch="interaction">
   Reports
 </Link>
@@ -356,7 +356,7 @@ Interaction prefetch:
 
 Mount prefetch:
 
-```tsx id="rrqu10"
+```tsx
 <Link to="dashboard" prefetch="mount">
   Dashboard
 </Link>
@@ -364,7 +364,7 @@ Mount prefetch:
 
 `prefetch="mount"` runs again if the resolved href changes while the component remains mounted.
 
-```tsx id="kwf8de"
+```tsx
 <Link
   to="users.details"
   params={{ slug }}
@@ -387,7 +387,7 @@ Prefetch rejections are swallowed. Speculation must not create unhandled promise
 
 Explicit internal hrefs can prefetch even without a route ID:
 
-```tsx id="bqrn5r"
+```tsx
 <Link href="/users/ada-lovelace" prefetch="hover">
   User
 </Link>
@@ -397,7 +397,7 @@ That can warm the router through `preloadHref()`, but click navigation remains b
 
 Per-link URL options are forwarded to `preloadHref()` only as URL options:
 
-```tsx id="q94kcz"
+```tsx
 <Link
   to="products"
   search={{ tags: ['router', 'typescript'] }}
@@ -410,7 +410,7 @@ Per-link URL options are forwarded to `preloadHref()` only as URL options:
 
 ## `shouldPreserveBrowserBehavior()`
 
-```ts id="le52hr"
+```ts
 function shouldPreserveBrowserBehavior(
   event: MouseEvent<HTMLAnchorElement>,
   href: string,
@@ -458,7 +458,7 @@ It preserves browser behavior for:
 * `tel:`;
 * cross-origin HTTP(S).
 
-```tsx id="coakrq"
+```tsx
 import {
   shouldPreserveBrowserBehavior,
 } from '@cookbook/router-react/links';
@@ -501,7 +501,7 @@ This helper is public for design-system wrappers that need the same escape-hatch
 
 ## `NavLink`
 
-```ts id="y1op2v"
+```ts
 interface NavLinkRenderProps {
   readonly isActive: boolean;
 }
@@ -544,7 +544,7 @@ function NavLink<Route extends RouteId = RouteId>(
 
 `NavLink` computes the target href, compares it to the current router location, sets `aria-current="page"` while active, and delegates rendering and click behavior to `Link`.
 
-```tsx id="eovl2e"
+```tsx
 import { NavLink } from '@cookbook/router-react/links';
 
 export function SettingsNav() {
@@ -558,7 +558,7 @@ export function SettingsNav() {
 
 Render-prop children receive active state:
 
-```tsx id="2ou8xb"
+```tsx
 import { NavLink } from '@cookbook/router-react/links';
 
 export function ReportsNavItem() {
@@ -653,19 +653,19 @@ optional: true,
 
 `NavLink` throws when no destination is supplied:
 
-```text id="qlcj7y"
+```text
 NavLink requires route, to, or href.
 ```
 
 The destination can come from `route`, `to`, or `href`.
 
-```tsx id="gavc49"
+```tsx
 <NavLink href="/settings">Settings</NavLink>
 ```
 
 Same-origin absolute hrefs can be active in the browser:
 
-```tsx id="pfxglt"
+```tsx
 <NavLink href={`${window.location.origin}/settings`}>
   Settings
 </NavLink>
@@ -686,7 +686,7 @@ Cross-origin absolute URLs cannot be active. During SSR, absolute HTTP(S) URLs a
 
 Exact active link:
 
-```tsx id="sn09q2"
+```tsx
 <NavLink
   to="users.details"
   params={{ slug }}
@@ -699,7 +699,7 @@ Exact active link:
 
 Ignore search while keeping pathname and hash significant:
 
-```tsx id="lr9azt"
+```tsx
 <NavLink
   to="users.details"
   params={{ slug }}
@@ -713,14 +713,14 @@ Ignore search while keeping pathname and hash significant:
 
 The `search: 'ignore'` mode strips search from both sides and still compares hash. These two are active relative to each other:
 
-```text id="z6zzk3"
+```text
 /items?sort=new#top
 /items?sort=old#top
 ```
 
 These are not:
 
-```text id="rmiy4p"
+```text
 /items?sort=new#top
 /items?sort=new#details
 ```
@@ -731,7 +731,7 @@ A `Link` or `NavLink` does not turn every anchor into router navigation.
 
 These stay browser-native:
 
-```tsx id="xpdqc2"
+```tsx
 <Link href="mailto:team@example.com">Email</Link>
 <Link href="tel:+15550123">Call</Link>
 <Link href="https://example.com">External</Link>
@@ -741,7 +741,7 @@ These stay browser-native:
 
 Modifier keys stay native too:
 
-```text id="zspjtc"
+```text
 Cmd/Ctrl click
 Shift click
 Alt click
@@ -754,7 +754,7 @@ That is the right behavior. Breaking browser muscle memory to make a router look
 
 `@cookbook/router-react/links` exports these values:
 
-```text id="akxycg"
+```text
 Link
 NavLink
 shouldPreserveBrowserBehavior
@@ -762,7 +762,7 @@ shouldPreserveBrowserBehavior
 
 It exports these public types:
 
-```text id="jvpwjk"
+```text
 LinkPrefetch
 LinkProps
 NavLinkEnd
@@ -781,14 +781,14 @@ Non-`end` matching is textual prefix matching, not path-segment matching.
 
 This means `/users` also prefixes:
 
-```text id="s29rmu"
+```text
 /users-old
 /usersettings
 ```
 
 Use `end` for exact navigation items:
 
-```tsx id="qzuz67"
+```tsx
 <NavLink to="users" end>
   Users
 </NavLink>
@@ -798,7 +798,7 @@ Use `end` for exact navigation items:
 
 This renders one URL but router-clicks another route:
 
-```tsx id="v3jpwi"
+```tsx
 <Link
   href="/manual"
   to="users.details"
@@ -816,7 +816,7 @@ Use either `href` or `to` unless you are intentionally splitting native behavior
 
 This skips prefetch:
 
-```tsx id="f82y82"
+```tsx
 <Link
   to="users.details"
   params={{ slug }}
@@ -835,7 +835,7 @@ If the link should not navigate, prevent the click or do not render an enabled d
 
 This can prefetch:
 
-```tsx id="iykvrw"
+```tsx
 <Link href="/users/ada-lovelace" prefetch="hover">
   User
 </Link>

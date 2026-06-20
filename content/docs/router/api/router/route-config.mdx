@@ -1,54 +1,269 @@
 ---
 title: "Route configuration API"
-description: "Deep reference for route declarations, modular composition, URL descriptors, validation, and normalization."
+description: "Deep reference for route declarations, route trees, layout slots, intercepts, URL descriptors, validation, and normalization."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
 
-## `defineRoute(route)`
+The `@cookbook/router/route-config` entrypoint owns authored route shapes, modular route composition, tree validation, and normalized route contracts.
 
-Preserves literal fields in one modular declaration. It does not attach the route to a parent or validate the complete graph.
+It is the route authoring surface. It is not the runtime navigation API.
 
 ```ts
-function defineRoute<const Route extends RouteDeclaration>(route: Route): Route;
+import {
+  defineRoute,
+  defineRouteTree,
+  defineRoutes,
+  normalizeRoutes,
+  validateResolvedRouteTree,
+  validateRoutes,
+} from '@cookbook/router/route-config';
+
+import type {
+  DefineRouteTreeOptions,
+  DefineRoutesOptions,
+  RouteDeclaration,
+  RouteDefinition,
+  RouteLayoutDefinition,
+  RouteSlotConfig,
+  RouteSlotDefinition,
+  RouteInterceptConfig,
+  RouteIntercepts,
+  RouteRedirect,
+  RouteSearchSchema,
+  RouteHashSchema,
+  RoutePreload,
+  RoutePreloadContext,
+  RouteLifecycle,
+  Middleware,
+  NormalizedRoute,
+  RouteMatch,
+  MatchedRoute,
+} from '@cookbook/router/route-config';
 ```
 
-`parent` names a route ID. `order` sorts siblings numerically; declaration order breaks ties.
+Descriptor helpers such as `defineSearch()`, `mergeSearch()`, and `defineHash()` are related to route configuration, but they are root exports:
+
+```ts
+import {
+  defineHash,
+  defineSearch,
+  mergeSearch,
+} from '@cookbook/router';
+```
+
+Do not import them from `@cookbook/router/route-config`.
+
+## `defineRoute(route)`
+
+```ts
+function defineRoute<
+  const Route extends RouteDeclaration,
+>(route: Route): Route;
+```
+
+Preserves literal fields in one modular route declaration.
+
+It does not validate the graph, attach the route to a parent, sort siblings, or strip composition-only fields. It returns the object you passed in.
+
+```ts
+import { defineRoute } from '@cookbook/router/route-config';
+
+export const usersRoute = defineRoute({
+  id: 'users',
+  path: '/users',
+} as const);
+
+export const userDetailsRoute = defineRoute({
+  id: 'users.details',
+  parent: 'users',
+  path: '{slug:slug}',
+  order: 10,
+} as const);
+```
+
+Use it for split route modules that are composed later with `defineRouteTree()` or by the CLI.
+
+`parent` names another route ID. `order` is a modular-composition hint only.
 
 ## `defineRouteTree(options)`
 
-Composes declarations, registers supplied custom constraints, validates parent relationships, sorts siblings, validates the final route tree, and returns runtime `RouteDefinition[]` values with composition-only fields removed.
-
 ```ts
 interface DefineRouteTreeOptions {
+  readonly routes: readonly RouteDeclaration[];
   readonly pathOptions?: RouterPathOptions;
   readonly pathConstraints?: RouterPathConstraints;
 }
 
-function defineRouteTree<const Routes extends readonly RouteDeclaration[]>(
-  options: DefineRouteTreeOptions & { readonly routes: Routes },
+function defineRouteTree<
+  const Routes extends readonly RouteDeclaration[],
+>(
+  options: DefineRouteTreeOptions & {
+    readonly routes: Routes;
+  },
 ): readonly RouteDefinition[];
 ```
 
-Composition rejects duplicate IDs, missing parents, cycles, absolute child paths, children under redirect routes, conflicting inline `parent` values, non-numeric `order`, unknown intercept targets, and undeclared intercept slots.
+Composes modular route declarations into runtime `RouteDefinition[]`.
 
-## Descriptor helpers
+It:
+
+* registers supplied custom path constraints;
+* collects inline and parent-attached declarations;
+* validates parent relationships;
+* rejects cycles;
+* rejects duplicate route IDs;
+* rejects absolute paths on parent-attached child declarations;
+* rejects children under redirect routes;
+* validates configured intercept targets and slots;
+* sorts siblings deterministically;
+* validates the final route tree;
+* strips `parent` and `order` from returned runtime routes;
+* stores `pathOptions` and `pathConstraints` on the returned array for router creation and generation.
 
 ```ts
-function defineSearch<const Search extends RouteSearchSchema>(search: Search): Search;
-function mergeSearch<const Descriptors extends readonly RouteSearchSchema[]>(
-  ...descriptors: Descriptors
-): MergedSearchDescriptors<Descriptors>;
-function defineHash<const Hash extends RouteHashSchema>(hash: Hash): Hash;
+import {
+  defineRoute,
+  defineRouteTree,
+} from '@cookbook/router/route-config';
+
+const rootRoute = defineRoute({
+  id: 'root',
+  path: '/',
+  layout: {
+    view: RootLayout,
+    slots: {
+      modal: true,
+    },
+  },
+} as const);
+
+const overviewRoute = defineRoute({
+  id: 'overview',
+  parent: 'root',
+  path: 'overview',
+  order: 10,
+} as const);
+
+const createRoute = defineRoute({
+  id: 'create',
+  parent: 'root',
+  path: 'create',
+} as const);
+
+export const routes = defineRouteTree({
+  routes: [
+    rootRoute,
+    overviewRoute,
+    createRoute,
+  ],
+});
 ```
 
-These helpers preserve literal static data for inference and CLI extraction. `mergeSearch()` throws when descriptors repeat a key; silent overrides would make generated contracts lie.
+With custom constraints:
+
+```ts
+import { createPathConstraint } from '@cookbook/router/path';
+import { defineRouteTree } from '@cookbook/router/route-config';
+
+const slug = createPathConstraint({
+  parse: (paramName, value) => {
+    if (!/^[a-z0-9-]+$/.test(value)) {
+      throw new Error(
+        `Parameter "${paramName}" must be a slug.`,
+      );
+    }
+  },
+  verify: (_paramName, params) => {
+    if (params) {
+      throw new Error('slug does not accept parameters.');
+    }
+  },
+  toRegExp: () => '[a-z0-9-]+',
+});
+
+export const routes = defineRouteTree({
+  routes: [
+    {
+      id: 'post',
+      path: '/posts/{slug:slug}',
+    },
+  ],
+  pathConstraints: {
+    slug,
+  },
+});
+```
+
+<TypeTable
+type={{
+routes: {
+description: 'Modular route declarations to compose. Must be an array.',
+type: 'readonly RouteDeclaration[]',
+},
+pathOptions: {
+description: 'PathKit options used while validating and normalizing paths.',
+type: 'RouterPathOptions',
+optional: true,
+},
+pathConstraints: {
+description: 'Custom path constraints registered before final route validation.',
+type: 'RouterPathConstraints',
+optional: true,
+},
+}}
+/>
+
+### Sibling sorting
+
+`defineRouteTree()` sorts siblings by:
+
+1. `order`, ascending;
+2. index routes before non-index routes when order ties;
+3. path specificity, descending;
+4. declaration order.
+
+```ts
+const routes = defineRouteTree({
+  routes: [
+    defineRoute({
+      id: 'dashboard',
+      path: '/dashboard',
+      children: [
+        defineRoute({
+          id: 'dashboard.index',
+          index: true,
+        } as const),
+        defineRoute({
+          id: 'dashboard.settings',
+          path: 'settings',
+          order: 20,
+        } as const),
+      ],
+    } as const),
+    defineRoute({
+      id: 'dashboard.users',
+      parent: 'dashboard',
+      path: 'users',
+      order: 10,
+    } as const),
+  ],
+} as const);
+```
+
+The child order is:
+
+```text
+dashboard.users
+dashboard.settings
+dashboard.index
+```
+
+Order wins first. Index priority is not magic enough to beat an explicit lower `order`.
 
 ## `defineRoutes(routes, options?)`
-
-Validates one tree immediately and preserves its literal type.
 
 ```ts
 interface DefineRoutesOptions {
@@ -56,23 +271,194 @@ interface DefineRoutesOptions {
   readonly pathConstraints?: RouterPathConstraints;
 }
 
-function defineRoutes<const Routes extends readonly RouteDefinition[]>(
+function defineRoutes<
+  const Routes extends readonly RouteDefinition[],
+>(
   routes: Routes,
   options?: DefineRoutesOptions,
 ): Routes;
 ```
 
-Custom constraints used by paths must be supplied here or registered before this call.
+Validates one already-nested route tree immediately and preserves its literal type.
 
-## `RouteDeclaration` and `RouteDefinition`
+It also registers custom path constraints before validation and stores route options on the returned array with a non-enumerable shared symbol.
 
 ```ts
-interface RouteDeclaration extends Omit<RouteDefinition, 'children'> {
+import { defineRoutes } from '@cookbook/router/route-config';
+
+export const routes = defineRoutes([
+  {
+    id: 'root',
+    path: '/',
+    children: [
+      {
+        id: 'home',
+        index: true,
+      },
+      {
+        id: 'users.details',
+        path: 'users/{id:int}',
+        hash: {
+          type: 'enum',
+          values: ['profile', 'settings'],
+          optional: true,
+        },
+      },
+    ],
+  },
+] as const);
+```
+
+With path options:
+
+```ts
+export const routes = defineRoutes(
+  [
+    {
+      id: 'gallery',
+      path: '/gallery/',
+    },
+  ] as const,
+  {
+    pathOptions: {
+      prune: false,
+    },
+  },
+);
+```
+
+<TypeTable
+type={{
+pathOptions: {
+description: 'PathKit options used during immediate validation.',
+type: 'RouterPathOptions',
+optional: true,
+},
+pathConstraints: {
+description: 'Custom path constraints registered before immediate validation.',
+type: 'RouterPathConstraints',
+optional: true,
+},
+}}
+/>
+
+Use `defineRoutes()` for a static route tree. Use `defineRoute()` plus `defineRouteTree()` for modular declarations that attach by `parent`.
+
+## Descriptor helpers
+
+These helpers preserve literal static URL descriptors for inference and CLI extraction.
+
+They are exported from `@cookbook/router`, not `@cookbook/router/route-config`.
+
+```ts
+function defineSearch<
+  const Search extends RouteSearchSchema,
+>(search: Search): Search;
+
+function mergeSearch<
+  const Descriptors extends readonly RouteSearchSchema[],
+>(
+  ...descriptors: Descriptors
+): MergedSearchDescriptors<Descriptors>;
+
+function defineHash<
+  const Hash extends RouteHashSchema,
+>(hash: Hash): Hash;
+```
+
+```ts
+import {
+  defineHash,
+  defineSearch,
+  mergeSearch,
+} from '@cookbook/router';
+
+const paginationSearch = defineSearch({
+  page: {
+    type: 'int',
+    default: 1,
+  },
+} as const);
+
+const usersSearch = defineSearch({
+  q: {
+    type: 'string',
+    optional: true,
+  },
+  status: {
+    type: 'enum',
+    values: ['all', 'active', 'disabled'],
+    default: 'all',
+  },
+} as const);
+
+const userHash = defineHash({
+  type: 'enum',
+  values: ['profile', 'settings'],
+  optional: true,
+} as const);
+
+export const routes = defineRoutes([
+  {
+    id: 'users',
+    path: '/users',
+    search: mergeSearch(
+      paginationSearch,
+      usersSearch,
+    ),
+    hash: userHash,
+  },
+] as const);
+```
+
+`mergeSearch()` rejects duplicate keys:
+
+```text
+Duplicate search descriptor key "page" passed to mergeSearch().
+```
+
+Silent overrides would make generated contracts lie.
+
+## `RouteDeclaration`
+
+```ts
+interface RouteDeclaration
+  extends Omit<RouteDefinition, 'children'> {
   readonly parent?: string;
   readonly order?: number;
   readonly children?: readonly RouteDeclaration[];
 }
+```
 
+A modular declaration accepted by `defineRoute()` and `defineRouteTree()`.
+
+<TypeTable
+type={{
+parent: {
+description: 'Parent route ID used by explicit modular composition.',
+type: 'string',
+optional: true,
+},
+order: {
+description: 'Sibling ordering hint used only during defineRouteTree composition.',
+type: 'number',
+optional: true,
+},
+children: {
+description: 'Inline modular child declarations owned by this declaration.',
+type: 'readonly RouteDeclaration[]',
+optional: true,
+},
+}}
+/>
+
+`parent` and `order` are stripped from the runtime route definitions returned by `defineRouteTree()`.
+
+Inline children may omit `parent`. If they declare it, it must match the containing route ID.
+
+## `RouteDefinition`
+
+```ts
 interface RouteDefinition {
   readonly id: string;
   readonly path?: string;
@@ -95,42 +481,491 @@ interface RouteDefinition {
 }
 ```
 
+The authored runtime route shape accepted by `defineRoutes()` and router creation.
+
 <TypeTable
-  type={{
-    id: { description: 'Stable unique ID used by contracts, navigation, redirects, metadata, and diagnostics.', type: 'string' },
-    path: { description: 'Local PathKit pattern. Omit for a pathless layout/group. Modular child declarations must remain relative.', type: 'string', optional: true },
-    index: { description: 'Marks the default child at the parent path. Index routes cannot define path or children.', type: 'boolean', optional: true },
-    view: { description: 'Renderer-owned route view. The core treats it as unknown.', type: 'RouteView', optional: true },
-    layout: { description: 'Persistent shell, shared descendant fallbacks, and named slots.', type: 'RouteLayoutDefinition', optional: true },
-    children: { description: 'Nested runtime definitions or nested modular declarations.', type: 'readonly RouteDefinition[]', optional: true },
-    intercepts: { description: 'Automatic slot intercepts keyed by slot name.', type: 'RouteIntercepts', optional: true },
-    redirect: { description: 'Literal href or route-ID redirect target.', type: 'RouteRedirect', optional: true },
-    search: { description: 'URLKit static search schema.', type: 'RouteSearchSchema', optional: true },
-    url: { description: 'Route-level URL parsing/build policy overrides.', type: 'RouterUrlOptions', optional: true },
-    hash: { description: 'URLKit static hash descriptor.', type: 'RouteHashSchema', optional: true },
-    meta: { description: 'Application-owned data copied into normalized routes and matches.', type: 'RouteMeta', optional: true },
-    preload: { description: 'Application-owned route warming hook with resolved state and AbortSignal.', type: 'RoutePreload', optional: true },
-    modulePreload: { description: 'Internal/generated module warming hook. Prefer preload or adapter helpers.', type: 'RouteModulePreload', optional: true },
-    loading: { description: "Fallback for this route's own pending view. It is not inherited.", type: 'RouteView', optional: true },
-    error: { description: "Fallback for errors from this route's own view.", type: 'RouteView', optional: true },
-    lifecycle: { description: 'Route-local enter, leave, and error hooks.', type: 'RouteLifecycle', optional: true },
-    middleware: { description: 'Route-local middleware run before commit.', type: 'readonly Middleware[]', optional: true },
-  }}
+type={{
+id: {
+description: 'Stable unique route ID used by matching, contracts, navigation, redirects, metadata, and diagnostics.',
+type: 'string',
+},
+path: {
+description: 'Local PathKit pattern. Omit only for valid pathless layout/group routes.',
+type: 'string',
+optional: true,
+},
+index: {
+description: 'Marks the default child at the parent path. Index routes cannot define path or children.',
+type: 'boolean',
+optional: true,
+},
+view: {
+description: 'Renderer-owned route view. The core router keeps this value opaque.',
+type: 'RouteView',
+optional: true,
+},
+layout: {
+description: 'Persistent shell, shared descendant fallbacks, and named slots.',
+type: 'RouteLayoutDefinition',
+optional: true,
+},
+children: {
+description: 'Nested runtime route definitions.',
+type: 'readonly RouteDefinition[]',
+optional: true,
+},
+intercepts: {
+description: 'Automatic slot intercepts keyed by slot name.',
+type: 'RouteIntercepts',
+optional: true,
+},
+redirect: {
+description: 'Static redirect evaluated when this route matches.',
+type: 'RouteRedirect',
+optional: true,
+},
+search: {
+description: 'URLKit static search schema for declared query-string state.',
+type: 'RouteSearchSchema',
+optional: true,
+},
+url: {
+description: 'Route-level URL parsing and build policy overrides.',
+type: 'RouterUrlOptions',
+optional: true,
+},
+hash: {
+description: 'URLKit static hash descriptor.',
+type: 'RouteHashSchema',
+optional: true,
+},
+meta: {
+description: 'Application-owned metadata copied into normalized routes and matches.',
+type: 'RouteMeta',
+optional: true,
+},
+preload: {
+description: 'Application-owned route warming hook with resolved URL state and AbortSignal.',
+type: 'RoutePreload',
+optional: true,
+},
+modulePreload: {
+description: 'Route-module preloader used by generated/runtime integrations. Public route declarations usually prefer preload or adapter helpers.',
+type: 'RouteModulePreload',
+optional: true,
+},
+loading: {
+description: "Fallback for this route's own pending view. It is not inherited by descendants.",
+type: 'RouteView',
+optional: true,
+},
+error: {
+description: "Fallback for this route's own view errors.",
+type: 'RouteView',
+optional: true,
+},
+lifecycle: {
+description: 'Route-local enter, leave, and error hooks.',
+type: 'RouteLifecycle',
+optional: true,
+},
+middleware: {
+description: 'Route-local middleware run before navigation commits.',
+type: 'readonly Middleware[]',
+optional: true,
+},
+}}
 />
 
-<Callout type="warn" title="Two fallback scopes">
-  `route.loading` and `route.error` own only the route view. `layout.loading` and `layout.error` are shared by descendants inside the layout shell.
-</Callout>
+### Path and index rules
 
-`search` uses URLKit-backed Router Static descriptors. Route definitions must stay analyzable by the CLI, so use plain data instead of URLKit runtime builders.
+A route must define either `path` or `index`, except for a pathless layout/group route with children.
+
+Valid pathless group:
+
+```ts
+{
+  id: 'dashboard.group',
+  layout: {},
+  children: [
+    {
+      id: 'dashboard',
+      path: '/dashboard',
+    },
+  ],
+}
+```
+
+Invalid pathless renderable route:
+
+```ts
+{
+  id: 'entry.redirect',
+  redirect: { route: 'overview' },
+}
+```
+
+That route must define `path` or `index`.
+
+Index route rules:
+
+```ts
+{
+  id: 'dashboard.index',
+  index: true,
+}
+```
+
+Index routes cannot define `path` or `children`.
+
+Static nested route definitions may use leading-slash child paths. They are still joined under the parent during validation and normalization:
+
+```ts
+defineRoutes([
+  {
+    id: 'policies',
+    path: '/policies',
+    children: [
+      {
+        id: 'terms',
+        path: '/terms-of-service',
+      },
+    ],
+  },
+] as const);
+```
+
+The child full path becomes:
+
+```text
+/policies/terms-of-service
+```
+
+Modular parent-attached declarations are stricter. A declaration with `parent` must use a relative child path.
+
+## Layout contracts
+
+### `RouteLayoutDefinition`
+
+```ts
+interface RouteLayoutDefinition {
+  readonly view?: RouteView;
+  readonly loading?: RouteView;
+  readonly error?: RouteView;
+  readonly slots?: RouteSlotDefinitions;
+}
+```
+
+<TypeTable
+type={{
+view: {
+description: 'Layout shell view that wraps descendant route content.',
+type: 'RouteView',
+optional: true,
+},
+loading: {
+description: 'Shared loading fallback for content rendered inside this layout shell.',
+type: 'RouteView',
+optional: true,
+},
+error: {
+description: 'Shared error fallback for failures while rendering descendants inside this layout shell.',
+type: 'RouteView',
+optional: true,
+},
+slots: {
+description: 'Named slot definitions keyed by slot name.',
+type: 'RouteSlotDefinitions',
+optional: true,
+},
+}}
+/>
+
+`layout.loading`, `layout.error`, and `layout.slots` require an active layout view on the same route or an ancestor route.
+
+This is valid:
+
+```ts
+{
+  id: 'root',
+  path: '/',
+  layout: {
+    view: RootLayout,
+    loading: LayoutLoading,
+    error: LayoutError,
+    slots: {
+      modal: true,
+    },
+  },
+}
+```
+
+This is invalid:
+
+```ts
+{
+  id: 'standalone',
+  path: '/standalone',
+  view: StandalonePage,
+  layout: {
+    loading: LayoutLoading,
+    error: LayoutError,
+  },
+}
+```
+
+There is no active layout shell to own those layout fallbacks.
+
+`route.loading` and `route.error` are route-local. `layout.loading` and `layout.error` are layout-owned and shared by descendant content.
+
+### `RouteSlotDefinitions`
+
+```ts
+type RouteSlotDefinitions =
+  Readonly<Record<string, RouteSlotDefinition>>;
+
+type RouteSlotDefinition =
+  | RouteView
+  | RouteSlotConfig
+  | true;
+```
+
+Slot values mean:
+
+| Value             | Meaning                                                     |
+| ----------------- | ----------------------------------------------------------- |
+| `true`            | Declares the slot without fallback content.                 |
+| `RouteView`       | Declares the slot and uses the value as fallback view.      |
+| `RouteSlotConfig` | Configures fallback view, nested slot routes, and metadata. |
+
+Invalid slot values:
+
+```ts
+false
+null
+undefined
+```
+
+### `RouteSlotConfig`
+
+```ts
+interface RouteSlotConfig {
+  readonly view?: RouteView;
+  readonly routes?: readonly RouteDefinition[];
+  readonly meta?: RouteMeta;
+}
+```
+
+<TypeTable
+type={{
+view: {
+description: 'Fallback view for the slot when no slot route matches.',
+type: 'RouteView',
+optional: true,
+},
+routes: {
+description: 'Nested route tree resolved for this named slot.',
+type: 'readonly RouteDefinition[]',
+optional: true,
+},
+meta: {
+description: 'Metadata copied onto the normalized slot configuration and fallback.',
+type: 'RouteMeta',
+optional: true,
+},
+}}
+/>
+
+Slot IDs are no longer supported. The slot key is the identity.
+
+Invalid legacy keys:
+
+```ts
+layout: {
+  slots: {
+    sidebar: {
+      id: 'root.sidebar',
+      fallback: SidebarFallback,
+    },
+  },
+}
+```
+
+Supported keys are only:
+
+```text
+view
+routes
+meta
+```
+
+## Intercept contracts
+
+### `RouteInterceptConfig`
+
+```ts
+type RouteInterceptTarget =
+  | string
+  | readonly string[];
+
+interface RouteInterceptConfig {
+  readonly to: RouteInterceptTarget;
+  readonly view: RouteView;
+}
+
+type RouteIntercepts =
+  Readonly<Record<string, RouteInterceptConfig>>;
+```
+
+<TypeTable
+type={{
+to: {
+description: 'Target route ID or route IDs this intercept can handle.',
+type: 'string | readonly string[]',
+},
+view: {
+description: 'View rendered into the configured slot during intercepted navigation.',
+type: 'RouteView',
+},
+}}
+/>
+
+`intercepts` are keyed by slot name.
+
+```ts
+{
+  id: 'overview',
+  path: 'overview',
+  layout: {
+    view: OverviewLayout,
+    slots: {
+      modal: true,
+    },
+  },
+  intercepts: {
+    modal: {
+      to: 'create',
+      view: CreateModal,
+    },
+  },
+}
+```
+
+Validation requires:
+
+* the slot name is not empty;
+* the intercept config is an object;
+* `view` is present;
+* `to` contains at least one non-empty target route ID;
+* every target route ID exists;
+* the source route or an active ancestor layout declares the slot.
+
+Direct visits still render the canonical target route. Intercepts are navigation context, not a second URL.
+
+## Redirect contracts
+
+### `RouteRedirect`
+
+```ts
+type RouteRedirect =
+  | string
+  | {
+      readonly route: string;
+      readonly params?: Record<string, unknown>;
+      readonly search?: Record<string, unknown>;
+      readonly hash?: string | null;
+    };
+```
+
+| Form     | Meaning                                                                      |
+| -------- | ---------------------------------------------------------------------------- |
+| `string` | Literal href redirect target. Must be non-empty.                             |
+| object   | Route-ID redirect target built from `route`, `params`, `search`, and `hash`. |
+
+<TypeTable
+type={{
+route: {
+description: 'Target route ID for route-object redirects.',
+type: 'string',
+},
+params: {
+description: 'Path params for the target route.',
+type: 'Record<string, unknown>',
+optional: true,
+},
+search: {
+description: 'Search input for the target route.',
+type: 'Record<string, unknown>',
+optional: true,
+},
+hash: {
+description: 'Hash input for the target route. null clears the hash.',
+type: 'string | null',
+optional: true,
+},
+}}
+/>
+
+Redirect routes cannot define children.
+
+```ts
+{
+  id: 'entry',
+  path: '/',
+  redirect: {
+    route: 'overview',
+  },
+}
+```
+
+Invalid:
+
+```ts
+{
+  id: 'entry',
+  path: '/',
+  redirect: '/overview',
+  children: [
+    {
+      id: 'entry.child',
+      path: 'child',
+    },
+  ],
+}
+```
+
+## Static search descriptors
+
+```ts
+type RouteSearchSchema =
+  Readonly<Record<string, StaticSearchField>>;
+```
+
+`search` uses URLKit-backed static descriptors. Route definitions must stay analyzable by the CLI, so use plain data instead of URLKit runtime builders.
 
 ```ts
 search: {
-  query: { type: 'string', optional: true },
-  page: { type: 'int', default: 1 },
-  score: { type: 'number', optional: true },
-  featured: { type: 'boolean', optional: true },
-  tags: { type: 'string', many: true, optional: true },
+  query: {
+    type: 'string',
+    optional: true,
+  },
+  page: {
+    type: 'int',
+    default: 1,
+  },
+  score: {
+    type: 'number',
+    optional: true,
+  },
+  featured: {
+    type: 'boolean',
+    optional: true,
+  },
+  tags: {
+    type: 'string',
+    many: true,
+    optional: true,
+  },
   sort: {
     type: 'enum',
     values: ['newest', 'popular'],
@@ -143,125 +978,54 @@ search: {
   },
   startsAt: {
     type: 'date-time',
-    format: "dd-MM-yyyy'T'HH:mm:ss'Z'",
-    optional: true,
-  },
-  createdAt: {
-    type: 'date',
-    format: 'unix-seconds',
+    format: 'dd-MM-yyyy HH:mm:ss',
     optional: true,
   },
 }
 ```
 
-Every search field is an object with a value `type`. `type` always means the parsed value kind. Repeated values use `many: true`.
+Supported value kinds:
 
-```ts
-interface RouteSearchSchema {
-  readonly [key: string]: RouteSearchField;
-}
-
-type RouteSearchField =
-  | RouteStringSearchField
-  | RouteNumberSearchField
-  | RouteIntSearchField
-  | RouteBooleanSearchField
-  | RouteDateSearchField
-  | RouteDateTimeSearchField
-  | RouteEnumSearchField;
-
-interface RouteSearchFieldBase {
-  readonly many?: true;
-  readonly optional?: true;
-  readonly default?: unknown;
-}
-
-interface RouteStringSearchField extends RouteSearchFieldBase {
-  readonly type: 'string';
-}
-
-interface RouteNumberSearchField extends RouteSearchFieldBase {
-  readonly type: 'number';
-}
-
-interface RouteIntSearchField extends RouteSearchFieldBase {
-  readonly type: 'int';
-}
-
-interface RouteBooleanSearchField extends RouteSearchFieldBase {
-  readonly type: 'boolean';
-}
-
-interface RouteDateSearchField extends RouteSearchFieldBase {
-  readonly type: 'date';
-  readonly format?: 'date' | 'date-time' | 'unix-seconds' | 'unix-ms' | string;
-}
-
-interface RouteDateTimeSearchField extends RouteSearchFieldBase {
-  readonly type: 'date-time';
-  readonly format?: 'date-time' | string;
-}
-
-interface RouteEnumSearchField extends RouteSearchFieldBase {
-  readonly type: 'enum';
-  readonly values: readonly string[];
-}
+```text
+string
+number
+int
+boolean
+date
+date-time
+enum
 ```
 
-Supported forms:
+Descriptor properties:
 
-| Descriptor                                                  | Parsed value                | Build value                 | Notes                                                                                        |
-| ----------------------------------------------------------- | --------------------------- | --------------------------- | -------------------------------------------------------------------------------------------- |
-| `{ type: 'string' }`                                        | `string`                    | `string`                    | Required exact string.                                                                       |
-| `{ type: 'string', optional: true }`                        | `string \| undefined`       | `string \| undefined`       | Missing value is valid.                                                                      |
-| `{ type: 'string', default: 'all' }`                        | `string`                    | `string \| undefined`       | Missing value normalizes to the default.                                                     |
-| `{ type: 'number' }`                                        | `number`                    | `number`                    | Finite decimal number.                                                                       |
-| `{ type: 'int' }`                                           | `number`                    | `number`                    | Finite integer.                                                                              |
-| `{ type: 'boolean' }`                                       | `boolean`                   | `boolean`                   | Serialized values must be exactly `true` or `false`.                                         |
-| `{ type: 'date' }`                                          | `Date`                      | `Date`                      | UTC date-only, serialized as `YYYY-MM-DD`.                                                   |
-| `{ type: 'date', format: 'date-time' }`                     | `Date`                      | `Date`                      | Strict UTC instant using the built-in date-time serializer.                                  |
-| `{ type: 'date', format: 'unix-seconds' }`                  | `Date`                      | `Date`                      | Unix epoch seconds.                                                                          |
-| `{ type: 'date', format: 'unix-ms' }`                       | `Date`                      | `Date`                      | Unix epoch milliseconds.                                                                     |
-| `{ type: 'date', format: 'dd-MM-yyyy' }`                    | `Date`                      | `Date`                      | Static format string using URLKit's UTC token subset.                                        |
-| `{ type: 'date-time' }`                                     | `Date`                      | `Date`                      | Strict UTC instant, serialized as `YYYY-MM-DDTHH:mm:ss.sssZ`.                                |
-| `{ type: 'date-time', format: "dd-MM-yyyy'T'HH:mm:ss'Z'" }` | `Date`                      | `Date`                      | Static date-time format string using UTC fields.                                             |
-| `{ type: 'enum', values: ['newest', 'popular'] }`           | `'newest' \| 'popular'`     | `'newest' \| 'popular'`     | `values` must be a non-empty readonly string array.                                          |
-| `{ type: T, many: true }`                                   | `readonly T[]`              | `readonly T[]`              | Repeated query params. Missing values are invalid unless the field is optional or defaulted. |
-| `{ type: T, many: true, optional: true }`                   | `readonly T[] \| undefined` | `readonly T[] \| undefined` | Optional repeated query params.                                                              |
-| `{ type: T, many: true, default: [...] }`                   | `readonly T[]`              | `readonly T[] \| undefined` | Missing values normalize to the default array.                                               |
+| Property   | Applies to          | Required | Notes                                                                |
+| ---------- | ------------------- | -------- | -------------------------------------------------------------------- |
+| `type`     | all fields          | yes      | Parsed value kind.                                                   |
+| `many`     | all fields          | no       | Only literal `true` is valid. `false` is invalid.                    |
+| `optional` | all fields          | no       | Only literal `true` is valid. `false` is invalid.                    |
+| `default`  | all fields          | no       | Cannot be combined with `optional: true`.                            |
+| `values`   | `enum`              | yes      | Non-empty readonly string array.                                     |
+| `format`   | `date`, `date-time` | no       | Built-in or static format string. Runtime codec objects are invalid. |
 
-Properties:
-
-| Property   | Applies to          | Required | Description                                                                                                                                                |
-| ---------- | ------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `type`     | All search fields   | Yes      | Parsed value kind. Supported values are `string`, `number`, `int`, `boolean`, `date`, `date-time`, and `enum`.                                             |
-| `many`     | All search fields   | No       | Use literal `true` for repeated query params. Omit it for single-value fields. `false` is invalid.                                                         |
-| `optional` | All search fields   | No       | Use literal `true` when a missing value is valid. Omit it for required/defaulted fields. `false` is invalid.                                               |
-| `default`  | All search fields   | No       | Normalized value used when the field is missing. Cannot be combined with `optional: true`. Defaults are validated by URLKit during descriptor compilation. |
-| `values`   | `enum`              | Yes      | Non-empty readonly string array. Defaults must be one of these values.                                                                                     |
-| `format`   | `date`, `date-time` | No       | Built-in format or static format string. Runtime codec objects are invalid in Router route definitions.                                                    |
-
-Validation rules:
-
-- `type` always means value kind; it is not cardinality.
-- `many: true` is the only supported repeated-value marker.
-- `optional: true` and `default` are mutually exclusive because a defaulted field is present after parse/normalize.
-- Static descriptors reject runtime URLKit builders such as `int().default(1)`.
-- Static descriptors reject runtime date codecs such as `{ parse, serialize }`.
-- Static date defaults must be serialized values, not `Date` instances.
-- Unknown search keys are controlled by `unknownSearch`, not by the descriptor itself.
-
-Date and date-time descriptors support static format strings. URLKit parses and serializes date/date-time fields with UTC semantics: `date` is a UTC calendar date, `date-time` is a strict UTC instant, Unix formats use epoch seconds/milliseconds, and custom static format strings read/write UTC fields. Unsupported, ambiguous, and unquoted format tokens are rejected by URLKit and reported with Router route/search-param context. For example, `DD-MM-yyyy` is invalid; use `dd-MM-yyyy` for a two-digit UTC day. Use `toISOString()` or UTC getters when asserting parsed `Date` values because local display methods can show timezone-adjusted values.
+Invalid in route definitions:
 
 ```ts
-// Bad for router route definitions: runtime builder, not static data.
 search: {
-  from: date({ format: 'dd-MM-yyyy' }),
+  query: 'string',
 }
 ```
 
+Invalid runtime builder form:
+
 ```ts
-// Bad for router route definitions: runtime codec object.
+search: {
+  page: int().default(1),
+}
+```
+
+Invalid runtime date codec:
+
+```ts
 search: {
   from: {
     type: 'date',
@@ -277,11 +1041,17 @@ search: {
 }
 ```
 
-Router forwards supported static descriptors to URLKit. URLKit owns strict format-string parsing, default validation, and descriptor validation.
+Static date and date-time descriptors use UTC semantics. Use `toISOString()` or UTC getters when asserting parsed `Date` values.
+
+Unsupported date format tokens are reported through URLKit with router route context. For example, `DD-MM-yyyy` is invalid for a two-digit day; use `dd-MM-yyyy`.
 
 ## Static hash descriptors
 
-`hash` uses URLKit-backed Static hash object descriptors. Do not use array shorthand.
+```ts
+type RouteHashSchema = StaticHashDescriptor;
+```
+
+Hash descriptors are object descriptors. Do not use array shorthand.
 
 ```ts
 hash: {
@@ -291,48 +1061,560 @@ hash: {
 }
 ```
 
-```ts
-interface RouteHashDescriptorBase {
-  readonly optional?: true;
-}
+Supported hash kinds:
 
-interface RouteStringHashDescriptor extends RouteHashDescriptorBase {
-  readonly type: 'string';
-  readonly default?: string;
-}
-
-interface RouteEnumHashDescriptor extends RouteHashDescriptorBase {
-  readonly type: 'enum';
-  readonly values: readonly string[];
-  readonly default?: string;
-}
-
-type RouteHashSchema = RouteStringHashDescriptor | RouteEnumHashDescriptor;
+```text
+string
+enum
 ```
 
-Supported forms:
+Hash values are bare values without a leading `#`.
 
-| Descriptor                                                                | Parsed value                         | Build value                             | Notes                                        |
-| ------------------------------------------------------------------------- | ------------------------------------ | --------------------------------------- | -------------------------------------------- |
-| `{ type: 'string' }`                                                      | `string`                             | `string`                                | Required hash value without the leading `#`. |
-| `{ type: 'string', optional: true }`                                      | `string \| undefined`                | `string \| undefined`                   | Missing hash is valid.                       |
-| `{ type: 'string', default: 'overview' }`                                 | `string`                             | `string \| undefined`                   | Missing hash normalizes to the default.      |
-| `{ type: 'enum', values: ['comments', 'share'] }`                         | `'comments' \| 'share'`              | `'comments' \| 'share'`                 | Hash must be one of the declared values.     |
-| `{ type: 'enum', values: ['comments', 'share'], optional: true }`         | `'comments' \| 'share' \| undefined` | `'comments' \| 'share' \| undefined`    | Missing hash is valid.                       |
-| `{ type: 'enum', values: ['overview', 'comments'], default: 'overview' }` | `'overview' \| 'comments'`           | `'overview' \| 'comments' \| undefined` | Default must be in `values`.                 |
+Valid:
 
-Properties:
+```ts
+hash: {
+  type: 'enum',
+  values: ['comments', 'share'],
+}
+```
 
-| Property   | Applies to           | Required | Description                                                                                                    |
-| ---------- | -------------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
-| `type`     | All hash descriptors | Yes      | Hash value kind. Supported values are `string` and `enum`.                                                     |
-| `optional` | All hash descriptors | No       | Use literal `true` when missing hash is valid. Omit it for required/defaulted hash values. `false` is invalid. |
-| `default`  | All hash descriptors | No       | Normalized value used when the hash is missing. Cannot be combined with `optional: true`.                      |
-| `values`   | `enum`               | Yes      | Non-empty readonly string array. Defaults must be one of these values.                                         |
+Invalid:
 
-Descriptor values must be bare values such as `'comments'`, not `'#comments'`. Router normalizes generated URLs to include one leading `#`. `defaults: 'omit'` also applies to defaulted hashes when building URLs.
+```ts
+hash: {
+  type: 'enum',
+  values: ['#comments', '#share'],
+}
+```
 
-## Normalization and validation
+Router URL builders add the leading `#` when generating hrefs.
+
+Descriptor rules:
+
+| Property   | Applies to           | Required | Notes                                                          |
+| ---------- | -------------------- | -------- | -------------------------------------------------------------- |
+| `type`     | all hash descriptors | yes      | `string` or `enum`.                                            |
+| `optional` | all hash descriptors | no       | Only literal `true` is valid.                                  |
+| `default`  | all hash descriptors | no       | Cannot be combined with `optional: true`.                      |
+| `values`   | `enum`               | yes      | Non-empty readonly string array. Defaults must be in the list. |
+
+## Preload contract
+
+### `RoutePreload`
+
+```ts
+type RoutePreload =
+  (context: RoutePreloadContext) =>
+    void | Promise<void>;
+
+type RouteModulePreload =
+  () => void | Promise<void>;
+```
+
+`preload` is application-owned route warming. Use it for query caches, permissions, image warming, or other userland work.
+
+`modulePreload` is for generated/runtime integrations. Most application routes should prefer `preload` or renderer helpers such as React lazy route views.
+
+### `RoutePreloadContext`
+
+```ts
+interface RoutePreloadContext<Route extends string = string> {
+  readonly route: MatchedRoute;
+  readonly match: RouteMatch<Route>;
+  readonly location: RouterLocation;
+  readonly params: Record<string, unknown>;
+  readonly search: ParsedRouteSearch | Record<string, unknown>;
+  readonly unknownSearch?: ParsedUnknownRouteSearch;
+  readonly hash: ParsedRouteHash | unknown;
+  readonly signal: AbortSignal;
+}
+```
+
+<TypeTable
+type={{
+route: {
+description: 'Matched branch entry being preloaded.',
+type: 'MatchedRoute',
+},
+match: {
+description: 'Resolved route match for the preload target.',
+type: 'RouteMatch<Route>',
+},
+location: {
+description: 'Router location for the preload target.',
+type: 'RouterLocation',
+},
+params: {
+description: 'Parsed path params for the route.',
+type: 'Record<string, unknown>',
+},
+search: {
+description: 'Parsed declared search state, or generic parsed search when no generated contract is available.',
+type: 'ParsedRouteSearch | Record<string, unknown>',
+},
+unknownSearch: {
+description: 'Preserved undeclared search params when unknownSearch is preserve.',
+type: 'ParsedUnknownRouteSearch',
+optional: true,
+},
+hash: {
+description: 'Parsed hash state or generic parsed hash when no generated contract is available.',
+type: 'ParsedRouteHash | unknown',
+},
+signal: {
+description: 'AbortSignal for the speculative preload operation.',
+type: 'AbortSignal',
+},
+}}
+/>
+
+```ts
+{
+  id: 'users.details',
+  path: '/users/{slug:slug}',
+  preload: async ({ params, signal }) => {
+    await queryClient.prefetchQuery({
+      queryKey: ['user', params.slug],
+      queryFn: ({ signal }) =>
+        fetchUser(params.slug, { signal }),
+      signal,
+    });
+  },
+}
+```
+
+Preload does not commit navigation.
+
+## Middleware contracts
+
+### `MiddlewareContext`
+
+```ts
+interface MiddlewareContext {
+  readonly route: MatchedRoute;
+  readonly location: RouterLocation;
+  readonly params: Record<string, unknown>;
+  readonly search: ParsedRouteSearch | Record<string, unknown>;
+  readonly unknownSearch?: ParsedUnknownRouteSearch;
+  readonly hash: ParsedRouteHash | unknown;
+  redirect: (to: string) => MiddlewareResult;
+  rewrite: (to: string) => MiddlewareResult;
+  cancel: () => MiddlewareResult;
+}
+```
+
+<TypeTable
+type={{
+route: {
+description: 'Matched route currently being evaluated.',
+type: 'MatchedRoute',
+},
+location: {
+description: 'Target router location.',
+type: 'RouterLocation',
+},
+params: {
+description: 'Parsed path params for the route.',
+type: 'Record<string, unknown>',
+},
+search: {
+description: 'Parsed declared search state or generic parsed search.',
+type: 'ParsedRouteSearch | Record<string, unknown>',
+},
+unknownSearch: {
+description: 'Preserved undeclared search params.',
+type: 'ParsedUnknownRouteSearch',
+optional: true,
+},
+hash: {
+description: 'Parsed hash state or generic parsed hash.',
+type: 'ParsedRouteHash | unknown',
+},
+redirect: {
+description: 'Returns a structured redirect result.',
+type: '(to: string) => MiddlewareResult',
+},
+rewrite: {
+description: 'Returns a structured rewrite result.',
+type: '(to: string) => MiddlewareResult',
+},
+cancel: {
+description: 'Returns a structured cancellation result.',
+type: '() => MiddlewareResult',
+},
+}}
+/>
+
+### `MiddlewareResult`
+
+```ts
+type MiddlewareResult =
+  | void
+  | false
+  | Response
+  | {
+      readonly type: 'redirect';
+      readonly to: string;
+    }
+  | {
+      readonly type: 'rewrite';
+      readonly to: string;
+    }
+  | {
+      readonly type: 'cancel';
+    };
+```
+
+| Result                 | Behavior                                                                                 |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `void`                 | Continue navigation.                                                                     |
+| `false`                | Cancel navigation.                                                                       |
+| `Response`             | Surface response as navigation error state for integrations that model loader responses. |
+| `{ type: 'redirect' }` | Redirect to another href.                                                                |
+| `{ type: 'rewrite' }`  | Resolve another href without exposing the intermediate href.                             |
+| `{ type: 'cancel' }`   | Cancel navigation.                                                                       |
+
+```ts
+const authMiddleware: Middleware = ({
+  route,
+  location,
+  redirect,
+}) => {
+  if (route.route.meta?.access === 'public') {
+    return;
+  }
+
+  if (!auth.isAuthenticated()) {
+    return redirect(
+      `/login?redirect=${encodeURIComponent(location.href)}`,
+    );
+  }
+};
+```
+
+## Lifecycle contracts
+
+### `RouteLifecycleContext`
+
+```ts
+interface RouteLifecycleContext {
+  readonly from: RouteMatch | null;
+  readonly to: RouteMatch | null;
+  readonly location: RouterLocation;
+  readonly params: Record<string, unknown>;
+  readonly search: ParsedRouteSearch | Record<string, unknown>;
+  readonly unknownSearch?: ParsedUnknownRouteSearch;
+  readonly hash: ParsedRouteHash | unknown;
+}
+```
+
+<TypeTable
+type={{
+from: {
+description: 'Previous route match, or null when none exists.',
+type: 'RouteMatch | null',
+},
+to: {
+description: 'Next route match, or null when none exists.',
+type: 'RouteMatch | null',
+},
+location: {
+description: 'Target router location.',
+type: 'RouterLocation',
+},
+params: {
+description: 'Parsed path params for the target route.',
+type: 'Record<string, unknown>',
+},
+search: {
+description: 'Parsed declared search state or generic parsed search.',
+type: 'ParsedRouteSearch | Record<string, unknown>',
+},
+unknownSearch: {
+description: 'Preserved undeclared search params.',
+type: 'ParsedUnknownRouteSearch',
+optional: true,
+},
+hash: {
+description: 'Parsed hash state or generic parsed hash.',
+type: 'ParsedRouteHash | unknown',
+},
+}}
+/>
+
+### `RouteLifecycle`
+
+```ts
+interface RouteLifecycle {
+  readonly beforeEnter?: (
+    context: RouteLifecycleContext,
+  ) => boolean | void | Promise<boolean | void>;
+  readonly afterEnter?: (
+    context: RouteLifecycleContext,
+  ) => void | Promise<void>;
+  readonly beforeLeave?: (
+    context: RouteLifecycleContext,
+  ) => boolean | void | Promise<boolean | void>;
+  readonly onError?: (
+    error: unknown,
+    context: RouteLifecycleContext,
+  ) => void | Promise<void>;
+}
+```
+
+<TypeTable
+type={{
+beforeEnter: {
+description: 'Runs before entering the route. Return false to cancel.',
+type: '(context: RouteLifecycleContext) => boolean | void | Promise<boolean | void>',
+optional: true,
+},
+afterEnter: {
+description: 'Runs after entering the route.',
+type: '(context: RouteLifecycleContext) => void | Promise<void>',
+optional: true,
+},
+beforeLeave: {
+description: 'Runs before leaving the route. Return false to cancel.',
+type: '(context: RouteLifecycleContext) => boolean | void | Promise<boolean | void>',
+optional: true,
+},
+onError: {
+description: 'Runs when a lifecycle hook throws or navigation enters error state for this route.',
+type: '(error: unknown, context: RouteLifecycleContext) => void | Promise<void>',
+optional: true,
+},
+}}
+/>
+
+### `GlobalLifecycle`
+
+```ts
+interface GlobalLifecycle {
+  readonly beforeNavigate?: (
+    context: RouteLifecycleContext,
+  ) => boolean | void | Promise<boolean | void>;
+  readonly afterNavigate?: (
+    context: RouteLifecycleContext,
+  ) => void | Promise<void>;
+  readonly onNavigationError?: (
+    error: unknown,
+    context: RouteLifecycleContext,
+  ) => void | Promise<void>;
+}
+```
+
+`GlobalLifecycle` is exported here because route and runtime lifecycle share the same context model.
+
+## Match and normalized route contracts
+
+### `MatchedRoute`
+
+```ts
+interface MatchedRoute {
+  readonly id: string;
+  readonly route: NormalizedRoute;
+  readonly params: Record<string, unknown>;
+}
+```
+
+<TypeTable
+type={{
+id: {
+description: 'Matched route ID.',
+type: 'string',
+},
+route: {
+description: 'Normalized route entry.',
+type: 'NormalizedRoute',
+},
+params: {
+description: 'URLKit-parsed params for this branch entry.',
+type: 'Record<string, unknown>',
+},
+}}
+/>
+
+### `RouteMatch<Route>`
+
+```ts
+interface RouteMatch<Route extends string = string> {
+  readonly id: Route;
+  readonly pathname: string;
+  readonly search: Route extends RouteId
+    ? RouteSearch<Route>
+    : ParsedRouteSearch;
+  readonly unknownSearch?: ParsedUnknownRouteSearch;
+  readonly hash: Route extends RouteId
+    ? RouteHash<Route>
+    : ParsedRouteHash;
+  readonly href: string;
+  readonly route: NormalizedRoute;
+  readonly branch: readonly MatchedRoute[];
+  readonly params: Route extends RouteId
+    ? RouteParams<Route>
+    : Record<string, unknown>;
+  readonly slots: ResolvedSlots;
+  readonly intercepted?: ResolvedInterceptedRoute;
+}
+```
+
+<TypeTable
+type={{
+id: {
+description: 'Matched route ID.',
+type: 'Route',
+},
+pathname: {
+description: 'Matched pathname.',
+type: 'string',
+},
+search: {
+description: 'Parsed declared search state, narrowed by registered contracts when available.',
+type: 'RouteSearch<Route> | ParsedRouteSearch',
+},
+unknownSearch: {
+description: 'Preserved undeclared search params when enabled.',
+type: 'ParsedUnknownRouteSearch',
+optional: true,
+},
+hash: {
+description: 'Parsed hash state, narrowed by registered contracts when available.',
+type: 'RouteHash<Route> | ParsedRouteHash',
+},
+href: {
+description: 'Resolved href for the match.',
+type: 'string',
+},
+route: {
+description: 'Leaf normalized route.',
+type: 'NormalizedRoute',
+},
+branch: {
+description: 'Active matched branch from root to leaf.',
+type: 'readonly MatchedRoute[]',
+},
+params: {
+description: 'Parsed params for the leaf route, narrowed by registered contracts when available.',
+type: 'RouteParams<Route> | Record<string, unknown>',
+},
+slots: {
+description: 'Resolved slot state grouped by owner route ID and slot name.',
+type: 'ResolvedSlots',
+},
+intercepted: {
+description: 'Active intercepted route rendered into a slot while the source branch remains mounted.',
+type: 'ResolvedInterceptedRoute',
+optional: true,
+},
+}}
+/>
+
+### `NormalizedRoute`
+
+```ts
+interface NormalizedRoute {
+  readonly id: string;
+  readonly localPath?: string;
+  readonly fullPath?: string;
+  readonly parentId?: string;
+  readonly children: readonly NormalizedRoute[];
+  readonly layout?: NormalizedRouteLayout;
+  readonly view?: RouteView;
+  readonly params: readonly RouteParamDefinition[];
+  readonly index: boolean;
+  readonly score: number;
+  readonly pathDepth: number;
+  readonly order: number;
+  readonly route: RouteDefinition;
+  readonly meta?: RouteMeta;
+  readonly lifecycle?: RouteLifecycle;
+  readonly middleware?: readonly Middleware[];
+  readonly slotOwnerId?: string;
+  readonly slotName?: string;
+  readonly slotRoute: boolean;
+  readonly intercepts: readonly NormalizedIntercept[];
+}
+```
+
+`NormalizedRoute` is public because matching, rendering, diagnostics, and advanced integrations expose it. It is derived state. Do not author route trees in this shape.
+
+### `ResolvedSlot`
+
+```ts
+type ResolvedSlotStatus =
+  | 'matched'
+  | 'fallback'
+  | 'empty'
+  | 'disabled'
+  | 'not-found';
+
+interface ResolvedSlot {
+  readonly ownerRouteId: string;
+  readonly name: string;
+  readonly status: ResolvedSlotStatus;
+  readonly config: NormalizedRouteSlotConfig;
+  readonly match?: MatchedRoute;
+  readonly branch?: readonly MatchedRoute[];
+  readonly fallback?: NormalizedRouteSlotFallback;
+  readonly params: Record<string, unknown>;
+  readonly meta?: RouteMeta;
+  readonly view?: RouteView;
+}
+```
+
+<TypeTable
+type={{
+ownerRouteId: {
+description: 'Route ID that owns the slot.',
+type: 'string',
+},
+name: {
+description: 'Slot name.',
+type: 'string',
+},
+status: {
+description: 'Resolved slot state.',
+type: 'ResolvedSlotStatus',
+},
+config: {
+description: 'Normalized slot configuration.',
+type: 'NormalizedRouteSlotConfig',
+},
+match: {
+description: 'Matched slot route when status is matched.',
+type: 'MatchedRoute',
+optional: true,
+},
+branch: {
+description: 'Matched slot branch when status is matched.',
+type: 'readonly MatchedRoute[]',
+optional: true,
+},
+fallback: {
+description: 'Normalized slot fallback when status is fallback.',
+type: 'NormalizedRouteSlotFallback',
+optional: true,
+},
+params: {
+description: 'Parsed params for the resolved slot state.',
+type: 'Record<string, unknown>',
+},
+meta: {
+description: 'Resolved slot metadata.',
+type: 'RouteMeta',
+optional: true,
+},
+view: {
+description: 'Resolved slot view.',
+type: 'RouteView',
+optional: true,
+},
+}}
+/>
+
+## Validation and normalization
 
 ```ts
 function validateRoutes(
@@ -351,8 +1633,197 @@ function validateResolvedRouteTree(
 ): readonly NormalizedRoute[];
 ```
 
-`normalizeRoutes()` derives full paths, inherited params, scores, order, slots, and intercept metadata. It is not complete validation by itself. `validateResolvedRouteTree()` validates first and then returns normalized routes.
+`validateRoutes()` validates a route tree and returns nothing.
+
+`normalizeRoutes()` derives full paths, params, scores, order, layout slots, and intercept metadata. It validates path contracts while normalizing, but it is not full route-tree validation.
+
+`validateResolvedRouteTree()` validates first, then returns normalized routes.
+
+```ts
+import {
+  normalizeRoutes,
+  validateResolvedRouteTree,
+  validateRoutes,
+} from '@cookbook/router/route-config';
+
+validateRoutes(routes);
+
+const normalized = normalizeRoutes(routes);
+
+const validatedAndNormalized =
+  validateResolvedRouteTree(routes);
+```
+
+Custom constraints are not accepted by these functions. Register them before calling, or use `defineRoutes()` / `defineRouteTree()` with `pathConstraints`.
+
+```ts
+import {
+  registerPathConstraints,
+} from '@cookbook/router/path';
+import {
+  validateRoutes,
+} from '@cookbook/router/route-config';
+
+registerPathConstraints({ slug });
+
+validateRoutes([
+  {
+    id: 'post',
+    path: '/posts/{slug:slug}',
+  },
+]);
+```
+
+## Export inventory
+
+`@cookbook/router/route-config` exports these values:
+
+```text
+defineRoute
+defineRouteTree
+defineRoutes
+normalizeRoutes
+validateResolvedRouteTree
+validateRoutes
+```
+
+It exports these public types:
+
+```text
+DefineRouteTreeOptions
+DefineRoutesOptions
+
+GlobalLifecycle
+MatchedRoute
+Middleware
+MiddlewareContext
+MiddlewareResult
+NormalizedRoute
+NormalizedRouteLayout
+NormalizedRouteSlotConfig
+NormalizedRouteSlotFallback
+NormalizedRouteSlots
+RankedRoute
+
+RouteDeclaration
+RouteDefinition
+RouteHashSchema
+RouteInterceptConfig
+RouteIntercepts
+RouteLayoutDefinition
+RouteLifecycle
+RouteLifecycleContext
+RouteMatch
+RouteMeta
+RouteModulePreload
+RouteParamConstraint
+RouteParamDefinition
+RoutePreload
+RoutePreloadContext
+RouteRedirect
+RouteSearchSchema
+RouteSlotConfig
+RouteSlotDefinition
+RouteSlotDefinitions
+RouteView
+
+ResolvedInterceptedRoute
+ResolvedSlot
+ResolvedSlots
+```
+
+The route-config subpath does not export:
+
+```text
+defineSearch
+mergeSearch
+defineHash
+```
+
+Those are available from the package root.
 
 ## Where this bites
 
-`defineRoute()` is a literal-preserving helper, not a graph validator. A missing parent is not visible until `defineRouteTree()`, generation, or validation composes declarations.
+### `defineRoute()` does not validate anything
+
+This compiles and returns the same object:
+
+```ts
+defineRoute({
+  id: 'users.details',
+  parent: 'missing',
+  path: '/absolute-child',
+} as const);
+```
+
+The error appears only when declarations are composed or validated.
+
+### Static nesting and modular parent composition are not identical
+
+Static nested route definitions can use a leading slash child path and still join under the parent.
+
+Modular declarations with `parent` cannot:
+
+```ts
+defineRoute({
+  id: 'users.details',
+  parent: 'users',
+  path: '/{slug}',
+} as const);
+```
+
+`defineRouteTree()` rejects that. Parent-attached modular children must use relative paths.
+
+### Layout fallbacks require a layout shell
+
+This is wrong:
+
+```ts
+{
+  id: 'standalone',
+  path: '/standalone',
+  view: StandalonePage,
+  layout: {
+    loading: Loading,
+    error: ErrorFallback,
+  },
+}
+```
+
+There is no layout view in scope. Use `route.loading` / `route.error`, or declare `layout.view`.
+
+### Slot fallback config is not React slot error isolation
+
+Route config slot fallback:
+
+```ts
+layout: {
+  slots: {
+    modal: {
+      view: EmptyModal,
+    },
+  },
+}
+```
+
+React slot error isolation:
+
+```tsx
+<Slot name="modal" errorFallback={ModalError} />
+```
+
+One supplies route content. The other catches render failures. Mixing them up sends errors to the wrong owner.
+
+### `validateRoutes()` does not receive custom constraints
+
+This is wrong:
+
+```ts
+validateRoutes(routes, {
+  pathConstraints: { slug },
+});
+```
+
+`validateRoutes()` only accepts path options as its second argument.
+
+Use `defineRoutes()` or `defineRouteTree()` with `pathConstraints`, or register the constraints before validation.

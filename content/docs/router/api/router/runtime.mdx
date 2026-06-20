@@ -1,15 +1,34 @@
 ---
 title: "Router runtime API"
-description: "Create browser, memory, and static routers and use every router instance operation."
+description: "Create browser, memory, and static routers, then use every router instance operation."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
 
-## `createRouter(options)`
+The `@cookbook/router/runtime` entrypoint creates router instances and exposes runtime helpers for metadata and hydration state.
 
-Creates a browser-capable runtime. Without a supplied history it uses browser history when a window exists and memory history otherwise.
+```ts
+import {
+  createMemoryRouter,
+  createRouter,
+  createStaticRouter,
+  deserializeRouterState,
+  getActiveRouteMetaChain,
+  getRouteMeta,
+  getRouteMetaChain,
+  mergeRouteMetaChain,
+  serializeRouterState,
+  stringifyRouterState,
+} from '@cookbook/router/runtime';
+```
+
+The package root re-exports the same runtime values.
+
+Use the runtime API when you need an actual router: browser navigation, memory tests, SSR request resolution, preloading, middleware, blockers, route matching, and serialized hydration state.
+
+## `createRouter(options)`
 
 ```ts
 interface CreateRouterOptions {
@@ -26,57 +45,298 @@ interface CreateRouterOptions {
   readonly maxRedirectionDepth?: number;
 }
 
-function createRouter(options: CreateRouterOptions): Router;
+function createRouter(
+  options: CreateRouterOptions,
+): Router;
+```
+
+Creates a browser-capable router runtime.
+
+Without an explicit `history`, it uses browser history when `window` exists and memory history otherwise.
+
+```ts
+import { createRouter } from '@cookbook/router/runtime';
+import { routes } from './routes';
+
+export const router = createRouter({
+  routes,
+});
+```
+
+With runtime options:
+
+```ts
+import { createRouter } from '@cookbook/router/runtime';
+
+export const router = createRouter({
+  routes,
+  basename: '/app',
+  middleware: [authMiddleware],
+  lifecycle: {
+    beforeNavigate(context) {
+      analytics.track('route:start', {
+        to: context.to?.id,
+      });
+    },
+  },
+  url: {
+    arrayFormat: 'repeat',
+    invalidSearch: 'recover',
+    invalidHash: 'recover',
+    unknownSearch: 'strip',
+  },
+  maxRedirectDepth: 10,
+});
 ```
 
 <TypeTable
   type={{
-    routes: { description: 'Route tree. Creation validates and normalizes it immediately.', type: 'readonly RouteDefinition[]' },
-    basename: { description: 'App prefix removed during matching and added during href generation.', type: 'string', optional: true },
-    middleware: { description: 'Initial global middleware.', type: 'readonly Middleware[]', optional: true },
-    lifecycle: { description: 'Global before/after/error hooks.', type: 'GlobalLifecycle', optional: true },
-    hydrationData: { description: 'Validated server state for matching client startup.', type: 'SerializedRouterState', optional: true },
-    history: { description: 'Custom history adapter.', type: 'RouterHistory', optional: true },
-    pathOptions: { description: 'Slash pruning behavior.', type: 'RouterPathOptions', optional: true, default: "{ prune: 'all' }" },
-    pathConstraints: { description: 'Custom constraints for raw, not-yet-validated route arrays.', type: 'RouterPathConstraints', optional: true },
-    url: { description: 'Router-level URLKit defaults.', type: 'RouterUrlOptions', optional: true },
-    maxRedirectDepth: { description: 'Redirect loop guard.', type: 'number', optional: true, default: '10' },
-    maxRedirectionDepth: { description: 'Backward-compatible alias for maxRedirectDepth.', type: 'number', optional: true },
+    routes: {
+      description: 'Authored route tree. Router creation validates and normalizes it immediately.',
+      type: 'readonly RouteDefinition[]',
+    },
+    basename: {
+      description: 'Application prefix removed during matching and added during href generation.',
+      type: 'string',
+      optional: true,
+    },
+    middleware: {
+      description: 'Initial global middleware active for startup and future transitions.',
+      type: 'readonly Middleware[]',
+      optional: true,
+    },
+    lifecycle: {
+      description: 'Global before/after/error hooks.',
+      type: 'GlobalLifecycle',
+      optional: true,
+    },
+    hydrationData: {
+      description: 'Validated server state used to initialize the client router before startup.',
+      type: 'SerializedRouterState',
+      optional: true,
+    },
+    history: {
+      description: 'Custom history adapter. Browser history is used by default when window exists; memory history is used otherwise.',
+      type: 'RouterHistory',
+      optional: true,
+    },
+    pathOptions: {
+      description: 'Slash-pruning behavior used during validation, matching, and href generation.',
+      type: 'RouterPathOptions',
+      default: "{ prune: 'all' }",
+      optional: true,
+    },
+    pathConstraints: {
+      description: 'Custom path constraints for raw, not-yet-validated route arrays.',
+      type: 'RouterPathConstraints',
+      optional: true,
+    },
+    url: {
+      description: 'Router-level URL policy for path matching, search parsing, hash parsing, and href generation.',
+      type: 'RouterUrlOptions',
+      optional: true,
+    },
+    maxRedirectDepth: {
+      description: 'Redirect and rewrite loop guard.',
+      type: 'number',
+      default: '10',
+      optional: true,
+    },
+    maxRedirectionDepth: {
+      description: 'Backward-compatible alias for maxRedirectDepth.',
+      type: 'number',
+      optional: true,
+    },
   }}
 />
 
 `maxRedirectDepth` must be a non-negative integer.
 
+Invalid value:
+
+```ts
+createRouter({
+  routes,
+  maxRedirectDepth: -1,
+});
+```
+
+Error:
+
+```text
+Router maxRedirectDepth must be a non-negative integer.
+```
+
+When both redirect-depth options are supplied, `maxRedirectDepth` wins.
+
 ## `createMemoryRouter(options)`
 
 ```ts
-interface CreateMemoryRouterOptions extends Omit<CreateRouterOptions, 'history'> {
+interface CreateMemoryRouterOptions
+  extends Omit<CreateRouterOptions, 'history'>,
+    MemoryHistoryOptions {}
+
+interface MemoryHistoryOptions {
   readonly initialEntries?: readonly string[];
   readonly initialIndex?: number;
 }
 
-function createMemoryRouter(options: CreateMemoryRouterOptions): Router;
+function createMemoryRouter(
+  options: CreateMemoryRouterOptions,
+): Router;
 ```
 
-Hydration data wins over `initialEntries` and `initialIndex`. Otherwise the default stack is `['/']` with its final entry active.
+Creates a router backed by memory history.
+
+Use it for tests, stories, examples, and non-browser flows.
+
+```ts
+import { createMemoryRouter } from '@cookbook/router/runtime';
+
+const router = createMemoryRouter({
+  routes,
+  initialEntries: [
+    '/users/42?tab=settings#profile',
+  ],
+});
+```
+
+<TypeTable
+  type={{
+    initialEntries: {
+      description: 'Initial in-memory history stack.',
+      type: 'readonly string[]',
+      default: "['/']",
+      optional: true,
+    },
+    initialIndex: {
+      description: 'Active index in the initial in-memory history stack. Defaults to the final entry.',
+      type: 'number',
+      optional: true,
+    },
+  }}
+/>
+
+`hydrationData` wins over `initialEntries` and `initialIndex`.
+
+```ts
+const serverState = staticRouter.serialize();
+
+const router = createMemoryRouter({
+  routes,
+  hydrationData: serverState,
+  initialEntries: ['/ignored'],
+});
+```
+
+The memory history starts at `serverState.location.href`.
 
 ## `createStaticRouter(options)`
 
 ```ts
-type StaticRouterUrl = string | URL | Request;
+type StaticRouterUrl =
+  | string
+  | URL
+  | Request;
 
-interface CreateStaticRouterOptions extends Omit<CreateRouterOptions, 'history' | 'url'> {
+interface CreateStaticRouterOptions
+  extends Omit<CreateRouterOptions, 'history' | 'url'> {
   readonly url?: StaticRouterUrl;
   readonly request?: Request;
   readonly routerUrl?: RouterUrlOptions;
 }
 
-function createStaticRouter(options: CreateStaticRouterOptions): Router;
+function createStaticRouter(
+  options: CreateStaticRouterOptions,
+): Router;
 ```
 
-At least one of `request` or `url` is required; `request` takes precedence. `routerUrl` exists because `url` names the request location. Unsafe absolute inputs are rejected before static history is created.
+Creates a router backed by static history.
 
-## Router instance
+Use it for SSR and static request resolution.
+
+```ts
+import {
+  createStaticRouter,
+} from '@cookbook/router/runtime';
+
+export async function renderRequest(request: Request) {
+  const router = createStaticRouter({
+    routes,
+    request,
+    routerUrl: {
+      unknownSearch: 'preserve',
+    },
+  });
+
+  await router.start();
+
+  return router;
+}
+```
+
+<TypeTable
+  type={{
+    url: {
+      description: 'Static request location. Accepts a string, URL, or Request.',
+      type: 'StaticRouterUrl',
+      optional: true,
+    },
+    request: {
+      description: 'Request object for SSR request resolution. Takes precedence over url.',
+      type: 'Request',
+      optional: true,
+    },
+    routerUrl: {
+      description: 'Router-level URL policy for static rendering flows. Named routerUrl because url is the request location.',
+      type: 'RouterUrlOptions',
+      optional: true,
+    },
+  }}
+/>
+
+At least one of `request` or `url` is required.
+
+Missing input throws:
+
+```text
+createStaticRouter requires either url or request.
+```
+
+`request` takes precedence over `url` when both are supplied.
+
+Static URLs are normalized to `pathname + search + hash`.
+
+```ts
+const router = createStaticRouter({
+  routes,
+  url: new URL(
+    'https://example.test/users/42?tab=settings#profile',
+  ),
+});
+
+router.state.location.href;
+// '/users/42?tab=settings#profile'
+```
+
+Unsafe protocols are rejected before static history is created.
+
+```ts
+createStaticRouter({
+  routes,
+  url: 'javascript:alert(1)',
+});
+```
+
+Error:
+
+```text
+Static router URL must use http, https, or a relative path, but received protocol "javascript:".
+```
+
+`createStaticRouter()` uses `routerUrl` instead of `url` for URL policy because `url` already names the request location.
+
+## `Router`
 
 ```ts
 interface Router {
@@ -87,31 +347,127 @@ interface Router {
   readonly starting: boolean;
   readonly disposed: boolean;
 
-  href<Route extends RouteId>(routeId: Route, options?: HrefOptions<Route>): string;
-  href<Route extends RouteId>(options: NavigateOptions<Route>): string;
-  resolve<Route extends RouteId>(routeId: Route, options?: HrefOptions<Route>): RegisteredRouteMatch;
-  resolve<Route extends RouteId>(options: NavigateOptions<Route>): RegisteredRouteMatch;
-  match(href: string, options?: MatchOptions): RegisteredRouteMatch | null;
+  href<Route extends RouteId>(
+    routeId: Route,
+    options?: HrefOptions<Route>,
+  ): string;
+  href<Route extends string>(
+    routeId: Route,
+    options?: HrefOptions<Route>,
+  ): string;
+  href<Route extends RouteId>(
+    options: NavigateOptions<Route>,
+  ): string;
+  href<Route extends string>(
+    options: NavigateOptions<Route>,
+  ): string;
 
-  preload<Route extends RouteId>(routeId: Route, options?: PreloadOptions<Route>): Promise<void>;
-  preload<Route extends RouteId>(options: NavigateOptions<Route> & { readonly signal?: AbortSignal }): Promise<void>;
-  preloadHref(href: string, options?: PreloadHrefOptions): Promise<void>;
+  resolve<Route extends RouteId>(
+    routeId: Route,
+    options?: HrefOptions<Route>,
+  ): RegisteredRouteMatch;
+  resolve<Route extends string>(
+    routeId: Route,
+    options?: HrefOptions<Route>,
+  ): RegisteredRouteMatch;
+  resolve<Route extends RouteId>(
+    options: NavigateOptions<Route>,
+  ): RegisteredRouteMatch;
+  resolve<Route extends string>(
+    options: NavigateOptions<Route>,
+  ): RegisteredRouteMatch;
+
+  match(
+    href: string,
+    options?: MatchOptions,
+  ): RegisteredRouteMatch | null;
+
+  preload<Route extends RouteId>(
+    routeId: Route,
+    options?: PreloadOptions<Route>,
+  ): Promise<void>;
+  preload<Route extends string>(
+    routeId: Route,
+    options?: PreloadOptions<Route>,
+  ): Promise<void>;
+  preload<Route extends RouteId>(
+    options: NavigateOptions<Route> & {
+      readonly signal?: AbortSignal;
+    },
+  ): Promise<void>;
+  preload<Route extends string>(
+    options: NavigateOptions<Route> & {
+      readonly signal?: AbortSignal;
+    },
+  ): Promise<void>;
+
+  preloadHref(
+    href: string,
+    options?: PreloadHrefOptions,
+  ): Promise<void>;
 
   navigate: {
-    to(href: InternalHref, options?: NavigationOptions): Promise<RouterState>;
-    to<Route extends RouteId>(routeId: Route, options?: HrefOptions<Route>): Promise<RouterState>;
-    to<Route extends RouteId>(options: NavigateOptions<Route>): Promise<RouterState>;
-    replace(href: InternalHref, options?: NavigationOptions): Promise<RouterState>;
-    replace<Route extends RouteId>(routeId: Route, options?: HrefOptions<Route>): Promise<RouterState>;
-    replace<Route extends RouteId>(options: NavigateOptions<Route>): Promise<RouterState>;
+    to(
+      href: `/${string}`,
+      options?: {
+        readonly intercept?: InterceptInput;
+        readonly context?: unknown;
+        readonly preventScrollReset?: boolean;
+      },
+    ): Promise<RouterState>;
+    to<Route extends RouteId>(
+      routeId: Route,
+      options?: HrefOptions<Route>,
+    ): Promise<RouterState>;
+    to<Route extends string>(
+      routeId: Route,
+      options?: HrefOptions<Route>,
+    ): Promise<RouterState>;
+    to<Route extends RouteId>(
+      options: NavigateOptions<Route>,
+    ): Promise<RouterState>;
+    to<Route extends string>(
+      options: NavigateOptions<Route>,
+    ): Promise<RouterState>;
+
+    replace(
+      href: `/${string}`,
+      options?: {
+        readonly intercept?: InterceptInput;
+        readonly context?: unknown;
+        readonly preventScrollReset?: boolean;
+      },
+    ): Promise<RouterState>;
+    replace<Route extends RouteId>(
+      routeId: Route,
+      options?: HrefOptions<Route>,
+    ): Promise<RouterState>;
+    replace<Route extends string>(
+      routeId: Route,
+      options?: HrefOptions<Route>,
+    ): Promise<RouterState>;
+    replace<Route extends RouteId>(
+      options: NavigateOptions<Route>,
+    ): Promise<RouterState>;
+    replace<Route extends string>(
+      options: NavigateOptions<Route>,
+    ): Promise<RouterState>;
+
     back(): void;
     forward(): void;
     go(delta: number): void;
   };
 
-  subscribe(listener: (state: RouterState) => void): () => void;
+  subscribe(
+    listener: (state: RouterState) => void,
+  ): () => void;
+
   block(blocker: RouterBlocker): () => void;
-  useMiddleware(middleware: readonly Middleware[]): () => void;
+
+  useMiddleware(
+    middleware: readonly Middleware[],
+  ): () => void;
+
   start(): Promise<RouterState>;
   refresh(): Promise<RouterState>;
   serialize(): SerializedRouterState;
@@ -119,44 +475,621 @@ interface Router {
 }
 ```
 
-The implementation also exposes loose `string` overloads when no generated contracts are registered.
+The router instance is the unit of runtime state. It owns normalized routes, current match state, navigation, blockers, runtime middleware, preloading, and serialization.
 
-### Href and navigation options
+## Router properties
+
+<TypeTable
+  type={{
+    routes: {
+      description: 'Normalized route tree derived from authored definitions.',
+      type: 'readonly NormalizedRoute[]',
+    },
+    rankedRoutes: {
+      description: 'Flattened ranked route candidates used for deterministic matching.',
+      type: 'readonly RankedRoute[]',
+    },
+    state: {
+      description: 'Latest router state snapshot.',
+      type: 'RouterState',
+    },
+    started: {
+      description: 'Whether start() has resolved the router at least once.',
+      type: 'boolean',
+    },
+    starting: {
+      description: 'Whether the router is currently resolving its initial startup.',
+      type: 'boolean',
+    },
+    disposed: {
+      description: 'Whether the router has been disposed.',
+      type: 'boolean',
+    },
+  }}
+/>
+
+The router has an initial state immediately after creation. It can already contain a path match for the current history location.
+
+`start()` is still required when startup middleware, lifecycle hooks, canonicalization, redirects, or rewrites need to run.
+
+## `RouterState`
 
 ```ts
-interface HrefOptions<Route extends string> {
-  readonly params?: RouteParamsInput<Route>;
-  readonly search?: RouteSearchInput<Route>;
-  readonly hash?: RouteHashInput<Route>;
+interface RouterState {
+  readonly location: RouterLocation;
+  readonly match: RouteMatch | null;
+  readonly navigation: RouterNavigationState;
+  readonly error?: unknown;
+  readonly previousLocation?: RouterLocation;
+}
+
+type RouterNavigationState =
+  | 'idle'
+  | 'pending'
+  | 'redirecting'
+  | 'blocked'
+  | 'error';
+```
+
+<TypeTable
+  type={{
+    location: {
+      description: 'Current router location.',
+      type: 'RouterLocation',
+    },
+    match: {
+      description: 'Current route match, or null when no route matches.',
+      type: 'RouteMatch | null',
+    },
+    navigation: {
+      description: 'Current navigation phase.',
+      type: 'RouterNavigationState',
+    },
+    error: {
+      description: 'Current router error when navigation is error.',
+      type: 'unknown',
+      optional: true,
+    },
+    previousLocation: {
+      description: 'Previous primary location retained for intercepted route rendering.',
+      type: 'RouterLocation',
+      optional: true,
+    },
+  }}
+/>
+
+`previousLocation` is primarily used by intercepted rendering flows. Ordinary navigation state usually does not need it.
+
+## Href and navigation option contracts
+
+### `HrefOptions<Route>`
+
+```ts
+interface HrefOptions<Route extends string>
+  extends RouteUrlOptions<Route> {
   readonly url?: RouterUrlBuildOptions;
   readonly intercept?: InterceptInput;
   readonly context?: unknown;
   readonly preventScrollReset?: boolean;
 }
-
-interface NavigateOptions<Route extends string> extends HrefOptions<Route> {
-  readonly route: Route;
-}
-
-interface PreloadOptions<Route extends string> extends HrefOptions<Route> {
-  readonly signal?: AbortSignal;
-}
-
-interface MatchOptions { readonly url?: RouterUrlOptions; }
-interface PreloadHrefOptions extends MatchOptions { readonly signal?: AbortSignal; }
 ```
 
-`href()` builds and validates a URL without matching it. `resolve()` builds, matches, and throws if the generated href does not resolve back to the target route. `match()` accepts an arbitrary href and returns `null` for no candidate.
+<TypeTable
+  type={{
+    params: {
+      description: 'Path params for the target route, narrowed by generated contracts.',
+      type: 'RouteParamsInput<Route>',
+      optional: true,
+    },
+    search: {
+      description: 'Search input for the target route, narrowed by generated contracts.',
+      type: 'RouteSearchInput<Route>',
+      optional: true,
+    },
+    hash: {
+      description: 'Hash input for the target route, narrowed by generated contracts.',
+      type: 'RouteHashInput<Route>',
+      optional: true,
+    },
+    url: {
+      description: 'Per-call URL build options. These override route-level and router-level build policy.',
+      type: 'RouterUrlBuildOptions',
+      optional: true,
+    },
+    intercept: {
+      description: 'Call-site intercept request, or false to disable configured interception.',
+      type: 'InterceptInput',
+      optional: true,
+    },
+    context: {
+      description: 'Context carried to intercepted rendering state.',
+      type: 'unknown',
+      optional: true,
+    },
+    preventScrollReset: {
+      description: 'Records scroll-reset opt-out in history state for rendering integrations.',
+      type: 'boolean',
+      optional: true,
+    },
+  }}
+/>
 
-### Preloading
+`HrefOptions` is used by `href()`, `resolve()`, route-ID navigation, and route-ID preloading.
 
-For each route in the matched branch, preloading runs generated module preload, layout-view preload, route-view preload, and declared `preload` in order. It does not run blockers, middleware, lifecycle, or history mutations. Unsignaled concurrent calls share work by href and URL policy; signaled calls remain independently cancellable.
+### `NavigateOptions<Route>`
 
-### Navigation and scroll metadata
+```ts
+interface NavigateOptions<Route extends string>
+  extends HrefOptions<Route> {
+  readonly route: Route;
+}
+```
 
-Literal href overloads accept only `/${string}`. Route-ID overloads build typed hrefs first. `preventScrollReset` is recorded in history state for rendering integrations; core never scrolls the document.
+<TypeTable
+  type={{
+    route: {
+      description: 'Route ID used by object-form href, resolve, preload, and navigation calls.',
+      type: 'Route',
+    },
+  }}
+/>
 
-### Blockers
+Object form groups route ID and route URL state.
+
+```ts
+router.navigate.to({
+  route: 'users.details',
+  params: {
+    id: 42,
+  },
+  search: {
+    tab: 'activity',
+  },
+});
+```
+
+### `PreloadOptions<Route>`
+
+```ts
+interface PreloadOptions<Route extends string>
+  extends HrefOptions<Route> {
+  readonly signal?: AbortSignal;
+}
+```
+
+<TypeTable
+  type={{
+    signal: {
+      description: 'AbortSignal for this preload operation.',
+      type: 'AbortSignal',
+      optional: true,
+    },
+  }}
+/>
+
+### `MatchOptions`
+
+```ts
+interface MatchOptions {
+  readonly url?: RouterUrlOptions;
+}
+```
+
+<TypeTable
+  type={{
+    url: {
+      description: 'Per-call URL policy used while parsing arbitrary hrefs.',
+      type: 'RouterUrlOptions',
+      optional: true,
+    },
+  }}
+/>
+
+### `PreloadHrefOptions`
+
+```ts
+interface PreloadHrefOptions
+  extends MatchOptions {
+  readonly signal?: AbortSignal;
+}
+```
+
+<TypeTable
+  type={{
+    url: {
+      description: 'Per-call URL policy used while matching the href before preload.',
+      type: 'RouterUrlOptions',
+      optional: true,
+    },
+    signal: {
+      description: 'AbortSignal for this preload operation.',
+      type: 'AbortSignal',
+      optional: true,
+    },
+  }}
+/>
+
+## `router.href()`
+
+```ts
+router.href(routeId, options?)
+router.href(options)
+```
+
+Builds a URL for a route ID without changing state.
+
+```ts
+const href = router.href('users.details', {
+  params: {
+    id: 42,
+  },
+  search: {
+    tab: 'activity',
+  },
+  hash: 'profile',
+});
+```
+
+Object form:
+
+```ts
+const href = router.href({
+  route: 'users.details',
+  params: {
+    id: 42,
+  },
+});
+```
+
+`href()` validates required params and path constraints while building.
+
+Missing required param throws:
+
+```text
+Route "users.details" expected param "id" for path token "{id:int}".
+```
+
+Unknown route IDs throw the unknown-route diagnostic.
+
+`href()` builds only. It does not run middleware, lifecycle, blockers, redirects, or preload work.
+
+## `router.resolve()`
+
+```ts
+router.resolve(routeId, options?)
+router.resolve(options)
+```
+
+Builds an href for a route ID and then matches it back against the router.
+
+```ts
+const match = router.resolve('users.details', {
+  params: {
+    id: 42,
+  },
+});
+```
+
+Use `resolve()` when a custom integration needs the full parsed match state for a generated route target.
+
+If the generated href does not resolve back to a match, it throws:
+
+```text
+Resolved route "users.details" did not match its generated href.
+```
+
+`resolve()` is stricter than `href()`. It proves the generated URL is matchable by the current router.
+
+## `router.match()`
+
+```ts
+router.match(
+  href: string,
+  options?: MatchOptions,
+): RegisteredRouteMatch | null;
+```
+
+Matches an arbitrary href against the router.
+
+```ts
+const match = router.match(
+  '/users/42?tab=settings#profile',
+);
+```
+
+No match returns `null`.
+
+```ts
+router.match('/missing');
+// null
+```
+
+`match()` parses path params, declared search, preserved unknown search, and hash state according to the effective URL policy.
+
+Use the `url` option for per-call matching policy:
+
+```ts
+router.match('/products?tags=router,typescript', {
+  url: {
+    arrayFormat: 'comma',
+  },
+});
+```
+
+## `router.preload()`
+
+```ts
+router.preload(routeId, options?)
+router.preload(options)
+```
+
+Preloads a route target without committing navigation.
+
+```ts
+await router.preload('users.details', {
+  params: {
+    id: 42,
+  },
+});
+```
+
+With abort signal:
+
+```ts
+const controller = new AbortController();
+
+void router.preload('users.details', {
+  params: {
+    id: 42,
+  },
+  signal: controller.signal,
+});
+
+controller.abort();
+```
+
+For each route in the matched branch, preloading runs in order:
+
+1. `modulePreload`;
+2. layout view `preload`;
+3. route view `preload`;
+4. declared route `preload`.
+
+It does not run:
+
+* blockers;
+* middleware;
+* lifecycle hooks;
+* redirects;
+* rewrites;
+* history mutations.
+
+Unsignaled concurrent calls share work by href and URL policy. Signaled calls remain independently cancellable.
+
+Unknown targets can throw before a promise is returned.
+
+## `router.preloadHref()`
+
+```ts
+router.preloadHref(
+  href: string,
+  options?: PreloadHrefOptions,
+): Promise<void>;
+```
+
+Preloads an arbitrary app href after matching it.
+
+```ts
+await router.preloadHref(
+  '/users/42?tab=settings#profile',
+);
+```
+
+With per-call URL policy:
+
+```ts
+await router.preloadHref('/products?tags=a,b', {
+  url: {
+    arrayFormat: 'comma',
+  },
+});
+```
+
+With abort signal:
+
+```ts
+const controller = new AbortController();
+
+await router.preloadHref('/users/42', {
+  signal: controller.signal,
+});
+```
+
+If the href does not match a route, it throws the unknown-route diagnostic.
+
+## `router.navigate.to()`
+
+```ts
+router.navigate.to(href, options?)
+router.navigate.to(routeId, options?)
+router.navigate.to(options)
+```
+
+Pushes a new history entry and resolves a transition.
+
+Route-ID navigation:
+
+```ts
+await router.navigate.to('users.details', {
+  params: {
+    id: 42,
+  },
+  search: {
+    tab: 'activity',
+  },
+});
+```
+
+Object-form navigation:
+
+```ts
+await router.navigate.to({
+  route: 'users.details',
+  params: {
+    id: 42,
+  },
+});
+```
+
+Literal href navigation:
+
+```ts
+await router.navigate.to(
+  '/users/42?tab=activity#profile',
+);
+```
+
+Literal hrefs must be app-internal hrefs.
+
+Allowed:
+
+```ts
+'/users/42'
+'/users/42?tab=activity'
+'/users/42#profile'
+```
+
+Rejected:
+
+```ts
+'users.details'
+'https://example.com/users/42'
+'//example.com/users/42'
+```
+
+A literal href is not a route ID. Route-build options are invalid with literal href navigation.
+
+Wrong:
+
+```ts
+await router.navigate.to('/users/42', {
+  search: {
+    tab: 'activity',
+  },
+});
+```
+
+Error:
+
+```text
+Cannot navigate to internal href "/users/42" with route option "search". Pass params, search, and hash in the href string instead.
+```
+
+Valid literal href:
+
+```ts
+await router.navigate.to(
+  '/users/42?tab=activity',
+);
+```
+
+## `router.navigate.replace()`
+
+```ts
+router.navigate.replace(href, options?)
+router.navigate.replace(routeId, options?)
+router.navigate.replace(options)
+```
+
+Replaces the current history entry and resolves a transition.
+
+```ts
+await router.navigate.replace('login', {
+  search: {
+    redirect: '/dashboard',
+  },
+});
+```
+
+Literal href replacement:
+
+```ts
+await router.navigate.replace('/login?redirect=%2Fdashboard');
+```
+
+The same literal-href restrictions from `navigate.to()` apply.
+
+## Interception and scroll metadata
+
+Route-ID and object navigation can carry interception and scroll metadata.
+
+```ts
+await router.navigate.to('documents.details', {
+  params: {
+    documentId,
+  },
+  intercept: {
+    slot: 'modal',
+    view: DocumentPreview,
+  },
+  context: {
+    source: 'documents-list',
+  },
+  preventScrollReset: true,
+});
+```
+
+`intercept: false` disables configured interception for that navigation.
+
+```ts
+await router.navigate.replace(redirectTo, {
+  intercept: false,
+});
+```
+
+`preventScrollReset` is stored in history state. The core router never scrolls the document. Rendering integrations, such as React provider scroll restoration, may read the flag.
+
+## `router.navigate.back()`, `forward()`, and `go(delta)`
+
+```ts
+router.navigate.back(): void;
+router.navigate.forward(): void;
+router.navigate.go(delta: number): void;
+```
+
+Delegates to the underlying history adapter.
+
+```ts
+router.navigate.back();
+router.navigate.forward();
+router.navigate.go(-2);
+```
+
+These methods do not return a transition promise. Listen through `subscribe()` or wait for your rendering integration to observe the state update.
+
+## `router.subscribe(listener)`
+
+```ts
+router.subscribe(
+  listener: (state: RouterState) => void,
+): () => void;
+```
+
+Subscribes to router state changes.
+
+```ts
+const unsubscribe = router.subscribe((state) => {
+  console.log(state.navigation, state.location.href);
+});
+
+unsubscribe();
+```
+
+After disposal, `subscribe()` returns a no-op cleanup function.
+
+It does not throw.
+
+## `router.block(blocker)`
 
 ```ts
 interface RouterBlockerContext {
@@ -168,47 +1101,763 @@ interface RouterBlockerContext {
 type RouterBlocker = (
   context: RouterBlockerContext,
 ) => boolean | void | Promise<boolean | void>;
+
+router.block(blocker: RouterBlocker): () => void;
 ```
 
-Return `false` to block. Throwing places the attempted transition into error state. The cleanup function unregisters the blocker.
+Registers a navigation blocker.
 
-### Startup, refresh, and disposal
+<TypeTable
+  type={{
+    from: {
+      description: 'Current match before the attempted transition.',
+      type: 'RouteMatch | null',
+    },
+    to: {
+      description: 'Target match for the attempted transition.',
+      type: 'RouteMatch | null',
+    },
+    location: {
+      description: 'Target router location.',
+      type: 'RouterLocation',
+    },
+  }}
+/>
 
-Concurrent `start()` calls share one promise. After startup, repeated calls return current state. `refresh()` re-resolves the current location without pushing history. `dispose()` removes the history listener, runtime middleware, blockers, and subscribers; future startup, refresh, navigation, and preload work fails. Depending on the API, that failure may throw before a promise is created or reject the returned promise. Disposal is terminal.
-
-## `RouterState`
+Return `false` to block the transition.
 
 ```ts
-interface RouterState {
+const unblock = router.block(({ to }) => {
+  if (formIsDirty && to?.id !== 'messages.new') {
+    return false;
+  }
+});
+
+unblock();
+```
+
+Throwing from a blocker places the attempted transition into error state.
+
+Blockers run before middleware and lifecycle hooks.
+
+## `router.useMiddleware(middleware)`
+
+```ts
+router.useMiddleware(
+  middleware: readonly Middleware[],
+): () => void;
+```
+
+Registers runtime middleware for as long as the cleanup is retained.
+
+```ts
+const cleanup = router.useMiddleware([
+  ({ route, redirect }) => {
+    if (route.route.meta?.access === 'private') {
+      return redirect('/login');
+    }
+  },
+]);
+
+cleanup();
+```
+
+Runtime middleware participates in future transitions.
+
+If middleware must affect initial startup, register it before `start()`.
+
+```ts
+router.useMiddleware([authMiddleware]);
+
+await router.start();
+```
+
+Or pass it during router creation:
+
+```ts
+const router = createRouter({
+  routes,
+  middleware: [authMiddleware],
+});
+```
+
+## `router.start()`
+
+```ts
+router.start(): Promise<RouterState>;
+```
+
+Resolves the current history or static location through canonicalization, route redirects, blockers, middleware, lifecycle hooks, and route matching.
+
+```ts
+await router.start();
+```
+
+Concurrent calls share one in-flight startup promise.
+
+After startup has completed, repeated calls return the current state and do not re-run navigation work.
+
+```ts
+await Promise.all([
+  router.start(),
+  router.start(),
+]);
+```
+
+Use `start()` before SSR rendering with `StaticRouterProvider`.
+
+## `router.refresh()`
+
+```ts
+router.refresh(): Promise<RouterState>;
+```
+
+Re-resolves the current history or static location without pushing history.
+
+```ts
+await router.refresh();
+```
+
+Use it to:
+
+* retry the current route;
+* re-run current-location middleware and lifecycle hooks;
+* recover from browser-only hash hydration after React has committed;
+* refresh route state after external auth or cache changes.
+
+`refresh()` does not push a new history entry.
+
+## `router.serialize()`
+
+```ts
+router.serialize(): SerializedRouterState;
+```
+
+Returns the minimal hydration state.
+
+```ts
+const state = router.serialize();
+```
+
+The serialized shape is:
+
+```ts
+interface SerializedRouterState {
   readonly location: RouterLocation;
-  readonly match: RouteMatch | null;
-  readonly navigation: 'idle' | 'pending' | 'redirecting' | 'blocked' | 'error';
-  readonly error?: unknown;
-  readonly previousLocation?: RouterLocation;
+  readonly navigation: RouterNavigationState;
 }
 ```
 
+`error` is not serialized.
+
+`match` is not serialized.
+
+The client reconstructs route matching from the serialized location and its own route tree.
+
+## `router.dispose()`
+
+```ts
+router.dispose(): void;
+```
+
+Disposes the router runtime.
+
+It:
+
+* marks the router as disposed;
+* stops the history listener;
+* clears active startup state;
+* invalidates in-flight transitions;
+* clears active preload sharing;
+* clears runtime middleware;
+* clears blockers;
+* clears subscribers.
+
+```ts
+router.dispose();
+```
+
+Disposal is idempotent.
+
+```ts
+router.dispose();
+router.dispose();
+```
+
+After disposal, these methods throw synchronously:
+
+```text
+start()
+refresh()
+preload()
+preloadHref()
+navigate.to()
+navigate.replace()
+navigate.back()
+navigate.forward()
+navigate.go()
+block()
+useMiddleware()
+```
+
+Error:
+
+```text
+Router has been disposed. Create a new router instance before starting, navigating, refreshing, or preloading.
+```
+
+`subscribe()` does not throw after disposal. It returns a no-op cleanup function.
+
+These read/build operations do not currently assert disposal:
+
+```text
+href()
+resolve()
+match()
+serialize()
+```
+
+Do not treat that as permission to keep using a disposed router as application state. Create a new router instance.
+
+## Preloading order
+
+Route preloading runs against the matched branch from root to leaf.
+
+For each branch route, it runs:
+
+1. `route.route.modulePreload`;
+2. `route.layout?.view.preload`;
+3. `route.view.preload`;
+4. `route.route.preload(context)`.
+
+```ts
+{
+  id: 'users.details',
+  path: '/users/{id:int}',
+  preload: async ({ params, signal }) => {
+    await queryClient.prefetchQuery({
+      queryKey: ['user', params.id],
+      queryFn: () =>
+        fetchUser(params.id, { signal }),
+    });
+  },
+}
+```
+
+The preload context includes parsed params, search, unknown search, hash, current location, the matched route, the full match, and an `AbortSignal`.
+
+Preloading is warming. It is not navigation.
+
+## Redirects, rewrites, and external destinations
+
+Route redirects and middleware redirects participate in transitions.
+
+Redirect loops stop at `maxRedirectDepth`.
+
+Error:
+
+```text
+Navigation exceeded the maximum redirect count.
+```
+
+External redirects require history support.
+
+If the history implementation cannot redirect externally, the router enters error state.
+
+```text
+History implementation cannot redirect to external URL "https://example.com".
+```
+
+Middleware rewrites cannot target external URLs.
+
+```text
+Middleware cannot rewrite to external URL "https://example.com".
+```
+
+An app-internal navigation href must begin with `/` and must not begin with `//`.
+
+External destinations belong to native browser navigation or an environment-supported redirect response, not `router.navigate.to()`.
+
 ## Metadata helpers
 
-```ts
-function getRouteMeta<Route extends string>(routes: readonly NormalizedRoute[], routeId: Route): RegisteredRouteMeta<Route>;
-function getRouteMetaChain<Route extends string>(routes: readonly NormalizedRoute[], routeId: Route, options?: RouteMetaChainOptions): readonly RouteMetaEntry<Route>[];
-function getActiveRouteMetaChain(match: RouteMatch | null, options?: RouteMetaChainOptions): readonly RouteMetaEntry[];
-function mergeRouteMetaChain(chain: readonly { readonly meta: Record<string, unknown> }[], merge?: RouteMetaMergeInput): Record<string, unknown>;
-```
-
-`includeAncestors` returns root-to-leaf entries. Merge modes are `leaf`, `shallow`, `deep`, `append`, and `prepend`, with optional per-key overrides. Unknown route IDs return empty results rather than throwing.
-
-## Serialization
+### `getRouteMeta(routes, routeId)`
 
 ```ts
-function serializeRouterState(router: Pick<Router, 'serialize'>): SerializedRouterState;
-function stringifyRouterState(router: Pick<Router, 'serialize'>): string;
-function deserializeRouterState(state: SerializedRouterState | string): SerializedRouterState;
+function getRouteMeta<Route extends string>(
+  routes: readonly NormalizedRoute[],
+  routeId: Route,
+): RegisteredRouteMeta<Route>;
 ```
 
-All helpers validate the expected state shape. Stringification additionally escapes `<`, `>`, `&`, U+2028, and U+2029 for safe HTML script embedding.
+Returns route-local metadata for a route ID.
+
+```ts
+const meta = getRouteMeta(
+  router.routes,
+  'users.details',
+);
+```
+
+Unknown route IDs return `{}`.
+
+### `getRouteMetaChain(routes, routeId, options?)`
+
+```ts
+interface RouteMetaChainOptions {
+  readonly includeAncestors?: boolean;
+}
+
+function getRouteMetaChain<Route extends string>(
+  routes: readonly NormalizedRoute[],
+  routeId: Route,
+  options?: RouteMetaChainOptions,
+): readonly RouteMetaEntry<Route>[];
+```
+
+Returns ordered metadata entries for a target route ID.
+
+<TypeTable
+  type={{
+    includeAncestors: {
+      description: 'Includes root-to-target ancestor route metadata.',
+      type: 'boolean',
+      default: 'false',
+      optional: true,
+    },
+  }}
+/>
+
+Without `includeAncestors`, the chain contains only the target route entry.
+
+```ts
+const chain = getRouteMetaChain(
+  router.routes,
+  'users.details',
+  {
+    includeAncestors: true,
+  },
+);
+```
+
+Unknown route IDs return `[]`.
+
+### `getActiveRouteMetaChain(match, options?)`
+
+```ts
+function getActiveRouteMetaChain<
+  Route extends string = RouteId,
+>(
+  match: RouteMatch<Route> | null,
+  options?: RouteMetaChainOptions,
+): readonly RouteMetaEntry[];
+```
+
+Returns metadata entries for an active match.
+
+```ts
+const activeChain =
+  getActiveRouteMetaChain(router.state.match, {
+    includeAncestors: true,
+  });
+```
+
+`null` match returns `[]`.
+
+### `RouteMetaEntry`
+
+```ts
+interface RouteMetaEntry<Route extends string = RouteId> {
+  readonly id: Route;
+  readonly params: Route extends RouteId
+    ? RouteParams<Route>
+    : Record<string, unknown>;
+  readonly meta: Route extends RouteId
+    ? RegisteredRouteMeta<Route>
+    : Record<string, unknown>;
+  readonly route: NormalizedRoute;
+  readonly match?: MatchedRoute;
+}
+```
+
+<TypeTable
+  type={{
+    id: {
+      description: 'Route ID for this metadata entry.',
+      type: 'Route',
+    },
+    params: {
+      description: 'Parsed params for the matched route entry, or an empty object for route-tree lookup entries.',
+      type: 'RouteParams<Route> | Record<string, unknown>',
+    },
+    meta: {
+      description: 'Route metadata object.',
+      type: 'RegisteredRouteMeta<Route> | Record<string, unknown>',
+    },
+    route: {
+      description: 'Normalized route.',
+      type: 'NormalizedRoute',
+    },
+    match: {
+      description: 'Matched branch entry when the chain came from an active match.',
+      type: 'MatchedRoute',
+      optional: true,
+    },
+  }}
+/>
+
+### `mergeRouteMetaChain(chain, merge?)`
+
+```ts
+type RouteMetaMergeMode =
+  | 'leaf'
+  | 'shallow'
+  | 'deep'
+  | 'append'
+  | 'prepend';
+
+interface RouteMetaMergeOptions {
+  readonly default?: RouteMetaMergeMode;
+  readonly keys?: Readonly<
+    Record<string, RouteMetaMergeMode>
+  >;
+}
+
+type RouteMetaMergeInput =
+  | RouteMetaMergeMode
+  | RouteMetaMergeOptions;
+
+function mergeRouteMetaChain(
+  chain: readonly {
+    readonly meta: Record<string, unknown>;
+  }[],
+  merge?: RouteMetaMergeInput,
+): Record<string, unknown>;
+```
+
+<TypeTable
+  type={{
+    default: {
+      description: 'Default merge mode for metadata keys without a per-key override.',
+      type: 'RouteMetaMergeMode',
+      default: "'shallow'",
+      optional: true,
+    },
+    keys: {
+      description: 'Per-key merge mode overrides.',
+      type: 'Readonly<Record<string, RouteMetaMergeMode>>',
+      optional: true,
+    },
+  }}
+/>
+
+Merge modes:
+
+| Mode        | Behavior                                                                        |
+| ----------- | ------------------------------------------------------------------------------- |
+| `'leaf'`    | Leaf value wins.                                                                |
+| `'shallow'` | Plain objects are shallow-merged; other values are replaced by leaf values.     |
+| `'deep'`    | Plain objects are recursively merged; other values are replaced by leaf values. |
+| `'append'`  | Values are coerced to arrays and appended root-to-leaf.                         |
+| `'prepend'` | Values are coerced to arrays and prepended leaf-to-root.                        |
+
+```ts
+const meta = mergeRouteMetaChain(
+  getActiveRouteMetaChain(router.state.match, {
+    includeAncestors: true,
+  }),
+  {
+    default: 'shallow',
+    keys: {
+      breadcrumbs: 'append',
+    },
+  },
+);
+```
+
+`undefined` metadata values are skipped while merging.
+
+## Serialization helpers
+
+### `serializeRouterState(router)`
+
+```ts
+function serializeRouterState(
+  router: Pick<Router, 'serialize'>,
+): SerializedRouterState;
+```
+
+Calls `router.serialize()` and validates the returned shape.
+
+```ts
+const state = serializeRouterState(router);
+```
+
+### `stringifyRouterState(router)`
+
+```ts
+function stringifyRouterState(
+  router: Pick<Router, 'serialize'>,
+): string;
+```
+
+Serializes validated hydration state to a JSON string safe for embedding in HTML.
+
+It escapes:
+
+```text
+<
+>
+&
+U+2028
+U+2029
+```
+
+```ts
+const serialized = stringifyRouterState(router);
+
+const html = `
+  <script>
+    window.__COOKBOOK_ROUTER__ = ${serialized};
+  </script>
+`;
+```
+
+The output is a JSON object string, not a quoted string literal.
+
+### `deserializeRouterState(state)`
+
+```ts
+function deserializeRouterState(
+  state: SerializedRouterState | string,
+): SerializedRouterState;
+```
+
+Parses and validates serialized hydration state.
+
+```ts
+const hydrationData = deserializeRouterState(
+  window.__COOKBOOK_ROUTER__,
+);
+
+const router = createRouter({
+  routes,
+  hydrationData,
+});
+```
+
+Invalid serialized state throws during deserialization instead of letting the router hydrate from a malformed object.
+
+## SSR and hydration behavior
+
+Server rendering:
+
+```ts
+const router = createStaticRouter({
+  routes,
+  request,
+});
+
+await router.start();
+
+const hydrationData = stringifyRouterState(router);
+```
+
+Client hydration:
+
+```ts
+const router = createRouter({
+  routes,
+  hydrationData: deserializeRouterState(
+    window.__COOKBOOK_ROUTER__,
+  ),
+});
+```
+
+Hydration data must match the client history pathname and search string.
+
+Hash fragments are client-only for direct HTTP requests. A browser may have a hash the server never saw. The router keeps the serialized server location for initial hydration; rendering integrations can refresh after commit to reconcile the browser hash.
+
+## Runtime export inventory
+
+`@cookbook/router/runtime` exports these values:
+
+```text
+createMemoryRouter
+createRouter
+createStaticRouter
+
+deserializeRouterState
+serializeRouterState
+stringifyRouterState
+
+getActiveRouteMetaChain
+getRouteMeta
+getRouteMetaChain
+mergeRouteMetaChain
+```
+
+It exports these public types:
+
+```text
+CreateMemoryRouterOptions
+CreateRouterOptions
+CreateStaticRouterOptions
+StaticRouterUrl
+
+HrefOptions
+MatchOptions
+NavigateOptions
+PreloadHrefOptions
+PreloadOptions
+
+Router
+RouterBlocker
+RouterBlockerContext
+RouterState
+SerializedRouterState
+
+RouteMetaChainOptions
+RouteMetaEntry
+RouteMetaMergeInput
+RouteMetaMergeMode
+RouteMetaMergeOptions
+```
+
+The runtime subpath does not export these implementation-local helper types as named public imports:
+
+```text
+InternalHref
+NavigationOptions
+```
+
+They appear as inline shapes inside router method signatures, but they are not canonical import targets.
+
+The package root re-exports the runtime values and common runtime types. Prefer `@cookbook/router/runtime` in runtime API examples when the page is specifically about runtime behavior.
 
 ## Where this bites
 
-An app-internal navigation href must begin with `/`. External destinations belong to native browser navigation or an environment-supported redirect response, not `router.navigate.to()`.
+### Initial state is not the same as startup
+
+Router creation computes state for the current location.
+
+`start()` still matters.
+
+```ts
+const router = createMemoryRouter({
+  routes,
+  initialEntries: ['/private'],
+});
+
+router.state.match?.id;
+// may already be 'private'
+
+await router.start();
+// middleware, redirects, rewrites, and lifecycle now run
+```
+
+Do not skip `start()` when initial route guards must run.
+
+### Literal href navigation is not route building
+
+This is wrong:
+
+```ts
+await router.navigate.to('/users/42', {
+  search: {
+    tab: 'activity',
+  },
+});
+```
+
+Literal hrefs already contain their search and hash.
+
+Use a route ID:
+
+```ts
+await router.navigate.to('users.details', {
+  params: {
+    id: 42,
+  },
+  search: {
+    tab: 'activity',
+  },
+});
+```
+
+or put the search in the href:
+
+```ts
+await router.navigate.to(
+  '/users/42?tab=activity',
+);
+```
+
+### External destinations are not router navigation targets
+
+This is wrong:
+
+```ts
+await router.navigate.to(
+  'https://example.com',
+);
+```
+
+Router navigation is for app-internal hrefs and route IDs.
+
+Use native browser navigation, an anchor, or an environment-supported redirect response.
+
+### Provider middleware after startup misses the first route
+
+This is too late for initial navigation:
+
+```ts
+await router.start();
+
+router.useMiddleware([authMiddleware]);
+```
+
+Use:
+
+```ts
+router.useMiddleware([authMiddleware]);
+
+await router.start();
+```
+
+or pass middleware to router creation.
+
+### `preload()` is not navigation
+
+This warms route work:
+
+```ts
+await router.preload('users.details', {
+  params: {
+    id: 42,
+  },
+});
+```
+
+It does not change history, run blockers, run middleware, or commit a route.
+
+### Disposed routers are dead application state
+
+This throws:
+
+```ts
+router.dispose();
+
+await router.navigate.to('/users/42');
+```
+
+This may still build a string:
+
+```ts
+router.href('users.details', {
+  params: {
+    id: 42,
+  },
+});
+```
+
+Do not keep using a disposed router because one read/build method still returns a value. Create a new router instance.

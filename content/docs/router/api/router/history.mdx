@@ -1,11 +1,54 @@
 ---
 title: "History API"
-description: "Memory, browser, and static adapters plus location parsing and custom history contracts."
+description: "Memory, browser, and static history adapters plus location parsing and custom history contracts."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
+
+The `@cookbook/router/history` entrypoint exposes the transport layer consumed by the router runtime.
+
+```ts
+import {
+  createBrowserHistory,
+  createMemoryHistory,
+  createStaticHistory,
+  parseHref,
+} from '@cookbook/router/history';
+
+import type {
+  BrowserHistoryOptions,
+  HistoryAction,
+  HistoryEvent,
+  MemoryHistoryOptions,
+  RouterHistory,
+  RouterLocation,
+  StaticHistoryOptions,
+} from '@cookbook/router/history';
+```
+
+The package root re-exports the history values and core history contracts:
+
+```ts
+import {
+  createBrowserHistory,
+  createMemoryHistory,
+  createStaticHistory,
+  parseHref,
+} from '@cookbook/router';
+
+import type {
+  HistoryAction,
+  HistoryEvent,
+  RouterHistory,
+  RouterLocation,
+} from '@cookbook/router';
+```
+
+The root entrypoint does not re-export `BrowserHistoryOptions`, `MemoryHistoryOptions`, or `StaticHistoryOptions`. Import those from `@cookbook/router/history`.
+
+History adapters do not know route IDs, basenames, search descriptors, hash descriptors, middleware, redirects, or path constraints. They only store and emit normalized locations.
 
 ## `createMemoryHistory(options?)`
 
@@ -14,60 +57,447 @@ interface MemoryHistoryOptions {
   readonly initialEntries?: readonly string[];
   readonly initialIndex?: number;
 }
-function createMemoryHistory(options?: MemoryHistoryOptions): RouterHistory;
+
+function createMemoryHistory(
+  options?: MemoryHistoryOptions,
+): RouterHistory;
 ```
 
-An empty list becomes `['/']`; the default index is the final entry. Out-of-range indices are clamped. `push()` discards forward entries, `replace()` preserves the current key, and `go()` emits nothing when the index cannot change.
+Creates an in-memory history stack.
+
+<TypeTable
+  type={{
+    initialEntries: {
+      description: 'Initial address stack. An empty or omitted list becomes ["/"].',
+      type: 'readonly string[]',
+      default: "['/']",
+      optional: true,
+    },
+    initialIndex: {
+      description: 'Initial active stack index. Out-of-range values are clamped.',
+      type: 'number',
+      default: 'final entry',
+      optional: true,
+    },
+  }}
+/>
+
+Basic memory history:
+
+```ts
+import { createMemoryHistory } from '@cookbook/router/history';
+
+const history = createMemoryHistory({
+  initialEntries: [
+    '/',
+    '/users/42?tab=settings#profile',
+  ],
+});
+
+history.location.href;
+// '/users/42?tab=settings#profile'
+```
+
+An empty stack becomes root:
+
+```ts
+createMemoryHistory({
+  initialEntries: [],
+}).location.href;
+// '/'
+```
+
+Out-of-range indices are clamped:
+
+```ts
+createMemoryHistory({
+  initialEntries: ['/one', '/two'],
+  initialIndex: 99,
+}).location.href;
+// '/two'
+```
+
+### Memory mutation behavior
+
+`push()` appends a new location and discards forward entries.
+
+```ts
+const history = createMemoryHistory({
+  initialEntries: ['/one', '/two'],
+});
+
+history.back();
+history.push('/three');
+
+history.location.href;
+// '/three'
+```
+
+The forward `/two` entry was discarded before `/three` was appended.
+
+`replace()` updates the current entry and preserves the current key.
+
+```ts
+const before = history.location.key;
+
+history.replace('/three?tab=1');
+
+history.location.key === before;
+// true
+```
+
+`go(delta)` emits a `pop` event only when the active index changes.
+
+```ts
+const events: string[] = [];
+
+const unsubscribe = history.listen((event) => {
+  events.push(`${event.action}:${event.location.href}`);
+});
+
+history.go(-1);
+history.go(0);
+
+unsubscribe();
+```
+
+`history.go(0)` does not emit.
 
 ## `createBrowserHistory(options?)`
 
 ```ts
 interface BrowserHistoryOptions {
-  readonly window?: Pick<Window, 'location' | 'history' | 'addEventListener' | 'removeEventListener'>;
+  readonly window?: Pick<
+    Window,
+    | 'location'
+    | 'history'
+    | 'addEventListener'
+    | 'removeEventListener'
+  >;
 }
-function createBrowserHistory(options?: BrowserHistoryOptions): RouterHistory;
+
+function createBrowserHistory(
+  options?: BrowserHistoryOptions,
+): RouterHistory;
 ```
 
-The optional window supports controlled environments. Without one, the function uses `globalThis.window` and throws if unavailable. It writes `{ cookbookRouterKey, state }` into browser history, maps `popstate` to `pop`, maps `hashchange` to `hash`, and removes DOM listeners after the final subscriber leaves. `redirectExternal()` uses `location.assign()` or `location.replace()`.
+Creates a DOM-backed history adapter.
+
+<TypeTable
+  type={{
+    window: {
+      description: 'Window-like object used for controlled environments and tests. Defaults to globalThis.window.',
+      type: "Pick<Window, 'location' | 'history' | 'addEventListener' | 'removeEventListener'>",
+      optional: true,
+    },
+  }}
+/>
+
+Browser setup:
+
+```ts
+import { createBrowserHistory } from '@cookbook/router/history';
+
+const history = createBrowserHistory();
+```
+
+Controlled environment:
+
+```ts
+const history = createBrowserHistory({
+  window: windowLike,
+});
+```
+
+Without a window-like environment, creation throws:
+
+```text
+Browser history requires a window-like environment. Use createMemoryRouter or createStaticRouter outside the browser.
+```
+
+### Browser state shape
+
+Browser history writes this state shape:
+
+```ts
+{
+  cookbookRouterKey: location.key,
+  state,
+}
+```
+
+`RouterLocation.state` receives the nested `state` value.
+
+```ts
+history.push('/users/42', {
+  from: 'dashboard',
+});
+
+history.location.state;
+// { from: 'dashboard' }
+```
+
+`push()` creates a new location key.
+
+`replace()` preserves the previous key.
+
+### Browser events
+
+Browser history maps DOM events to router history actions:
+
+| DOM event    | History action |
+| ------------ | -------------- |
+| `popstate`   | `pop`          |
+| `hashchange` | `hash`         |
+
+Programmatic writes emit immediately:
+
+| Method      | History action |
+| ----------- | -------------- |
+| `push()`    | `push`         |
+| `replace()` | `replace`      |
+
+```ts
+const unsubscribe = history.listen((event) => {
+  console.log(event.action, event.location.href);
+});
+
+history.push('/users/42#profile');
+history.replace('/users/42?tab=settings');
+
+unsubscribe();
+```
+
+DOM listeners are attached when `createBrowserHistory()` runs and removed when the final subscriber cleanup runs.
+
+### External redirects
+
+Browser history supports external redirects:
+
+```ts
+history.redirectExternal?.(
+  'https://example.com',
+  'push',
+);
+```
+
+Mode mapping:
+
+| Mode      | Browser API                     |
+| --------- | ------------------------------- |
+| `push`    | `window.location.assign(href)`  |
+| `replace` | `window.location.replace(href)` |
+
+Memory and static histories do not implement `redirectExternal`.
 
 ## `createStaticHistory(options)`
 
 ```ts
-interface StaticHistoryOptions { readonly url: string; }
-function createStaticHistory(options: StaticHistoryOptions): RouterHistory;
+interface StaticHistoryOptions {
+  readonly url: string;
+}
+
+function createStaticHistory(
+  options: StaticHistoryOptions,
+): RouterHistory;
 ```
 
-Static `push()` and `replace()` throw. Back, forward, and go are no-ops. `listen()` returns a no-op cleanup. The higher-level static router accepts `URL` and `Request`; this adapter receives the already-resolved string.
+Creates a read-only history adapter for one SSR/static request.
+
+<TypeTable
+  type={{
+    url: {
+      description: 'Already-resolved request href string. The higher-level static router accepts URL and Request, then resolves them before this adapter is created.',
+      type: 'string',
+    },
+  }}
+/>
+
+```ts
+import { createStaticHistory } from '@cookbook/router/history';
+
+const history = createStaticHistory({
+  url: '/ssr?x=1#top',
+});
+
+history.location.href;
+// '/ssr?x=1#top'
+```
+
+Static history cannot mutate entries.
+
+```ts
+history.push('/next');
+```
+
+throws:
+
+```text
+Static history cannot push navigation entries.
+```
+
+```ts
+history.replace('/next');
+```
+
+throws:
+
+```text
+Static history cannot replace navigation entries.
+```
+
+Traversal methods are inert:
+
+```ts
+history.back();
+history.forward();
+history.go(-1);
+```
+
+They do nothing and do not throw.
+
+`listen()` returns a no-op cleanup function.
+
+```ts
+const cleanup = history.listen(() => {
+  throw new Error('Static history does not emit.');
+});
+
+cleanup();
+```
+
+The higher-level `createStaticRouter()` accepts `string`, `URL`, or `Request`. `createStaticHistory()` receives only the already-resolved string.
 
 ## `parseHref(href, options?)`
 
 ```ts
 function parseHref(
   href: string,
-  options?: { readonly state?: unknown; readonly key?: string },
+  options?: {
+    readonly state?: unknown;
+    readonly key?: string;
+  },
 ): RouterLocation;
 ```
 
-Absolute origins are discarded. Empty input becomes `/`. The function generates a key when none is supplied and returns no `state` property when state is `undefined`.
+Parses an app-relative or absolute href into a router-normalized location.
+
+<TypeTable
+  type={{
+    href: {
+      description: 'Href to parse. Empty input becomes root.',
+      type: 'string',
+    },
+    state: {
+      description: 'Optional location state. Omitted from the result when undefined.',
+      type: 'unknown',
+      optional: true,
+    },
+    key: {
+      description: 'Optional location key. A generated key is used when omitted.',
+      type: 'string',
+      optional: true,
+    },
+  }}
+/>
+
+Absolute origins are discarded:
 
 ```ts
-parseHref('https://example.test/users/42?q=a#bio');
-// { pathname: '/users/42', search: '?q=a', hash: '#bio',
-//   href: '/users/42?q=a#bio', key: 'location-…' }
+parseHref(
+  'https://example.test/users/42?q=a#bio',
+  {
+    key: 'test',
+    state: {
+      from: 'docs',
+    },
+  },
+);
 ```
 
-It does not match routes or parse typed URL state.
-
-## Contracts
+returns:
 
 ```ts
-type HistoryAction = 'push' | 'replace' | 'pop' | 'hash';
-
-interface HistoryEvent {
-  readonly action: HistoryAction;
-  readonly location: RouterLocation;
+{
+  pathname: '/users/42',
+  search: '?q=a',
+  hash: '#bio',
+  href: '/users/42?q=a#bio',
+  key: 'test',
+  state: {
+    from: 'docs',
+  },
 }
+```
 
+Empty input becomes root:
+
+```ts
+parseHref('').href;
+// '/'
+```
+
+Relative input becomes an absolute pathname under the router-local base:
+
+```ts
+parseHref('users/42').href;
+// '/users/42'
+```
+
+Search-only and hash-only inputs are rooted:
+
+```ts
+parseHref('?q=router').href;
+// '/?q=router'
+
+parseHref('#top').href;
+// '/#top'
+```
+
+When `state` is `undefined`, the `state` property is omitted:
+
+```ts
+parseHref('/users/42', {
+  state: undefined,
+});
+```
+
+returns:
+
+```ts
+{
+  pathname: '/users/42',
+  search: '',
+  hash: '',
+  href: '/users/42',
+  key: 'location-...'
+}
+```
+
+`parseHref()` does not match routes, parse typed params, parse declared search, validate hash descriptors, or enforce the runtime internal-href navigation contract.
+
+It is history transport parsing. Runtime navigation safety belongs to the router.
+
+## `HistoryAction`
+
+```ts
+type HistoryAction =
+  | 'push'
+  | 'replace'
+  | 'pop'
+  | 'hash';
+```
+
+| Action    | Meaning                                           |
+| --------- | ------------------------------------------------- |
+| `push`    | A new entry became active.                        |
+| `replace` | The current entry was replaced.                   |
+| `pop`     | History traversal changed the active entry.       |
+| `hash`    | Browser hash changed without a push/replace call. |
+
+## `RouterLocation`
+
+```ts
 interface RouterLocation {
   readonly pathname: string;
   readonly search: string;
@@ -76,30 +506,331 @@ interface RouterLocation {
   readonly state?: unknown;
   readonly key: string;
 }
+```
 
+<TypeTable
+  type={{
+    pathname: {
+      description: 'Pathname without origin, search, or hash.',
+      type: 'string',
+    },
+    search: {
+      description: 'Query string including the leading ?, or an empty string.',
+      type: 'string',
+    },
+    hash: {
+      description: 'Hash including the leading #, or an empty string.',
+      type: 'string',
+    },
+    href: {
+      description: 'Normalized href equal to pathname + search + hash.',
+      type: 'string',
+    },
+    state: {
+      description: 'History state supplied by the adapter or navigation call. Omitted when undefined.',
+      type: 'unknown',
+      optional: true,
+    },
+    key: {
+      description: 'Location identity used by history adapters and rendering integrations such as scroll restoration.',
+      type: 'string',
+    },
+  }}
+/>
+
+Invariant:
+
+```ts
+location.href === `${location.pathname}${location.search}${location.hash}`;
+```
+
+`href` must not contain an origin.
+
+## `HistoryEvent`
+
+```ts
+interface HistoryEvent {
+  readonly action: HistoryAction;
+  readonly location: RouterLocation;
+}
+```
+
+<TypeTable
+  type={{
+    action: {
+      description: 'History action that made the location visible.',
+      type: 'HistoryAction',
+    },
+    location: {
+      description: 'New current location after the action.',
+      type: 'RouterLocation',
+    },
+  }}
+/>
+
+Events are emitted after the adapter's visible location has changed.
+
+## `RouterHistory`
+
+```ts
 interface RouterHistory {
   readonly location: RouterLocation;
   readonly mode?: 'browser' | 'memory' | 'static';
-  redirectExternal?: (href: string, mode: 'push' | 'replace') => void;
+  redirectExternal?: (
+    href: string,
+    mode: 'push' | 'replace',
+  ) => void;
   push(href: string, state?: unknown): void;
   replace(href: string, state?: unknown): void;
   back(): void;
   forward(): void;
   go(delta: number): void;
-  listen(listener: (event: HistoryEvent) => void): () => void;
+  listen(
+    listener: (event: HistoryEvent) => void,
+  ): () => void;
 }
 ```
 
-A custom adapter must expose its latest location and notify after visible changes. `href` must equal `pathname + search + hash` and contain no origin.
+<TypeTable
+  type={{
+    location: {
+      description: 'Latest visible location.',
+      type: 'RouterLocation',
+    },
+    mode: {
+      description: 'Adapter mode used by runtime integrations and diagnostics.',
+      type: "'browser' | 'memory' | 'static'",
+      optional: true,
+    },
+    redirectExternal: {
+      description: 'Optional external redirect transport. Browser history implements this with location.assign/replace.',
+      type: "(href: string, mode: 'push' | 'replace') => void",
+      optional: true,
+    },
+    push: {
+      description: 'Pushes a new visible href with optional state.',
+      type: '(href: string, state?: unknown) => void',
+    },
+    replace: {
+      description: 'Replaces the current visible href with optional state.',
+      type: '(href: string, state?: unknown) => void',
+    },
+    back: {
+      description: 'Moves backward when supported.',
+      type: '() => void',
+    },
+    forward: {
+      description: 'Moves forward when supported.',
+      type: '() => void',
+    },
+    go: {
+      description: 'Moves by a history delta when supported.',
+      type: '(delta: number) => void',
+    },
+    listen: {
+      description: 'Registers a listener and returns cleanup.',
+      type: '(listener: (event: HistoryEvent) => void) => () => void',
+    },
+  }}
+/>
+
+A custom adapter must:
+
+* expose the latest visible `location`;
+* keep `location.href` equal to `pathname + search + hash`;
+* omit origins from `href`;
+* notify listeners after visible location changes;
+* return a cleanup function from `listen()`;
+* use `parseHref()` or identical normalization rules.
+
+Custom memory-like adapter skeleton:
+
+```ts
+import {
+  parseHref,
+  type HistoryEvent,
+  type RouterHistory,
+  type RouterLocation,
+} from '@cookbook/router/history';
+
+export function createCustomHistory(
+  initialHref = '/',
+): RouterHistory {
+  let location: RouterLocation = parseHref(initialHref);
+  const listeners =
+    new Set<(event: HistoryEvent) => void>();
+
+  function notify(action: HistoryEvent['action']) {
+    const event: HistoryEvent = {
+      action,
+      location,
+    };
+
+    for (const listener of listeners) {
+      listener(event);
+    }
+  }
+
+  return {
+    mode: 'memory',
+
+    get location() {
+      return location;
+    },
+
+    push(href, state) {
+      location = parseHref(href, { state });
+      notify('push');
+    },
+
+    replace(href, state) {
+      location = parseHref(href, {
+        state,
+        key: location.key,
+      });
+      notify('replace');
+    },
+
+    back() {},
+    forward() {},
+    go() {},
+
+    listen(listener) {
+      listeners.add(listener);
+
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+}
+```
 
 ## Adapter matrix
 
-| Adapter | Mutates entries | Actions | External redirects | Use |
-| --- | --- | --- | --- | --- |
-| Memory | Yes | push, replace, pop | No | Tests and non-DOM environments |
-| Browser | Yes | push, replace, pop, hash | Yes | Client applications |
-| Static | No | None | No | One server/static request |
+| Adapter | Mutates entries | Emits actions                    | External redirects | Use                                       |
+| ------- | --------------- | -------------------------------- | ------------------ | ----------------------------------------- |
+| Memory  | Yes             | `push`, `replace`, `pop`         | No                 | Tests, stories, and non-DOM environments. |
+| Browser | Yes             | `push`, `replace`, `pop`, `hash` | Yes                | Client applications.                      |
+| Static  | No              | None                             | No                 | One server/static request.                |
+
+## Export inventory
+
+`@cookbook/router/history` exports these values:
+
+```text
+createBrowserHistory
+createMemoryHistory
+createStaticHistory
+parseHref
+```
+
+It exports these public types:
+
+```text
+BrowserHistoryOptions
+HistoryAction
+HistoryEvent
+MemoryHistoryOptions
+RouterHistory
+RouterLocation
+StaticHistoryOptions
+```
+
+The package root re-exports these values:
+
+```text
+createBrowserHistory
+createMemoryHistory
+createStaticHistory
+parseHref
+```
+
+The package root re-exports these history types:
+
+```text
+HistoryAction
+HistoryEvent
+RouterHistory
+RouterLocation
+```
+
+The package root does not re-export these adapter option types:
+
+```text
+BrowserHistoryOptions
+MemoryHistoryOptions
+StaticHistoryOptions
+```
 
 ## Where this bites
 
-A history adapter is transport. It does not know route IDs, basenames, constraints, typed search, or hash descriptors.
+### History is not the router
+
+A history adapter stores locations.
+
+It does not know:
+
+* route IDs;
+* basenames;
+* path constraints;
+* typed params;
+* declared search;
+* unknown-search policy;
+* hash descriptors;
+* middleware;
+* redirects;
+* rewrites.
+
+This is just transport:
+
+```ts
+history.push('/users/42?tab=settings#profile');
+```
+
+The router decides what that location means.
+
+### `parseHref()` is not an internal navigation validator
+
+This returns a transport location:
+
+```ts
+parseHref('https://example.com/users/42').href;
+// '/users/42'
+```
+
+That does not mean `router.navigate.to('https://example.com/users/42')` is valid.
+
+Router navigation accepts route IDs or app-internal hrefs. History parsing is lower-level.
+
+### Static history cannot be used as a mutable test history
+
+This throws:
+
+```ts
+createStaticHistory({
+  url: '/',
+}).push('/next');
+```
+
+Use memory history for tests that need navigation:
+
+```ts
+createMemoryHistory({
+  initialEntries: ['/'],
+});
+```
+
+### Browser history cleanup is subscriber-driven
+
+The browser adapter removes DOM listeners after the final subscriber cleanup runs.
+
+Create a new browser history for a new router lifecycle instead of reusing a browser history after all listeners have been removed.
+
+### Custom adapters must preserve keys correctly
+
+`replace()` should preserve the current key.
+
+`push()` should create a new key.
+
+Rendering integrations use location keys for behaviors such as scroll restoration. If keys lie, the UI remembers the wrong place.
