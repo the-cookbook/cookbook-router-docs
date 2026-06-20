@@ -1,11 +1,43 @@
 ---
 title: "Route loading and extraction API"
-description: "Resolve direct routes, static route modules, JSON files, globs, watch roots, composition options, and export metadata."
+description: "Resolve direct routes, static route modules, JSON route files, globs, watch roots, composition options, and route export metadata."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
+
+`@cookbook/router-cli` loads route input from three places:
+
+1. direct `routes`;
+2. explicit `routeFiles`;
+3. discovered config `routeFiles`.
+
+The loader supports JSON route files, static TypeScript/JavaScript route modules, simple globs, watch roots, route option merging, custom path constraints, modular route composition, and route export metadata for generated `routes.ts`.
+
+```ts
+import {
+  expandRouteFilePatterns,
+  getRouteFilePatternWatchPaths,
+  loadRouteFiles,
+  resolveEffectiveRouteOptions,
+  resolveRouteInput,
+  resolveRouteInputWithOptions,
+  resolveRoutes,
+  validateRouteFiles,
+} from '@cookbook/router-cli';
+
+import type {
+  CliFileSystem,
+  CliRouteOptions,
+  LoadRouteFilesOptions,
+  ResolvedRouteInput,
+  RouteFile,
+  RouteFileExport,
+} from '@cookbook/router-cli';
+```
+
+`CliRouteSource` is used by public function signatures, but it is not exported from the package root as a named type. Its structural shape is documented below.
 
 ## `resolveRoutes(options)`
 
@@ -17,13 +49,76 @@ function resolveRoutes(
 
 Convenience projection over `resolveRouteInput()`.
 
+It returns only the resolved route array.
+
+```ts
+const routes = await resolveRoutes({
+  routeFiles: ['src/**/*.route.tsx'],
+});
+```
+
+Use `resolveRouteInput()` when you need route options, route source metadata, or discovered route exports.
+
 ## `resolveRouteInput(options)`
 
 ```ts
-function resolveRouteInput(options: CliRouteOptions): Promise<RouteFile>;
+function resolveRouteInput(
+  options: CliRouteOptions,
+): Promise<RouteFile>;
 ```
 
-Returns routes plus merged route options, export metadata, and source metadata where available.
+Resolves the complete route model.
+
+Resolution order:
+
+1. direct `options.routes`;
+2. effective `options.routeFiles`;
+3. config-discovered route files.
+
+If no route source exists after option resolution, it rejects:
+
+```text
+No routes or routeFiles were provided.
+```
+
+## `RouteFile`
+
+```ts
+interface RouteFile {
+  readonly routes: readonly RouteDefinition[];
+  readonly routeOptions?: DefineRoutesOptions;
+  readonly routeExports?: readonly RouteFileExport[];
+  readonly routeSources?: readonly CliRouteSource[];
+}
+```
+
+<TypeTable
+  type={{
+    routes: {
+      description: 'Resolved route definitions.',
+      type: 'readonly RouteDefinition[]',
+    },
+    routeOptions: {
+      description: 'Merged route validation options from config and route sources.',
+      type: 'DefineRoutesOptions',
+      optional: true,
+    },
+    routeExports: {
+      description: 'Export metadata discovered in one route source. Present for static module sources that expose route exports.',
+      type: 'readonly RouteFileExport[]',
+      optional: true,
+    },
+    routeSources: {
+      description: 'Loaded physical route sources when input came from route files.',
+      type: 'readonly CliRouteSource[]',
+      optional: true,
+    },
+  }}
+/>
+
+Direct route input returns a `RouteFile` without source metadata.
+
+Route-file input returns `routeSources` and merged `routeOptions` when applicable.
 
 ## `resolveRouteInputWithOptions(options)`
 
@@ -38,7 +133,27 @@ function resolveRouteInputWithOptions(
 ): Promise<ResolvedRouteInput>;
 ```
 
-Resolves effective options once and returns them beside the loaded route model. This avoids config/glob work being repeated by commands that need both.
+Resolves effective options once and returns them beside the loaded route model.
+
+Use this when a command or plugin needs both:
+
+* resolved route input;
+* resolved output directory;
+* expanded route files;
+* route watch paths;
+* loaded config path;
+* runtime route options.
+
+```ts
+const resolved =
+  await resolveRouteInputWithOptions({
+    configFile: 'cookbook-router.config.ts',
+  });
+
+resolved.routeFile.routes;
+resolved.options.outDir;
+resolved.options.routeFileWatchPaths;
+```
 
 ## `resolveEffectiveRouteOptions(options)`
 
@@ -48,7 +163,82 @@ function resolveEffectiveRouteOptions(
 ): Promise<CliRouteOptions>;
 ```
 
-Expands configured patterns into concrete `routeFiles` and separately records stable `routeFileWatchPaths`. Empty route matches are normally an error; internal watch-state resolution can opt into empty matches so future file creation remains observable.
+Resolves command/plugin route options before route loading.
+
+It can:
+
+* load config;
+* resolve `outDir`;
+* expand route-file globs;
+* derive `routeFileWatchPaths`;
+* merge route options;
+* carry runtime-safe config references;
+* carry injected `fs`, `cwd`, and internal watch flags.
+
+### Resolution behavior
+
+Direct `routes` wins first.
+
+When `options.routes` exists:
+
+* config is not loaded;
+* route files are ignored;
+* `outDir` is still resolved;
+* `routeOptions` are kept as supplied.
+
+When explicit `routeFiles` exist and `configFile` is omitted:
+
+* config is not loaded;
+* explicit route files are used;
+* config `pathOptions`, `pathConstraints`, and `outDir` are not applied.
+
+When explicit `routeFiles` and `configFile` are both supplied:
+
+* config is loaded;
+* explicit route files override config route files;
+* explicit `outDir` overrides config `outDir`;
+* config route options can still merge with explicit `routeOptions`.
+
+When no direct routes and no explicit route files exist:
+
+* config discovery provides route files;
+* config route files are resolved relative to config root;
+* config output is resolved relative to config root;
+* config route options participate in validation and generation.
+
+### Empty route-file matches
+
+Empty matches normally reject:
+
+```text
+No route files matched routeFiles pattern ["src/**/*.route.tsx"].
+```
+
+Internal watch-mode resolution can pass:
+
+```ts
+allowEmptyRouteFiles: true
+```
+
+That allows a glob root to be watched before matching route files exist.
+
+### Route option merge rules
+
+`pathOptions` must agree across config and route sources.
+
+Conflicting `pathOptions` throw:
+
+```text
+Conflicting pathOptions were provided by router config or route source files. Move pathOptions to cookbook-router.config.ts or use the same pathOptions everywhere.
+```
+
+`pathConstraints` merge by name.
+
+Duplicate names with different constraint objects throw:
+
+```text
+Duplicate path constraint name "slug" was provided by router config or route source files. Define each custom path constraint name once, preferably in a runtime-safe module imported by cookbook-router.config.ts.
+```
 
 ## `loadRouteFiles(options)`
 
@@ -63,7 +253,123 @@ function loadRouteFiles(
 ): Promise<readonly CliRouteSource[]>;
 ```
 
-Loads each explicit file. Self-contained trees are validated immediately; modular declarations and cross-file intercept targets are validated after sources are merged.
+Loads each explicit route file and returns one source record per file.
+
+`CliRouteSource` is not exported from the package root as a named type. Its structural shape is:
+
+```ts
+interface CliRouteSource {
+  readonly path: string;
+  readonly routes: readonly RouteDefinition[];
+  readonly routeOptions?: DefineRoutesOptions;
+  readonly routeExports?: readonly RouteFileExport[];
+}
+```
+
+<TypeTable
+  type={{
+    routeFiles: {
+      description: 'Concrete route file paths. Globs should be expanded before calling loadRouteFiles.',
+      type: 'readonly string[]',
+    },
+    fs: {
+      description: 'Injected file-system abstraction.',
+      type: 'CliFileSystem',
+      optional: true,
+    },
+    path: {
+      description: 'Physical route source path.',
+      type: 'string',
+    },
+    routes: {
+      description: 'Routes loaded from this source.',
+      type: 'readonly RouteDefinition[]',
+    },
+    routeOptions: {
+      description: 'Route options extracted from this source, such as pathOptions and pathConstraints.',
+      type: 'DefineRoutesOptions',
+      optional: true,
+    },
+    routeExports: {
+      description: 'Export metadata discovered in this source.',
+      type: 'readonly RouteFileExport[]',
+      optional: true,
+    },
+  }}
+/>
+
+`loadRouteFiles()` accepts concrete files only. Use `expandRouteFilePatterns()` first when user input may contain globs.
+
+### Supported file extensions
+
+JSON route files:
+
+```text
+.json
+```
+
+Extensionless files are also parsed as JSON.
+
+Static route modules:
+
+```text
+.js
+.jsx
+.mjs
+.cjs
+.ts
+.tsx
+.mts
+.cts
+```
+
+Unsupported extension error:
+
+```text
+Route file "routes.txt" is not directly loadable by the CLI. Use a JSON, JavaScript, TypeScript, or TSX module that exports routes.
+```
+
+### JSON route files
+
+JSON files must contain a route-file object with a `routes` array.
+
+Valid JSON shape:
+
+```json
+{
+  "routes": [
+    {
+      "id": "home",
+      "path": "/"
+    }
+  ]
+}
+```
+
+A bare array is not accepted.
+
+Invalid JSON throws:
+
+```text
+Route file "routes.json" contains invalid JSON.
+```
+
+Missing `routes` throws:
+
+```text
+Route file "routes.json" must provide a routes array.
+```
+
+### Early validation
+
+`loadRouteFiles()` validates self-contained route trees immediately when it can.
+
+It validates a source immediately when that source has:
+
+* no modular composition fields such as `parent` or `order`;
+* no external configured intercept target that might be declared in another file.
+
+It defers validation when a file uses modular composition or may depend on routes declared elsewhere.
 
 ## `validateRouteFiles(options)`
 
@@ -73,39 +379,355 @@ function validateRouteFiles(
 ): Promise<readonly CliRouteSource[]>;
 ```
 
-Loads all sources, merges route options, registers constraints, then validates one graph. When composition fields exist it uses `defineRouteTree()`; otherwise it uses `validateRoutes()`.
+Loads route files and validates them as one graph.
+
+It:
+
+1. calls `loadRouteFiles()`;
+2. merges route options from all sources;
+3. registers merged path constraints;
+4. merges all routes;
+5. validates the graph.
+
+If any route uses modular composition fields, validation uses `defineRouteTree()`.
+
+Otherwise it uses `validateRoutes()`.
+
+This is the right API for checking a multi-file route graph without writing artifacts.
 
 ## `expandRouteFilePatterns(options)`
 
 ```ts
-function expandRouteFilePatterns(options: {
-  readonly patterns: string | readonly string[];
-  readonly cwd?: string;
-  readonly fs?: CliFileSystem;
-  readonly excludeDirs?: readonly string[];
-}): Promise<readonly string[]>;
+function expandRouteFilePatterns(
+  options: {
+    readonly patterns: string | readonly string[];
+    readonly cwd?: string;
+    readonly fs?: CliFileSystem;
+    readonly excludeDirs?: readonly string[];
+  },
+): Promise<readonly string[]>;
 ```
 
-Supports explicit files and simple globs. Default traversal excludes common generated/dependency directories such as `node_modules`, `.git`, `dist`, `build`, `.next`, `.turbo`, and `.vite`. Results are deduplicated and sorted by traversal output.
+Expands route-file patterns into concrete files.
 
-Custom filesystems need `readdir` and `stat` for globs.
+The options object type is not exported from the package root as a named type.
+
+<TypeTable
+  type={{
+    patterns: {
+      description: 'Exact file path, glob, or list of exact files/globs.',
+      type: 'string | readonly string[]',
+    },
+    cwd: {
+      description: 'Base directory used to scope relative patterns.',
+      type: 'string',
+      optional: true,
+    },
+    fs: {
+      description: 'Injected file system. Globs require readdir and stat.',
+      type: 'CliFileSystem',
+      optional: true,
+    },
+    excludeDirs: {
+      description: 'Additional directories excluded during glob traversal.',
+      type: 'readonly string[]',
+      optional: true,
+    },
+  }}
+/>
+
+Input patterns must be non-empty strings.
+
+Invalid pattern diagnostic:
+
+```text
+routeFiles patterns must be non-empty strings.
+```
+
+### Glob support
+
+Supported syntax:
+
+| Syntax  | Meaning                                        |
+| ------- | ---------------------------------------------- |
+| `*`     | Match any characters except `/`.               |
+| `**`    | Match nested path segments.                    |
+| `?`     | Match one character except `/`.                |
+| `{a,b}` | Match one of the comma-separated alternatives. |
+
+Default excluded directories:
+
+```text
+node_modules
+.git
+dist
+build
+coverage
+.next
+.nuxt
+.svelte-kit
+.turbo
+.vite
+.cache
+```
+
+`excludeDirs` are added to that default list.
+
+Glob expansion requires `fs.readdir` and `fs.stat`.
+
+Diagnostic:
+
+```text
+Glob routeFiles require a file system with readdir and stat support.
+```
+
+Results are:
+
+* scoped under `cwd` when supplied;
+* deduplicated;
+* sorted for glob results;
+* returned in pattern order across multiple patterns.
 
 ## `getRouteFilePatternWatchPaths(options)`
 
 ```ts
-function getRouteFilePatternWatchPaths(options: {
-  readonly patterns: string | readonly string[];
-  readonly cwd?: string;
-}): readonly string[];
+function getRouteFilePatternWatchPaths(
+  options: {
+    readonly patterns: string | readonly string[];
+    readonly cwd?: string;
+  },
+): readonly string[];
 ```
 
-Returns explicit file paths or stable glob roots. It does not require the matching files to exist.
+Returns stable watch paths for route-file patterns.
 
-## Static forms
+The options object type is not exported from the package root as a named type.
 
-Supported extraction covers static route arrays/objects declared through `defineRoute`, `defineRoutes`, `defineRouteTree`, `defineSearch`, `defineHash`, and `mergeSearch`, plus supported named imports/re-exports and JSON route arrays.
+For exact files, the watch path is the file itself.
 
-The extractor deliberately rejects arbitrary runtime computation. Route components and middleware can still be imported as runtime references; the route structure itself must be statically recoverable.
+For globs, the watch path is the static root before the first glob token.
+
+| Pattern                   | Watch path    |
+| ------------------------- | ------------- |
+| `routes.json`             | `routes.json` |
+| `src/**/*.route.{ts,tsx}` | `src`         |
+| `app/routes/*.tsx`        | `app/routes`  |
+
+The returned paths do not require matching files to exist.
+
+Duplicate watch paths are removed while preserving first occurrence.
+
+## Static route module forms
+
+The extractor supports these exported route shapes:
+
+```ts
+export const routes = defineRoutes([
+  // ...
+] as const);
+```
+
+```ts
+export const routes = defineRouteTree({
+  routes: [
+    // ...
+  ],
+} as const);
+```
+
+```ts
+export const articleRoute = defineRoute({
+  id: 'article',
+  path: '/articles/{slug}',
+} as const);
+```
+
+```ts
+export const routes = [
+  {
+    id: 'home',
+    path: '/',
+  },
+] as const;
+```
+
+Named export aliases are supported:
+
+```ts
+const appRoutes = defineRoutes([
+  // ...
+] as const);
+
+export {
+  appRoutes as routes,
+};
+```
+
+```ts
+const tree = defineRouteTree({
+  routes: [
+    // ...
+  ],
+} as const);
+
+export {
+  tree as routes,
+};
+```
+
+`defineRouteTree()` must receive a static object literal, and its `routes` property must be an inline static array.
+
+Unsupported dynamic route export diagnostic:
+
+```text
+Route file "routes.ts" must export routes from defineRoutes([...]), defineRouteTree({ routes: [...] }), defineRoute({...}), or a static routes array.
+```
+
+## Static descriptor support
+
+Route modules can use static URL descriptor helpers:
+
+```text
+defineSearch
+defineHash
+mergeSearch
+```
+
+The extractor supports:
+
+* inline descriptors;
+* local descriptor constants;
+* descriptor aliases;
+* descriptors imported from relative or absolute static metadata modules.
+
+`mergeSearch()` duplicate keys throw the same descriptor diagnostic as the runtime helper:
+
+```text
+Duplicate search descriptor key "q" passed to mergeSearch().
+```
+
+URLKit runtime builders are rejected in CLI-consumed route declarations:
+
+```text
+Route file "routes.tsx" uses URLKit runtime builders in a static route declaration. The CLI only supports cleaned static URL descriptors such as { type: 'int', default: 1 }, { type: 'string', many: true }, and object hash descriptors for generation. Move runtime URL builders out of CLI-consumed route files or replace them with static descriptors.
+```
+
+Rejected builder examples include:
+
+```text
+int()
+number()
+string()
+boolean()
+date()
+dateTime()
+enumOf()
+```
+
+## Static constants and imports
+
+Route modules can reference local static constants from route definitions.
+
+Supported constant values include static strings, arrays, objects, booleans, null, and descriptor constants.
+
+Static metadata can also be imported from other files.
+
+Supported static metadata import paths:
+
+* relative paths;
+* absolute file paths.
+
+Unsupported when required by route metadata:
+
+* path aliases such as `@/routes`;
+* bare package imports;
+* unresolved files.
+
+Diagnostic for aliases and bare imports:
+
+```text
+Route file "app/pages/overview/overview.route.tsx" imports static route metadata from "@/lib/routes/filters/pagination", but CLI static metadata imports must use relative or absolute file paths. Path aliases such as "@/" and bare package imports are not supported for static route metadata.
+```
+
+Diagnostic for unresolved relative imports:
+
+```text
+Route file "src/article.route.tsx" imports static route metadata from "./missing-url-state", but the module could not be resolved. Use a relative or absolute file path and check the file extension.
+```
+
+Known runtime helper imports are ignored as static metadata sources:
+
+```text
+@cookbook/router
+@cookbook/router/path
+@cookbook/router/route-config
+@cookbook/router/url-state
+@cookbook/urlkit
+```
+
+Runtime-only imports used only by fields such as `view` can use aliases or package imports because those fields are sanitized before static evaluation.
+
+## Runtime field sanitization
+
+The extractor does not execute route components, middleware, preload functions, lifecycle hooks, or layout/error/loading views.
+
+Before static evaluation, it replaces these route fields:
+
+```text
+view
+loading
+error
+middleware
+preload
+modulePreload
+
+beforeEnter
+afterEnter
+beforeLeave
+onError
+beforeNavigate
+afterNavigate
+onNavigationError
+```
+
+with placeholders.
+
+Slot view shorthand is also sanitized so imported view values do not need to be evaluated.
+
+This is why runtime route imports can exist in static modules without being executed by the CLI.
+
+## Route options extraction
+
+Static route modules can carry `defineRoutes()` and `defineRouteTree()` options.
+
+Supported route options:
+
+```text
+pathOptions
+pathConstraints
+```
+
+`pathOptions` must be statically evaluable.
+
+Unsupported dynamic `pathOptions` diagnostic:
+
+```text
+Route file "routes.tsx" uses pathOptions that the CLI cannot statically evaluate. Use an inline static object literal or a static object declaration for pathOptions.
+```
+
+`pathConstraints` must be statically evaluable.
+
+Unsupported dynamic `pathConstraints` diagnostic:
+
+```text
+Route file "routes.tsx" uses pathConstraints that the CLI cannot statically evaluate. Use an inline static object, a local static object declaration, or a named import from a runtime-safe module.
+```
+
+Unsupported non-object options diagnostic:
+
+```text
+Route file "routes.tsx" could not statically evaluate defineRoutes options. Use an inline static object literal or a static object declaration.
+```
 
 ## `RouteFileExport`
 
@@ -116,8 +738,190 @@ interface RouteFileExport {
 }
 ```
 
-This metadata is what lets `generateRouterArtifacts()` decide whether `routes.ts` can be rendered and how exports should be composed.
+<TypeTable
+  type={{
+    exportName: {
+      description: 'Export name discovered in the source module.',
+      type: 'string',
+    },
+    kind: {
+      description: 'Export shape. route is a single defineRoute declaration, routes is a static route array or compatible route tree, and routeTree is a defineRouteTree export that must remain wrapped when generating routes.ts.',
+      type: "'route' | 'routes' | 'routeTree'",
+    },
+  }}
+/>
+
+This metadata lets `generateRouterArtifacts()` decide whether `routes.ts` can be rendered and how physical exports should be composed.
+
+Kind meanings:
+
+| Kind        | Source shape                                                                                                                       |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `route`     | Exported `defineRoute({...})`.                                                                                                     |
+| `routes`    | Exported `defineRoutes([...])`, static `routes` array, or compatible `defineRouteTree(...)` export.                                |
+| `routeTree` | Exported `defineRouteTree(...)` that cannot be safely treated as a direct `routes` export during generated route-module rendering. |
+
+## Path safety
+
+Route-file paths are checked before reads.
+
+The loader rejects:
+
+* non-string paths;
+* empty or whitespace-only paths;
+* paths containing null bytes.
+
+Null-byte diagnostic includes:
+
+```text
+null byte
+```
+
+Path safety is not a full sandbox. It does not forbid every relative path or absolute path.
+
+## Export inventory for this page
+
+`@cookbook/router-cli` exports these route-loading values:
+
+```text
+expandRouteFilePatterns
+getRouteFilePatternWatchPaths
+loadRouteFiles
+resolveEffectiveRouteOptions
+resolveRouteInput
+resolveRouteInputWithOptions
+resolveRoutes
+validateRouteFiles
+```
+
+It exports these route-loading types:
+
+```text
+LoadRouteFilesOptions
+ResolvedRouteInput
+RouteFile
+RouteFileExport
+```
+
+It also exports these shared types used by route-loading APIs:
+
+```text
+CliFileSystem
+CliRouteOptions
+CliOutputOptions
+GeneratedRouteTreeRuntimeOptions
+```
+
+These source-level or option object types are not exported as named package-root types:
+
+```text
+CliRouteSource
+ExpandRouteFilePatternsOptions
+RouteFilePatternWatchPathsOptions
+ParseStaticRouteModuleOptions
+```
+
+Use the structural shapes documented above when you need to annotate local integration code.
 
 ## Where this bites
 
-A valid runtime TypeScript module is not automatically a statically extractable route module. “TypeScript can execute it” and “a build tool can reproduce it without executing arbitrary project code” are different claims.
+### A valid TypeScript module may not be extractable
+
+This can be valid TypeScript:
+
+```ts
+export const routes = buildRoutesFromDatabase();
+```
+
+It is not a statically extractable route module.
+
+The CLI needs route structure it can recover without executing arbitrary project code.
+
+### JSON route files are objects, not bare arrays
+
+This is wrong:
+
+```json
+[
+  {
+    "id": "home",
+    "path": "/"
+  }
+]
+```
+
+Use:
+
+```json
+{
+  "routes": [
+    {
+      "id": "home",
+      "path": "/"
+    }
+  ]
+}
+```
+
+### Explicit route files bypass discovered config
+
+This does not apply discovered config route options:
+
+```ts
+await resolveEffectiveRouteOptions({
+  routeFiles: ['src/**/*.route.tsx'],
+});
+```
+
+Pass `configFile` when explicit route files should still merge with config path options or path constraints.
+
+### Runtime imports are not static metadata imports
+
+This can be ignored by the static evaluator when used only as `view`:
+
+```ts
+import {
+  OverviewPage,
+} from '@/pages/overview';
+```
+
+This cannot be resolved when used to build static route metadata:
+
+```ts
+import {
+  paginationSearch,
+} from '@/lib/routes/pagination';
+```
+
+Static metadata imports must be relative or absolute file paths.
+
+### `loadRouteFiles()` is not glob expansion
+
+This is wrong:
+
+```ts
+await loadRouteFiles({
+  routeFiles: ['src/**/*.route.tsx'],
+});
+```
+
+Use:
+
+```ts
+const routeFiles =
+  await expandRouteFilePatterns({
+    patterns: 'src/**/*.route.tsx',
+  });
+
+await loadRouteFiles({
+  routeFiles,
+});
+```
+
+### Validation may be deferred until merge
+
+A single modular route file can reference a parent or intercept target declared elsewhere.
+
+`loadRouteFiles()` may defer that check.
+
+Use `validateRouteFiles()` or `resolveRouteInput()` when you need the whole graph validated.

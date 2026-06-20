@@ -1,26 +1,274 @@
 ---
 title: "CLI commands and command APIs"
-description: "Exact commands, flags, programmatic options, result behavior, and embedding APIs."
+description: "Exact commands, flags, programmatic options, result behavior, watch behavior, and embedding APIs."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
 
+`@cookbook/router-cli` exposes two binary names and one public package entrypoint.
+
+Binary aliases:
+
+```text
+cbr
+cookbook-router
+```
+
+Programmatic entrypoint:
+
+```ts
+import {
+  createCliProgram,
+  generateCommand,
+  initCommand,
+  manifestCommand,
+  resolveRoutes,
+  runCli,
+  shouldRunCli,
+  validateCommand,
+  watchCommand,
+} from '@cookbook/router-cli';
+
+import type {
+  CliFileSystem,
+  CliRouteOptions,
+  CliRunnerOptions,
+  CommandResult,
+  GenerateOptions,
+  InitOptions,
+  ManifestOptions,
+  ValidateOptions,
+  WatchCommandOptions,
+  WatchHandle,
+} from '@cookbook/router-cli';
+```
+
+This page covers the CLI command layer. Generator, config, route-file loading, manifest, and build-runner APIs are documented on their owning CLI API pages.
+
+## Command inventory
+
+The CLI exposes these commands:
+
+```text
+init
+generate
+generate --watch
+manifest
+validate
+```
+
+There is no standalone `watch` CLI command. Watch mode is `generate --watch`.
+
+Programmatic watch mode is exposed through `watchCommand()`.
+
 ## Shared command-line flags
 
-`init`, `generate`, `manifest`, and `validate` all receive:
+`init`, `generate`, `manifest`, and `validate` all accept the shared route-input flags.
 
-| Flag | Meaning |
-| --- | --- |
-| `--config <file>` | Explicit config path. Otherwise discovery checks `cookbook-router.config.*`. |
-| `--routes <file>` | Route file or glob. Repeatable. Overrides config `routeFiles`. |
-| `--out-dir <dir>` | Output directory override. |
-| `--cwd <dir>` | Base directory for config, route inputs, and output. |
-| `--json` | Print the `CommandResult` as JSON. |
-| `--verbose` | Include additional error causes where supported. |
+| Flag              | Meaning                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| `--config <file>` | Explicit router config path. Otherwise config discovery checks `cookbook-router.config.*`. |
+| `--routes <file>` | Route source file or glob. May be repeated. Overrides config `routeFiles`.                 |
+| `--out-dir <dir>` | Generated output directory override.                                                       |
+| `--cwd <dir>`     | Project directory used to resolve config, routes, and output paths.                        |
+| `--json`          | Print the `CommandResult` as formatted JSON.                                               |
+| `--verbose`       | Include additional diagnostic context where supported.                                     |
 
-`generate` additionally accepts `--watch`.
+`generate` also accepts:
+
+| Flag      | Meaning                                                       |
+| --------- | ------------------------------------------------------------- |
+| `--watch` | Watch config and route inputs, then regenerate after changes. |
+
+Common command shape:
+
+```sh
+cbr generate --routes "src/**/*.route.tsx" --out-dir .cookbook-router
+```
+
+JSON result shape:
+
+```sh
+cbr validate --routes "src/**/*.route.tsx" --json
+```
+
+Version flag:
+
+```sh
+cbr --version
+```
+
+The version flag also has a short alias:
+
+```sh
+cbr -v
+```
+
+## Command output behavior
+
+Non-JSON success with files writes:
+
+```text
+Generated 3 files.
+  .cookbook-router/contracts.ts
+  .cookbook-router/manifest.json
+  .cookbook-router/register.d.ts
+```
+
+Non-JSON success with files but no changed contents writes:
+
+```text
+Router artifacts are up to date.
+```
+
+Non-JSON success with no files writes:
+
+```text
+Routes are valid.
+```
+
+Non-JSON failure writes joined errors to stderr and sets exit code `1`.
+
+JSON mode writes the `CommandResult` object to stdout.
+
+```json
+{
+  "ok": true,
+  "files": [],
+  "errors": []
+}
+```
+
+## `CommandResult`
+
+```ts
+interface CommandResult {
+  readonly ok: boolean;
+  readonly files: readonly string[];
+  readonly errors: readonly string[];
+  readonly changedFiles?: readonly string[];
+}
+```
+
+<TypeTable
+type={{
+ok: {
+description: 'Whether the command completed successfully.',
+type: 'boolean',
+},
+files: {
+description: 'Applicable output files on success. init can also return files written before a later generation failure.',
+type: 'readonly string[]',
+},
+errors: {
+description: 'User-facing error messages. Empty on success.',
+type: 'readonly string[]',
+},
+changedFiles: {
+description: 'Subset of files whose contents were actually rewritten. Present on generation-style write commands, not all commands.',
+type: 'readonly string[]',
+optional: true,
+},
+}}
+/>
+
+Use `ok` as the success check.
+
+Do not use `files.length`.
+
+`validateCommand()` succeeds with `files: []`.
+
+## Shared programmatic route options
+
+```ts
+interface CliRouteOptions extends CliOutputOptions {
+  readonly routes?: readonly RouteDefinition[];
+  readonly routeFiles?: readonly string[];
+  readonly routeFileWatchPaths?: readonly string[];
+  readonly routeOptions?: DefineRoutesOptions;
+  readonly configFile?: string;
+  readonly cwd?: string;
+  readonly verbose?: boolean;
+  readonly allowEmptyRouteFiles?: boolean;
+  readonly runtimeRouteOptions?: GeneratedRouteTreeRuntimeOptions;
+}
+```
+
+<TypeTable
+  type={{
+    routes: {
+      description: 'Direct route definitions. When present, config and route-file loading are skipped.',
+      type: 'readonly RouteDefinition[]',
+      optional: true,
+    },
+    routeFiles: {
+      description: 'Route source files or expanded glob matches.',
+      type: 'readonly string[]',
+      optional: true,
+    },
+    routeFileWatchPaths: {
+      description: 'Internal watch roots derived from route-file patterns.',
+      type: 'readonly string[]',
+      optional: true,
+    },
+    routeOptions: {
+      description: 'Route validation options such as pathOptions and pathConstraints.',
+      type: 'DefineRoutesOptions',
+      optional: true,
+    },
+    configFile: {
+      description: 'Explicit config path.',
+      type: 'string',
+      optional: true,
+    },
+    cwd: {
+      description: 'Base directory for config, route inputs, and output paths.',
+      type: 'string',
+      optional: true,
+    },
+    verbose: {
+      description: 'Formats command errors with stack and nested causes when supported.',
+      type: 'boolean',
+      optional: true,
+    },
+    allowEmptyRouteFiles: {
+      description: 'Internal watch-mode option that allows glob roots before files exist.',
+      type: 'boolean',
+      optional: true,
+    },
+    runtimeRouteOptions: {
+      description: 'Internal metadata used to preserve runtime-safe generated route-tree imports.',
+      type: 'GeneratedRouteTreeRuntimeOptions',
+      optional: true,
+    },
+  }}
+/>
+
+`CliOutputOptions` is:
+
+```ts
+interface CliOutputOptions {
+  readonly outDir?: string;
+  readonly fs?: CliFileSystem;
+}
+```
+
+<TypeTable
+  type={{
+    outDir: {
+      description: 'Generated output directory. Defaults to .cookbook-router after config/cwd resolution.',
+      type: 'string',
+      optional: true,
+    },
+    fs: {
+      description: 'Injected file system abstraction for tests and alternate runtimes.',
+      type: 'CliFileSystem',
+      optional: true,
+    },
+  }}
+/>
 
 ## `initCommand(options?)`
 
@@ -36,50 +284,389 @@ interface InitOptions {
   readonly verbose?: boolean;
 }
 
-function initCommand(options?: InitOptions): Promise<CommandResult>;
+function initCommand(
+  options?: InitOptions,
+): Promise<CommandResult>;
 ```
 
-It creates config, an inferred starter route when appropriate, route scripts in an existing `package.json`, TypeScript includes in an existing `tsconfig.json`, the output directory, and generated artifacts unless `skipGenerate` is true. It refuses to overwrite an existing discovered config.
+Bootstraps a project.
 
-The command-line `init` exposes the shared flags. `starterRouteFile` and `skipGenerate` are programmatic options, not current CLI flags.
+It can create or update:
+
+* router config;
+* starter route file;
+* route scripts in an existing `package.json`;
+* TypeScript `include` entries in an existing `tsconfig.json`;
+* output directory;
+* generated artifacts, unless `skipGenerate` is `true`.
+
+<TypeTable
+  type={{
+    cwd: {
+      description: 'Project directory used to scope generated files and discovery.',
+      type: 'string',
+      optional: true,
+    },
+    fs: {
+      description: 'Injected file system abstraction.',
+      type: 'CliFileSystem',
+      optional: true,
+    },
+    routeFiles: {
+      description: 'Initial route source file or glob written to config. A custom value disables implicit starter-route creation unless starterRouteFile is provided.',
+      type: 'string | readonly string[]',
+      optional: true,
+    },
+    outDir: {
+      description: 'Generated output directory written to config.',
+      type: 'string',
+      default: "'.cookbook-router'",
+      optional: true,
+    },
+    configFile: {
+      description: 'Config file to create.',
+      type: 'string',
+      default: "'cookbook-router.config.ts'",
+      optional: true,
+    },
+    starterRouteFile: {
+      description: 'Explicit starter route file to create when missing.',
+      type: 'string',
+      optional: true,
+    },
+    skipGenerate: {
+      description: 'Skips the initial generateCommand call.',
+      type: 'boolean',
+      default: 'false',
+      optional: true,
+    },
+    verbose: {
+      description: 'Formats thrown command errors with stack and nested causes.',
+      type: 'boolean',
+      optional: true,
+    },
+  }}
+/>
+
+Default config file:
+
+```text
+cookbook-router.config.ts
+```
+
+Default output directory:
+
+```text
+.cookbook-router
+```
+
+Default route glob:
+
+```text
+src/**/*.route.{ts,tsx,js,jsx,mts,cts,mjs,cjs}
+```
+
+If an `app` directory exists, `initCommand()` uses `app` as the source root.
+
+If a package script suggests Vite, Next, Remix, or React Router and `app/app.tsx` exists, `app` is also selected.
+
+Starter route default:
+
+```text
+src/root.route.tsx
+```
+
+or:
+
+```text
+app/root.route.tsx
+```
+
+when the inferred source root is `app`.
+
+`initCommand()` refuses to overwrite an existing discovered config.
+
+Diagnostic:
+
+```text
+Refusing to overwrite existing router config "cookbook-router.config.ts".
+```
+
+When `package.json` exists, missing scripts are added:
+
+```json
+{
+  "routes:generate": "cbr generate",
+  "routes:watch": "cbr generate --watch",
+  "routes:validate": "cbr validate"
+}
+```
+
+With a custom config file, the scripts include `--config`.
+
+```json
+{
+  "routes:generate": "cbr generate --config router.config.ts",
+  "routes:watch": "cbr generate --config router.config.ts --watch",
+  "routes:validate": "cbr validate --config router.config.ts"
+}
+```
+
+The CLI `init` command exposes only the shared flags.
+
+`starterRouteFile` and `skipGenerate` are programmatic options. They are not current CLI flags.
 
 ## `generateCommand(options)`
 
 ```ts
 interface GenerateOptions extends CliRouteOptions {}
-function generateCommand(options: GenerateOptions): Promise<CommandResult>;
+
+function generateCommand(
+  options: GenerateOptions,
+): Promise<CommandResult>;
 ```
 
-Runs aggregate generation. Successful `files` contains the artifacts applicable to the route source. `routes.ts` is conditional; contracts, register, and manifest are not.
+Runs aggregate generation.
+
+It writes the generated artifacts applicable to the route source.
+
+Always applicable:
+
+```text
+contracts.ts
+manifest.json
+register.d.ts
+```
+
+Conditional:
+
+```text
+routes.ts
+```
+
+`routes.ts` is generated when route files expose static route exports that can be composed into a generated runtime route module.
+
+Successful result without `routes.ts`:
+
+```ts
+{
+  ok: true,
+  files: [
+    '.cookbook-router/contracts.ts',
+    '.cookbook-router/manifest.json',
+    '.cookbook-router/register.d.ts',
+  ],
+  errors: [],
+  changedFiles: [
+    '.cookbook-router/contracts.ts',
+    '.cookbook-router/manifest.json',
+    '.cookbook-router/register.d.ts',
+  ],
+}
+```
+
+Successful result with `routes.ts`:
+
+```ts
+{
+  ok: true,
+  files: [
+    '.cookbook-router/routes.ts',
+    '.cookbook-router/contracts.ts',
+    '.cookbook-router/manifest.json',
+    '.cookbook-router/register.d.ts',
+  ],
+  errors: [],
+  changedFiles: [
+    '.cookbook-router/routes.ts',
+    '.cookbook-router/contracts.ts',
+    '.cookbook-router/manifest.json',
+    '.cookbook-router/register.d.ts',
+  ],
+}
+```
+
+If contents are already stable, `changedFiles` is empty.
+
+Route input resolution and validation happen before artifact writes begin. Invalid route graphs do not overwrite previous valid artifacts.
+
+Filesystem failures can still happen during the write phase.
 
 ## `manifestCommand(options)`
 
 ```ts
 interface ManifestOptions extends CliRouteOptions {}
-function manifestCommand(options: ManifestOptions): Promise<CommandResult>;
+
+function manifestCommand(
+  options: ManifestOptions,
+): Promise<CommandResult>;
 ```
 
-Loads and validates the same effective route input, registers route path constraints, and writes only `manifest.json`. `changedFiles` is empty when the stable serialized output was already identical.
+Generates only `manifest.json`.
+
+It uses the same effective route input as `generateCommand()`.
+
+It:
+
+* resolves config and route-file globs;
+* loads route files when needed;
+* registers route path constraints;
+* validates the resolved route graph;
+* refuses to write generated output over a route source file;
+* writes only `manifest.json`.
+
+Successful result:
+
+```ts
+{
+  ok: true,
+  files: [
+    '.cookbook-router/manifest.json',
+  ],
+  errors: [],
+  changedFiles: [
+    '.cookbook-router/manifest.json',
+  ],
+}
+```
+
+When the manifest content is already identical:
+
+```ts
+{
+  ok: true,
+  files: [
+    '.cookbook-router/manifest.json',
+  ],
+  errors: [],
+  changedFiles: [],
+}
+```
 
 ## `validateCommand(options)`
 
 ```ts
 interface ValidateOptions extends CliRouteOptions {}
-function validateCommand(options: ValidateOptions): Promise<CommandResult>;
+
+function validateCommand(
+  options: ValidateOptions,
+): Promise<CommandResult>;
 ```
 
-Loads the route graph, registers custom path constraints, and validates without writing artifacts.
+Validates the resolved route graph without writing artifacts.
+
+It:
+
+* resolves config and route-file globs;
+* loads route files when needed;
+* registers custom path constraints;
+* validates route definitions with effective path options;
+* returns no files on success.
+
+Successful result:
+
+```ts
+{
+  ok: true,
+  files: [],
+  errors: [],
+}
+```
+
+Failure result:
+
+```ts
+{
+  ok: false,
+  files: [],
+  errors: [
+    'No routes or routeFiles were provided.',
+  ],
+}
+```
 
 ## `watchCommand(options)`
 
 ```ts
 interface WatchCommandOptions extends WatchOptions {}
-function watchCommand(options: WatchCommandOptions): WatchHandle;
+
+interface WatchOptions extends CliRouteOptions {
+  readonly debounceMs?: number;
+  readonly onChange?: (
+    result: CommandResult,
+  ) => void | Promise<void>;
+}
+
+interface WatchHandle {
+  readonly initial: Promise<CommandResult>;
+  close(): void;
+}
+
+function watchCommand(
+  options: WatchCommandOptions,
+): WatchHandle;
 ```
 
-This function is synchronous. It returns a handle immediately; `handle.initial` represents the initial generation. After every debounced run, `onChange` receives a `CommandResult`. Failed runs preserve previous valid artifacts because validation completes before writes begin.
+Starts watch-mode generation and returns a handle immediately.
 
-Watch mode requires `fs.watch`. Glob discovery still requires `readdir` and `stat`.
+`watchCommand()` is synchronous. The initial generation is represented by `handle.initial`.
+
+<TypeTable
+  type={{
+    debounceMs: {
+      description: 'Delay used to coalesce rapid watch events.',
+      type: 'number',
+      default: '50',
+      optional: true,
+    },
+    onChange: {
+      description: 'Callback called for the initial result and every later watch result.',
+      type: '(result: CommandResult) => void | Promise<void>',
+      optional: true,
+    },
+    initial: {
+      description: 'Promise for the initial generation result.',
+      type: 'Promise<CommandResult>',
+    },
+    close: {
+      description: 'Stops timers and closes active file watchers. Idempotent.',
+      type: '() => void',
+    },
+  }}
+/>
+
+Watch mode requires at least one route-file input after config resolution.
+
+Diagnostic:
+
+```text
+Watch mode requires at least one route file. Pass --routes <file>.
+```
+
+Watch mode also requires `fs.watch`.
+
+Diagnostic:
+
+```text
+Watch mode requires a file system with watch support.
+```
+
+Watch setup observes:
+
+* explicit route files;
+* expanded route files;
+* glob watch roots;
+* resolved config file.
+
+When config route patterns change, watcher roots are reconciled.
+
+Rapid events are debounced and coalesced.
+
+If a run is already executing, another change requests one more run after the current run finishes.
+
+Invalid route graphs do not rewrite previous valid artifacts because generation validates before writing.
+
+The watch handle does not expose intermediate promises. Observe later runs through `onChange`.
 
 ## `resolveRoutes(options)`
 
@@ -89,20 +676,70 @@ function resolveRoutes(
 ): Promise<readonly RouteDefinition[]>;
 ```
 
-Returns only the resolved route array. Use `resolveRouteInput()` when route options, exports, or source metadata matter.
+Resolves route input and returns only the route array.
+
+It uses the same route-input pipeline as generation.
+
+Resolution order:
+
+1. direct `options.routes`;
+2. explicit `options.routeFiles`;
+3. config-discovered route files.
+
+It validates the resolved routes before returning.
+
+If no route source exists, it rejects with:
+
+```text
+No routes or routeFiles were provided.
+```
+
+Use `resolveRouteInput()` when route options, source exports, or route-source metadata matter.
 
 ## `createCliProgram(options?)`
 
 ```ts
-function createCliProgram(options?: {
-  readonly stdout?: (message: string) => void;
-  readonly stderr?: (message: string) => void;
-  readonly version?: string;
-  readonly setExitCode?: (code: number) => void;
-}): Command;
+function createCliProgram(
+  options?: {
+    readonly stdout?: (message: string) => void;
+    readonly stderr?: (message: string) => void;
+    readonly version?: string;
+    readonly setExitCode?: (code: number) => void;
+  },
+): Command;
 ```
 
-Creates the Commander program without parsing. The option shape is part of the emitted function declaration but its named source interface is not re-exported from the package root.
+Creates the Commander-backed CLI program without parsing arguments.
+
+<TypeTable
+  type={{
+    stdout: {
+      description: 'Output writer used for help, version, JSON output, and success messages.',
+      type: '(message: string) => void',
+      optional: true,
+    },
+    stderr: {
+      description: 'Output writer used for command errors.',
+      type: '(message: string) => void',
+      optional: true,
+    },
+    version: {
+      description: 'Version string displayed by -v or --version.',
+      type: 'string',
+      default: "'0.0.0'",
+      optional: true,
+    },
+    setExitCode: {
+      description: 'Exit-code sink used by runCli and tests. Defaults to process.exitCode when omitted.',
+      type: '(code: number) => void',
+      optional: true,
+    },
+  }}
+/>
+
+The named source interfaces `CreateCliProgramOptions` and `CliProgramIo` are not exported from the package root.
+
+Treat the inline option shape as the public command API.
 
 ## `runCli(argv, runnerOptions?)`
 
@@ -119,7 +756,44 @@ function runCli(
 ): Promise<number>;
 ```
 
-No arguments prints help and returns `0`. Commander failures return their exit code. Unexpected failures are written to stderr and return `1`.
+Runs the CLI command dispatcher and returns a process-style exit code.
+
+<TypeTable
+  type={{
+    argv: {
+      description: 'User argument vector. Pass command arguments, not process.argv with node and script path.',
+      type: 'readonly string[]',
+    },
+    stdout: {
+      description: 'Output writer for help, version, JSON, and success messages.',
+      type: '(message: string) => void',
+      optional: true,
+    },
+    stderr: {
+      description: 'Output writer for command errors and unexpected failures.',
+      type: '(message: string) => void',
+      optional: true,
+    },
+    version: {
+      description: 'Version string passed to createCliProgram.',
+      type: 'string',
+      optional: true,
+    },
+  }}
+/>
+
+No arguments prints help and returns `0`.
+
+```ts
+await runCli([]);
+// 0
+```
+
+Commander failures return Commander’s exit code.
+
+Unexpected failures are written to stderr and return `1`.
+
+Command failures produce exit code `1` through `setExitCode`.
 
 ## `shouldRunCli(moduleUrl?, argv?)`
 
@@ -130,17 +804,221 @@ function shouldRunCli(
 ): boolean;
 ```
 
-Compares the current module file URL with `argv[1]`. It exists so importing the package as a library does not execute the binary.
+Returns `true` when the current module URL is the process entrypoint.
 
-## `CommandResult`
+It compares:
+
+* `fileURLToPath(moduleUrl)`;
+* `argv[1]`.
+
+Both are resolved to absolute paths before comparison.
+
+This is used by the binary wrapper so importing `@cookbook/router-cli` as a library does not execute the CLI.
+
+Missing `argv[1]` returns `false`.
+
+## `CliFileSystem`
 
 ```ts
-interface CommandResult {
-  readonly ok: boolean;
-  readonly files: readonly string[];
-  readonly errors: readonly string[];
-  readonly changedFiles?: readonly string[];
+interface CliFileSystem {
+  readFile(path: string): Promise<string>;
+  writeFile(
+    path: string,
+    contents: string,
+  ): Promise<void>;
+  mkdir(
+    path: string,
+    options?: {
+      readonly recursive?: boolean;
+    },
+  ): Promise<void>;
+  readdir?(
+    path: string,
+    options?: {
+      readonly withFileTypes?: false;
+    },
+  ): Promise<readonly string[]>;
+  stat?(path: string): Promise<{
+    readonly mtimeMs?: number;
+    readonly isDirectory?: () => boolean;
+    readonly isFile?: () => boolean;
+  }>;
+  watch?(
+    path: string,
+    listener: (
+      event: 'rename' | 'change',
+      filename: string | null,
+    ) => void,
+  ): {
+    close: () => void;
+  };
 }
 ```
 
-`files` means applicable output files for a successful command. `changedFiles` is the subset whose contents were actually rewritten. Do not use `files.length` as the success check; use `ok`.
+<TypeTable
+  type={{
+    readFile: {
+      description: 'Required file read operation.',
+      type: '(path: string) => Promise<string>',
+    },
+    writeFile: {
+      description: 'Required file write operation.',
+      type: '(path: string, contents: string) => Promise<void>',
+    },
+    mkdir: {
+      description: 'Required directory creation operation.',
+      type: '(path: string, options?: { readonly recursive?: boolean }) => Promise<void>',
+    },
+    readdir: {
+      description: 'Optional directory read operation. Required for glob expansion and some source-root inference.',
+      type: "(path: string, options?: { readonly withFileTypes?: false }) => Promise<readonly string[]>",
+      optional: true,
+    },
+    stat: {
+      description: 'Optional stat operation. Used for source-root inference and glob expansion.',
+      type: '(path: string) => Promise<{ readonly mtimeMs?: number; readonly isDirectory?: () => boolean; readonly isFile?: () => boolean }>',
+      optional: true,
+    },
+    watch: {
+      description: 'Optional watch operation. Required only by watch mode.',
+      type: "(path: string, listener: (event: 'rename' | 'change', filename: string | null) => void) => { close: () => void }",
+      optional: true,
+    },
+  }}
+/>
+
+Programmatic commands can inject `fs` for tests and alternate runtimes.
+
+Watch mode requires `watch`. Glob expansion still needs directory/stat support through the route-file discovery pipeline.
+
+## Export inventory for this page
+
+`@cookbook/router-cli` exports these command values:
+
+```text
+createCliProgram
+generateCommand
+initCommand
+manifestCommand
+resolveRoutes
+runCli
+shouldRunCli
+validateCommand
+watchCommand
+```
+
+It exports these command-related public types:
+
+```text
+CliFileSystem
+CliOutputOptions
+CliRouteOptions
+CommandResult
+GenerateOptions
+InitOptions
+ManifestOptions
+ValidateOptions
+WatchCommandOptions
+WatchHandle
+WatchOptions
+CliRunnerOptions
+```
+
+It also exports `resolveRouteInput`, `resolveRouteInputWithOptions`, and `ResolvedRouteInput`; those are route-input APIs and should be documented on the route input/config page rather than treated as command wrappers.
+
+## Where this bites
+
+### `watchCommand()` is not a CLI command
+
+This is wrong:
+
+```sh
+cbr watch
+```
+
+Use:
+
+```sh
+cbr generate --watch
+```
+
+or programmatic watch mode:
+
+```ts
+watchCommand({
+  routeFiles: ['src/**/*.route.tsx'],
+});
+```
+
+### `onChange` receives the initial result
+
+`watchCommand()` calls `onChange` for the initial generation and later reruns.
+
+Do not assume the first callback is caused by a file change.
+
+### `changedFiles` is not always present
+
+This is wrong:
+
+```ts
+if (result.changedFiles.length) {
+  // ...
+}
+```
+
+Use:
+
+```ts
+if (result.changedFiles?.length) {
+  // ...
+}
+```
+
+`initCommand()` currently does not return `changedFiles`.
+
+### `files.length` is not success
+
+This is wrong:
+
+```ts
+if (result.files.length) {
+  // command succeeded
+}
+```
+
+Use:
+
+```ts
+if (result.ok) {
+  // command succeeded
+}
+```
+
+`validateCommand()` succeeds with no files.
+
+### `initCommand()` can return partial files on generation failure
+
+`initCommand()` writes setup files before running generation.
+
+If generation then fails, the result can be:
+
+```ts
+{
+  ok: false,
+  files: [
+    'cookbook-router.config.ts',
+    'src/root.route.tsx',
+  ],
+  errors: [
+    '...',
+  ],
+}
+```
+
+That means setup wrote files, not that the full command succeeded.
+
+### Custom route globs disable implicit starter creation
+
+When `routeFiles` is provided to `initCommand()`, the implicit starter route is not created.
+
+Use `starterRouteFile` programmatically when you want both custom route globs and a starter route.

@@ -1,11 +1,41 @@
 ---
 title: "Build integration API"
-description: "Exact shared builder options, runner result, watch-state fallback, path utilities, error formatting, and Webpack/Rspack compiler hooks."
+description: "Shared builder options, runner result, watch-state fallback, path utilities, error formatting, and Webpack/Rspack compiler hooks."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
+
+`@cookbook/router-cli` exposes shared build integration primitives used by bundler plugins.
+
+```ts
+import {
+  applyRouterCompilerBuildHooks,
+  createRouterBuildRunner,
+  formatRouterBuildErrors,
+  getFallbackWatchPaths,
+  normalizeBuilderRouteFiles,
+  normalizeBuildPath,
+  resolveBuildPath,
+  resolveRouterBuildWatchState,
+  resolveUniqueBuildPaths,
+  toRouterBuildCliOptions,
+} from '@cookbook/router-cli';
+
+import type {
+  CookbookRouterBuilderPluginOptions,
+  RouterBuildRunner,
+  RouterBuildRunnerOptions,
+  RouterBuildRunnerResult,
+  RouterBuildWatchState,
+  RouterCompilerBuildHooksOptions,
+} from '@cookbook/router-cli';
+```
+
+These APIs are meant for build adapters.
+
+They do not define a universal plugin protocol. Each bundler still owns its own plugin shape, watch API, error channel, and rebuild behavior.
 
 ## Shared plugin options
 
@@ -22,12 +52,45 @@ interface RouterBuildRunnerOptions
   extends CookbookRouterBuilderPluginOptions {}
 ```
 
-These are exported for custom build adapters and extended by Webpack, Rspack, Rollup, esbuild, and Bun plugin option interfaces. Vite has its own shape because it derives `cwd` from the resolved Vite root and adds `debounceMs`.
+<TypeTable
+  type={{
+    cwd: {
+      description: 'Project root used for config discovery, relative route files, and output resolution.',
+      type: 'string',
+      optional: true,
+    },
+    configFile: {
+      description: 'Router config file. Defaults to cookbook-router.config.* discovery.',
+      type: 'string',
+      optional: true,
+    },
+    routeFiles: {
+      description: 'Route source file, glob, or list of files/globs. Overrides config routeFiles when provided.',
+      type: 'string | readonly string[]',
+      optional: true,
+    },
+    outDir: {
+      description: 'Generated output directory. Defaults to config outDir or .cookbook-router.',
+      type: 'string',
+      optional: true,
+    },
+    fs: {
+      description: 'Injected file system for tests and non-standard runtimes.',
+      type: 'CliFileSystem',
+      optional: true,
+    },
+  }}
+/>
+
+These options are extended by the Webpack, Rspack, Rollup, esbuild, and Bun plugin option interfaces.
+
+Vite has its own plugin option shape. It derives `cwd` from the resolved Vite root and adds `debounceMs`.
 
 ## `createRouterBuildRunner(options?)`
 
 ```ts
-interface RouterBuildRunnerResult extends CommandResult {
+interface RouterBuildRunnerResult
+  extends CommandResult {
   readonly watchPaths: readonly string[];
   readonly outDir: string;
   readonly error?: Error;
@@ -42,9 +105,60 @@ function createRouterBuildRunner(
 ): RouterBuildRunner;
 ```
 
-`run()` calls aggregate generation and then resolves watch state. Thrown errors are normalized into a failed result with the original `Error` in `error`. Watch paths and output are still returned after failure.
+Creates a one-method build runner.
 
-The runner has one method. Watch-state resolution is the separate exported `resolveRouterBuildWatchState()` function.
+`run()` performs aggregate generation and resolves watch state.
+
+<TypeTable
+  type={{
+    watchPaths: {
+      description: 'Resolved config files, route files, or route roots the build adapter should watch.',
+      type: 'readonly string[]',
+    },
+    outDir: {
+      description: 'Resolved generated output directory.',
+      type: 'string',
+    },
+    error: {
+      description: 'Original Error for thrown failures. Not present for ordinary failed CommandResult values.',
+      type: 'Error',
+      optional: true,
+    },
+    run: {
+      description: 'Runs generation and returns a normalized result.',
+      type: '() => Promise<RouterBuildRunnerResult>',
+    },
+  }}
+/>
+
+`run()` does not throw for normal generation failures.
+
+It returns:
+
+```ts
+{
+  ok: false,
+  files: [],
+  errors: ['...'],
+  watchPaths: ['...'],
+  outDir: '...',
+}
+```
+
+If an unexpected exception is thrown, the result includes the normalized original error:
+
+```ts
+{
+  ok: false,
+  files: [],
+  errors: [error.message],
+  watchPaths: ['...'],
+  outDir: '...',
+  error,
+}
+```
+
+Watch paths and output directory are still returned after failure. That lets a build adapter keep watching files that can make the next run recover.
 
 ## `resolveRouterBuildWatchState(options?)`
 
@@ -59,34 +173,230 @@ function resolveRouterBuildWatchState(
 ): Promise<RouterBuildWatchState>;
 ```
 
-It first resolves effective route options with empty route matches allowed. On failure it falls back to all standard config candidates and roots derived from explicit route patterns. This is what lets a broken or missing input recover.
+Resolves watch inputs without forcing route files to exist.
 
-## Option and path helpers
+It first calls effective route option resolution with:
+
+```ts
+allowEmptyRouteFiles: true
+```
+
+When that succeeds, watch paths are:
+
+1. resolved config file, when present;
+2. `routeFileWatchPaths`, when present;
+3. otherwise `routeFiles`.
+
+If no watch path is available, it falls back to `getFallbackWatchPaths()`.
+
+When effective option resolution fails, it falls back immediately.
+
+Fallback watch paths are:
+
+* all standard config candidates under `cwd`, unless `configFile` is explicit;
+* roots derived from explicit `routeFiles`, when supplied.
+
+The fallback does not inspect the filesystem.
+
+It exists so broken or missing input can recover after a file is created or fixed.
+
+```ts
+const state =
+  await resolveRouterBuildWatchState({
+    cwd: 'apps/site',
+    routeFiles: 'src/**/*.route.tsx',
+  });
+
+state.watchPaths;
+// [
+//   '<root>/cookbook-router.config.ts',
+//   '<root>/cookbook-router.config.mts',
+//   ...
+//   '<root>/src'
+// ]
+```
+
+## `toRouterBuildCliOptions(options?)`
 
 ```ts
 function toRouterBuildCliOptions(
   options?: RouterBuildRunnerOptions,
 ): CliRouteOptions;
+```
 
+Converts builder options into CLI route options.
+
+Behavior:
+
+* `routeFiles` string becomes a one-item array;
+* empty or missing route files are omitted;
+* `undefined` fields are not added;
+* `cwd`, `configFile`, `outDir`, and `fs` are forwarded when supplied.
+
+```ts
+toRouterBuildCliOptions({
+  configFile: 'router.config.ts',
+  routeFiles: 'src/**/*.route.tsx',
+  outDir: '.router',
+  cwd: 'apps/site',
+});
+```
+
+returns:
+
+```ts
+{
+  configFile: 'router.config.ts',
+  routeFiles: ['src/**/*.route.tsx'],
+  outDir: '.router',
+  cwd: 'apps/site',
+}
+```
+
+## `normalizeBuilderRouteFiles(routeFiles)`
+
+```ts
 function normalizeBuilderRouteFiles(
-  routeFiles: string | readonly string[] | undefined,
+  routeFiles:
+    | string
+    | readonly string[]
+    | undefined,
 ): readonly string[] | undefined;
+```
 
+Normalizes builder route-file input.
+
+| Input              | Output             |
+| ------------------ | ------------------ |
+| `undefined`        | `undefined`        |
+| `'routes.ts'`      | `['routes.ts']`    |
+| `['a.ts', 'b.ts']` | `['a.ts', 'b.ts']` |
+
+The function does not validate whether files exist.
+
+## `getFallbackWatchPaths(options?)`
+
+```ts
 function getFallbackWatchPaths(
   options?: RouterBuildRunnerOptions,
 ): readonly string[];
+```
 
+Returns recovery watch paths without loading config or expanding globs.
+
+When `configFile` is omitted, it returns all standard config candidates scoped under `cwd`.
+
+When `configFile` is supplied, it returns only that config path.
+
+When explicit `routeFiles` are supplied, it also includes watch paths derived from those patterns.
+
+Results are deduplicated.
+
+```ts
+getFallbackWatchPaths({
+  cwd: 'apps/site',
+  routeFiles: 'src/**/*.route.tsx',
+});
+```
+
+contains:
+
+```text
+apps/site/cookbook-router.config.ts
+apps/site/cookbook-router.config.mts
+apps/site/cookbook-router.config.cts
+apps/site/cookbook-router.config.js
+apps/site/cookbook-router.config.mjs
+apps/site/cookbook-router.config.cjs
+apps/site/src
+```
+
+## Path helpers
+
+### `resolveUniqueBuildPaths(root, paths)`
+
+```ts
 function resolveUniqueBuildPaths(
   root: string,
   paths: readonly string[],
 ): readonly string[];
-
-function resolveBuildPath(root: string, path: string): string;
-function normalizeBuildPath(path: string): string;
-function formatRouterBuildErrors(errors: readonly string[]): string;
 ```
 
-`resolveBuildPath()` avoids double-scoping a relative path that already resolves under the root. `normalizeBuildPath()` changes backslashes to forward slashes. Error formatting prefixes every entry with `[cookbook-router]` and joins with newlines.
+Resolves each path through `resolveBuildPath()` and removes duplicates.
+
+Order is first occurrence.
+
+### `resolveBuildPath(root, path)`
+
+```ts
+function resolveBuildPath(
+  root: string,
+  path: string,
+): string;
+```
+
+Resolves build paths while avoiding accidental double-rooting.
+
+Behavior:
+
+* absolute paths are resolved as absolute paths;
+* relative paths already resolving under `root` are kept relative to the current process resolution;
+* other relative paths are resolved under `root`.
+
+This matters when a build tool passes paths already scoped to its project root.
+
+### `normalizeBuildPath(path)`
+
+```ts
+function normalizeBuildPath(
+  path: string,
+): string;
+```
+
+Normalizes path separators for comparisons.
+
+It replaces backslashes with forward slashes.
+
+```ts
+normalizeBuildPath('a\\b\\c');
+// 'a/b/c'
+```
+
+It does not resolve the path.
+
+## `formatRouterBuildErrors(errors)`
+
+```ts
+function formatRouterBuildErrors(
+  errors: readonly string[],
+): string;
+```
+
+Formats build errors for bundler diagnostics.
+
+Each line is prefixed:
+
+```text
+[cookbook-router]
+```
+
+Example:
+
+```ts
+formatRouterBuildErrors([
+  'first',
+  'second',
+]);
+```
+
+returns:
+
+```text
+[cookbook-router] first
+[cookbook-router] second
+```
+
+An empty array returns an empty string.
 
 ## `applyRouterCompilerBuildHooks(compiler, options?)`
 
@@ -96,25 +406,441 @@ interface RouterCompilerBuildHooksOptions
   readonly pluginName?: string;
 }
 
-function applyRouterCompilerBuildHooks<Compiler, Compilation>(
+function applyRouterCompilerBuildHooks<
+  Compiler,
+  Compilation,
+>(
   compiler: Compiler,
   options?: RouterCompilerBuildHooksOptions,
 ): void;
 ```
 
-The generic compiler must provide `beforeRun`, `watchRun`, and `afterCompile` promise hooks plus Webpack/Rspack-like options and dependency sets.
+Installs Webpack/Rspack-style compiler hooks.
 
-Behavior:
+This is the shared implementation used by:
 
-1. `beforeRun`: generate; throw on failure.
-2. `watchRun`: generate; report failure but keep watch mode alive and preserve prior valid files.
-3. `afterCompile`: recompute watch state; add file, context, and missing dependencies; exclude output from dependencies.
-4. Extend `watchOptions.ignored` with `outDir` while preserving string, regexp, array, or function rules.
+* `@cookbook/router-webpack-plugin`;
+* `@cookbook/router-rspack-plugin`.
 
-## Capability boundary
+<TypeTable
+  type={{
+    pluginName: {
+      description: 'Hook tap name and logger name. Defaults to CookbookRouterPlugin.',
+      type: 'string',
+      optional: true,
+    },
+  }}
+/>
 
-Vite, Webpack, Rspack, and Rollup adapters can register route roots with the host watcher. The current esbuild and Bun adapters only run at host build start; pair them with `cbr generate --watch` when creation/deletion outside the module graph must trigger generation.
+### Compiler shape
+
+The compiler must provide promise hooks:
+
+```ts
+interface RouterCompilerHook<
+  Arguments extends readonly unknown[],
+> {
+  tapPromise(
+    name: string,
+    handler: (...args: Arguments) => Promise<void>,
+  ): void;
+}
+```
+
+Compiler hooks:
+
+```ts
+interface RouterCompilerHooks<Compiler, Compilation> {
+  readonly beforeRun: RouterCompilerHook<[Compiler]>;
+  readonly watchRun: RouterCompilerHook<[Compiler]>;
+  readonly afterCompile: RouterCompilerHook<[Compilation]>;
+}
+```
+
+Compiler options:
+
+```ts
+interface RouterCompilerOptions {
+  context?: string;
+  watchOptions?: {
+    ignored?: WatchIgnored;
+  };
+}
+```
+
+Compiler-like shape:
+
+```ts
+interface RouterCompilerLike<Compiler, Compilation> {
+  readonly context?: string;
+  readonly options: RouterCompilerOptions;
+  readonly hooks: RouterCompilerHooks<
+    Compiler,
+    Compilation
+  >;
+  getInfrastructureLogger?(
+    name: string,
+  ): {
+    error?(message: string): void;
+  };
+}
+```
+
+Compilation-like shape:
+
+```ts
+interface RouterCompilationLike {
+  readonly fileDependencies?: {
+    add(path: string): unknown;
+  };
+  readonly contextDependencies?: {
+    add(path: string): unknown;
+  };
+  readonly missingDependencies?: {
+    add(path: string): unknown;
+  };
+}
+```
+
+These helper interfaces are implementation shapes, not exported public types.
+
+### Hook behavior
+
+`beforeRun`:
+
+1. runs generation;
+2. reports errors through infrastructure logger or stderr;
+3. throws when generation fails.
+
+`watchRun`:
+
+1. runs generation;
+2. reports errors through infrastructure logger or stderr;
+3. does not throw when generation fails.
+
+This keeps watch mode alive so the next file change can recover.
+
+`afterCompile`:
+
+1. recomputes watch state;
+2. adds file, context, and missing dependencies;
+3. excludes generated output paths from dependencies;
+4. extends `watchOptions.ignored` with `outDir`.
+
+## Dependency classification
+
+`afterCompile` classifies every watch path.
+
+If the path looks like a file, it is added to:
+
+```text
+fileDependencies
+missingDependencies
+```
+
+A path looks like a file when its basename contains an extension.
+
+Examples:
+
+| Watch path                  | Classification            |
+| --------------------------- | ------------------------- |
+| `routes.ts`                 | file + missing dependency |
+| `cookbook-router.config.ts` | file + missing dependency |
+| `src`                       | context dependency        |
+| `app/routes`                | context dependency        |
+
+Directory-like paths are added to:
+
+```text
+contextDependencies
+```
+
+Generated output paths are skipped.
+
+This prevents the output directory from creating rebuild loops.
+
+## Watch ignore behavior
+
+`applyRouterCompilerBuildHooks()` extends `compiler.options.watchOptions.ignored`.
+
+When no ignored option exists:
+
+```ts
+watchOptions.ignored = [outDir];
+```
+
+When ignored is an array, `outDir` is appended unless it is already present.
+
+```ts
+['node_modules']
+```
+
+becomes:
+
+```ts
+['node_modules', outDir]
+```
+
+When ignored is a string or regexp, it becomes an array:
+
+```ts
+ignored
+```
+
+becomes:
+
+```ts
+[ignored, outDir]
+```
+
+When ignored is a function, it is wrapped:
+
+```ts
+watchOptions.ignored = (path) =>
+  isInsideOutputDirectory(path, outDir) ||
+  ignored(path);
+```
+
+String entries are compared by resolved normalized path before appending. Regular expressions are not deduplicated against `outDir`.
+
+## Error reporting
+
+Build hook errors are formatted with `formatRouterBuildErrors()`.
+
+If the compiler provides:
+
+```ts
+getInfrastructureLogger(pluginName).error
+```
+
+the plugin logs there.
+
+Otherwise it writes to stderr:
+
+```ts
+process.stderr.write(`${message}\n`);
+```
+
+In `beforeRun`, failures are also thrown as a plain `Error` with unprefixed joined messages:
+
+```ts
+throw new Error(result.errors.join('\n'));
+```
+
+In `watchRun`, failures are reported but not thrown.
+
+## Adapter capability boundary
+
+### Vite
+
+`@cookbook/router-vite-plugin` uses lower-level CLI APIs directly instead of `createRouterBuildRunner()`.
+
+It:
+
+* derives `cwd` from Vite `config.root`;
+* runs generation in `buildStart`;
+* throws during production build failures;
+* in dev server mode, watches config candidates, route roots, and output directory;
+* debounces file events;
+* un-watches stale paths;
+* re-runs after queued changes;
+* sends a full reload after successful regeneration;
+* ignores changes inside generated output except output deletion, which triggers regeneration.
+
+Vite option shape:
+
+```ts
+interface CookbookRouterVitePluginOptions {
+  readonly configFile?: string;
+  readonly routeFiles?: string | readonly string[];
+  readonly outDir?: string;
+  readonly debounceMs?: number;
+  readonly fs?: CliFileSystem;
+}
+```
+
+### Webpack
+
+`@cookbook/router-webpack-plugin` uses `applyRouterCompilerBuildHooks()`.
+
+Plugin class:
+
+```ts
+class CookbookRouterPlugin {
+  constructor(
+    options?: CookbookRouterPluginOptions,
+  );
+}
+```
+
+Options extend `CookbookRouterBuilderPluginOptions`.
+
+Webpack plugin name:
+
+```text
+CookbookRouterPlugin
+```
+
+### Rspack
+
+`@cookbook/router-rspack-plugin` uses `applyRouterCompilerBuildHooks()`.
+
+Plugin class:
+
+```ts
+class CookbookRouterRspackPlugin {
+  constructor(
+    options?: CookbookRouterRspackPluginOptions,
+  );
+}
+```
+
+Options extend `CookbookRouterBuilderPluginOptions`.
+
+Rspack plugin name:
+
+```text
+CookbookRouterRspackPlugin
+```
+
+The package also exports `CookbookRouterPlugin` as an alias for `CookbookRouterRspackPlugin`.
+
+### Rollup and Rolldown
+
+`@cookbook/router-rollup-plugin` uses `createRouterBuildRunner()`.
+
+It runs in `buildStart`.
+
+For every returned watch path, it calls:
+
+```ts
+this.addWatchFile(path);
+```
+
+On failure:
+
+* it warns with formatted errors;
+* in watch mode, it keeps running;
+* outside watch mode, it calls `this.error(message)`.
+
+Options extend `CookbookRouterBuilderPluginOptions`.
+
+### esbuild
+
+`@cookbook/router-esbuild-plugin` uses `createRouterBuildRunner()`.
+
+It runs in `build.onStart()`.
+
+On failure it returns an esbuild `OnStartResult` with formatted errors.
+
+Options extend `CookbookRouterBuilderPluginOptions`.
+
+esbuild does not register route roots with a host watcher through this adapter.
+
+Use `cbr generate --watch` alongside esbuild when route-file creation/deletion outside the module graph must trigger regeneration.
+
+### Bun
+
+`@cookbook/router-bun-plugin` uses `createRouterBuildRunner()`.
+
+It runs in `build.onStart()`.
+
+On failure it throws a formatted `Error`.
+
+Options extend `CookbookRouterBuilderPluginOptions`.
+
+Bun does not register route roots with a host watcher through this adapter.
+
+Use `cbr generate --watch` alongside Bun when route-file creation/deletion outside the module graph must trigger regeneration.
+
+## Export inventory for this page
+
+`@cookbook/router-cli` exports these build-integration values:
+
+```text
+applyRouterCompilerBuildHooks
+createRouterBuildRunner
+formatRouterBuildErrors
+getFallbackWatchPaths
+normalizeBuilderRouteFiles
+normalizeBuildPath
+resolveBuildPath
+resolveRouterBuildWatchState
+resolveUniqueBuildPaths
+toRouterBuildCliOptions
+```
+
+It exports these build-integration types:
+
+```text
+CookbookRouterBuilderPluginOptions
+RouterBuildRunner
+RouterBuildRunnerOptions
+RouterBuildRunnerResult
+RouterBuildWatchState
+RouterCompilerBuildHooksOptions
+```
+
+It does not export these implementation-only compiler shape types:
+
+```text
+RouterCompilerHook
+RouterCompilerHooks
+RouterCompilerLike
+RouterCompilerLogger
+RouterCompilerOptions
+RouterCompilationLike
+WatchIgnored
+WatchIgnoredEntry
+```
 
 ## Where this bites
 
-`watchPaths` may contain files that do not exist and directories derived from globs. Treating every entry as an existing file dependency destroys missing-file recovery.
+### `watchPaths` are not all existing files
+
+A watch path can be:
+
+* an existing file;
+* a missing config candidate;
+* a directory root derived from a glob;
+* a route file that will be created later.
+
+Do not register every path only as an existing file dependency.
+
+Webpack/Rspack adapters add file-like paths to both file and missing dependencies so creation can trigger rebuilds.
+
+### Do not watch generated output as input
+
+Generated artifacts are outputs.
+
+The compiler hook skips watch paths inside `outDir` and also extends watch ignores with `outDir`.
+
+Watching output as input causes rebuild loops.
+
+### A failed watch run should not delete previous artifacts
+
+The shared runner returns a failed result and watch paths.
+
+It does not ask adapters to delete prior generated files.
+
+Keep the old valid artifacts and let the next successful run replace them.
+
+### Vite has different watch machinery
+
+Do not force Vite through `applyRouterCompilerBuildHooks()`.
+
+Vite needs dev-server watcher mutation, output-directory deletion handling, debounce, stale-path unwatching, and full reload.
+
+Use `@cookbook/router-vite-plugin`.
+
+### esbuild and Bun do not observe new route files by themselves
+
+Their adapters run before builds.
+
+They do not register glob roots with a watcher. Pair them with:
+
+```sh
+cbr generate --watch
+```
+
+when route files may be created or deleted outside the current module graph.

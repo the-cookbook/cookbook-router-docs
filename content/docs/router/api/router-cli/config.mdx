@@ -1,31 +1,113 @@
 ---
 title: "Configuration API"
-description: "Router config shape, six-file discovery, parsing restrictions, loading behavior, and effective option precedence."
+description: "Router CLI config shape, six-file discovery, static parsing rules, loading behavior, and effective option resolution."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
 
+`@cookbook/router-cli` supports static router configuration files for route discovery, output placement, path options, and path constraints.
+
+The config API is intentionally narrow. The CLI extracts supported static shapes instead of importing and executing arbitrary config modules.
+
+```ts
+import {
+  defineRouterConfig,
+  getRouterConfigFilenames,
+  getRouterConfigWatchCandidates,
+  loadRouterConfig,
+  parseRouterConfig,
+  resolveEffectiveRouteOptions,
+  ROUTER_CONFIG_FILENAMES,
+} from '@cookbook/router-cli';
+
+import type {
+  CliRouteOptions,
+  GeneratedRouteTreeRuntimeOptions,
+  LoadedRouterConfig,
+  RouterCliConfig,
+  RouterConfigFilename,
+} from '@cookbook/router-cli';
+```
+
 ## `defineRouterConfig(config)`
 
 ```ts
-function defineRouterConfig<const Config extends RouterCliConfig>(
-  config: Config,
-): Config;
+function defineRouterConfig<
+  const Config extends RouterCliConfig,
+>(config: Config): Config;
 ```
 
 Identity helper for contextual typing and literal preservation.
 
+It validates the config object at runtime when the config module is actually executed by TypeScript or Node.
+
 ```ts title="cookbook-router.config.ts"
-import { defineRouterConfig } from '@cookbook/router-cli';
+import {
+  defineRouterConfig,
+} from '@cookbook/router-cli';
 
 export default defineRouterConfig({
   routeFiles: 'src/**/*.route.{ts,tsx}',
   outDir: '.cookbook-router',
-  pathOptions: { prune: true },
-});
+  pathOptions: {
+    prune: 'all',
+  },
+} as const);
 ```
+
+`pathOptions.prune` does not accept `true`.
+
+Valid values:
+
+```ts
+'all'
+'duplication'
+'trailing'
+false
+```
+
+Invalid:
+
+```ts
+pathOptions: {
+  prune: true,
+}
+```
+
+<TypeTable
+  type={{
+    config: {
+      description: 'Router CLI config object. Returned unchanged when valid.',
+      type: 'RouterCliConfig',
+    },
+  }}
+/>
+
+### Runtime validation boundary
+
+`defineRouterConfig()` accepts:
+
+* `routeFiles` omitted;
+* `routeFiles` as a string;
+* `routeFiles` as an array with at least two unique strings;
+* `outDir` as a string;
+* `pathOptions.prune` as `'all'`, `'duplication'`, `'trailing'`, or `false`;
+* `pathConstraints` as an object whose values are router path constraints.
+
+It rejects:
+
+* unknown root properties;
+* empty `routeFiles` arrays;
+* single-item `routeFiles` arrays;
+* duplicate `routeFiles` entries;
+* non-string route file entries;
+* unknown `pathOptions` properties;
+* `pathOptions.prune: true`;
+* path constraint entries that are not constraint functions with `verify` and `toRegExp`.
+
+The static CLI parser is more permissive than the runtime helper in one place: it can parse a one-item `routeFiles` array from source. Prefer a string for one route pattern.
 
 ## `RouterCliConfig`
 
@@ -36,9 +118,41 @@ interface RouterCliConfig extends DefineRoutesOptions {
 }
 ```
 
-Because it extends `DefineRoutesOptions`, the config also accepts `pathOptions` and `pathConstraints`. Runtime-safe path constraint imports are preserved separately when generation needs to emit `routes.ts`.
+Because it extends `DefineRoutesOptions`, config also accepts:
 
-## Discovery
+```ts
+pathOptions?: RouterPathOptions;
+pathConstraints?: RouterPathConstraints;
+```
+
+<TypeTable
+  type={{
+    routeFiles: {
+      description: 'Route source file, glob, or list of route source files/globs.',
+      type: 'string | readonly string[]',
+      optional: true,
+    },
+    outDir: {
+      description: 'Directory where generated router artifacts are written.',
+      type: 'string',
+      optional: true,
+    },
+    pathOptions: {
+      description: 'Path validation and normalization options passed to route validation.',
+      type: 'RouterPathOptions',
+      optional: true,
+    },
+    pathConstraints: {
+      description: 'Custom path constraints available while validating and generating route artifacts.',
+      type: 'RouterPathConstraints',
+      optional: true,
+    },
+  }}
+/>
+
+`pathConstraints` are executable configuration. For generated `routes.ts`, the CLI can preserve a runtime-safe import only when it can resolve a named relative import from config.
+
+## Config filenames
 
 ```ts
 const ROUTER_CONFIG_FILENAMES = [
@@ -50,25 +164,135 @@ const ROUTER_CONFIG_FILENAMES = [
   'cookbook-router.config.cjs',
 ] as const;
 
-type RouterConfigFilename = (typeof ROUTER_CONFIG_FILENAMES)[number];
-function getRouterConfigFilenames(): readonly RouterConfigFilename[];
-function getRouterConfigWatchCandidates(cwd?: string): readonly string[];
+type RouterConfigFilename =
+  (typeof ROUTER_CONFIG_FILENAMES)[number];
 ```
 
-Watch candidates return every standard filename scoped to `cwd`, not just the file that exists now. That is how creating a previously missing config can recover a watcher.
+The order is the discovery priority.
+
+## `getRouterConfigFilenames()`
+
+```ts
+function getRouterConfigFilenames():
+  readonly RouterConfigFilename[];
+```
+
+Returns the six standard filenames in priority order.
+
+```ts
+getRouterConfigFilenames() === ROUTER_CONFIG_FILENAMES;
+// true
+```
+
+The returned value is the exported constant, not a copied array.
+
+## `getRouterConfigWatchCandidates(cwd?)`
+
+```ts
+function getRouterConfigWatchCandidates(
+  cwd?: string,
+): readonly string[];
+```
+
+Returns every standard config filename scoped to `cwd`.
+
+```ts
+getRouterConfigWatchCandidates('apps/dashboard');
+```
+
+returns:
+
+```ts
+[
+  'apps/dashboard/cookbook-router.config.ts',
+  'apps/dashboard/cookbook-router.config.mts',
+  'apps/dashboard/cookbook-router.config.cts',
+  'apps/dashboard/cookbook-router.config.js',
+  'apps/dashboard/cookbook-router.config.mjs',
+  'apps/dashboard/cookbook-router.config.cjs',
+]
+```
+
+With default `cwd`, candidates are relative filenames:
+
+```ts
+[
+  'cookbook-router.config.ts',
+  'cookbook-router.config.mts',
+  'cookbook-router.config.cts',
+  'cookbook-router.config.js',
+  'cookbook-router.config.mjs',
+  'cookbook-router.config.cjs',
+]
+```
+
+Watch candidates are potential files. They are not filtered by existence.
+
+That is how watch mode can recover when a missing config is created later.
 
 ## `loadRouterConfig(options?)`
 
 ```ts
-function loadRouterConfig(options?: {
-  readonly configFile?: string;
-  readonly cwd?: string;
-  readonly fs?: CliFileSystem;
-  readonly optional?: boolean;
-}): Promise<LoadedRouterConfig | undefined>;
+function loadRouterConfig(
+  options?: {
+    readonly configFile?: string;
+    readonly cwd?: string;
+    readonly fs?: CliFileSystem;
+    readonly optional?: boolean;
+  },
+): Promise<LoadedRouterConfig | undefined>;
 ```
 
-An explicit `configFile` is scoped under `cwd` unless absolute. Without it, discovery checks the six names. `optional: true` converts “not found/unreadable” into `undefined`; malformed contents still fail parsing.
+Loads and statically parses a router config file.
+
+The named source interface for this options object is not exported from the package root. Treat the inline shape above as the public API.
+
+<TypeTable
+  type={{
+    configFile: {
+      description: 'Explicit config path. Scoped under cwd unless absolute.',
+      type: 'string',
+      optional: true,
+    },
+    cwd: {
+      description: 'Directory used for discovery and relative explicit config paths.',
+      type: 'string',
+      optional: true,
+    },
+    fs: {
+      description: 'Injected file system abstraction.',
+      type: 'CliFileSystem',
+      optional: true,
+    },
+    optional: {
+      description: 'When true, missing or unreadable config returns undefined. Malformed config still throws.',
+      type: 'boolean',
+      optional: true,
+    },
+  }}
+/>
+
+Without `configFile`, discovery starts at `cwd` and walks upward. At each directory, it checks the six standard filenames in priority order.
+
+With `configFile`, the path is scoped under `cwd` unless it is absolute.
+
+Missing config without `optional` throws:
+
+```text
+No cookbook-router config file found. Expected one of: cookbook-router.config.ts, cookbook-router.config.mts, cookbook-router.config.cts, cookbook-router.config.js, cookbook-router.config.mjs, cookbook-router.config.cjs.
+```
+
+Explicit unreadable config throws:
+
+```text
+Router config "missing.config.ts" could not be found or read.
+```
+
+With `optional: true`, missing or unreadable config returns `undefined`.
+
+Malformed config still throws even with `optional: true`.
+
+## `LoadedRouterConfig`
 
 ```ts
 interface LoadedRouterConfig {
@@ -79,13 +303,289 @@ interface LoadedRouterConfig {
 }
 ```
 
+<TypeTable
+  type={{
+    config: {
+      description: 'Parsed router CLI config.',
+      type: 'RouterCliConfig',
+    },
+    configFile: {
+      description: 'Resolved config file path that was loaded.',
+      type: 'string',
+    },
+    rootDir: {
+      description: 'Directory containing the loaded config file.',
+      type: 'string',
+    },
+    runtimeRouteOptions: {
+      description: 'Runtime-safe route-tree option imports preserved for generated routes.ts.',
+      type: 'GeneratedRouteTreeRuntimeOptions',
+      optional: true,
+    },
+  }}
+/>
+
+`rootDir` is used to resolve config-owned `routeFiles` and `outDir`.
+
+## `GeneratedRouteTreeRuntimeOptions`
+
+```ts
+interface RuntimeImportReference {
+  readonly path: string;
+  readonly exportName: string;
+}
+
+interface GeneratedRouteTreeRuntimeOptions {
+  readonly pathConstraints?: RuntimeImportReference;
+}
+```
+
+<TypeTable
+  type={{
+    path: {
+      description: 'Runtime-safe module path resolved by the CLI.',
+      type: 'string',
+    },
+    exportName: {
+      description: 'Named export imported by generated routes.ts.',
+      type: 'string',
+    },
+    pathConstraints: {
+      description: 'Runtime import reference for path constraints.',
+      type: 'RuntimeImportReference',
+      optional: true,
+    },
+  }}
+/>
+
+`runtimeRouteOptions` is emitted only when `loadRouterConfig()` can preserve a named relative import for `pathConstraints`.
+
+Supported import shape:
+
+```ts title="cookbook-router.config.ts"
+import { pathConstraints } from './path-constraints';
+
+export default defineRouterConfig({
+  routeFiles: 'src/**/*.route.tsx',
+  pathConstraints,
+} as const);
+```
+
+Supported exported constraint module:
+
+```ts title="path-constraints.ts"
+import {
+  createPathConstraint,
+} from '@cookbook/router/path';
+
+export const pathConstraints = {
+  slug: createPathConstraint({
+    parse() {},
+    verify() {},
+    toRegExp: () => '[a-z0-9-]+',
+  }),
+};
+```
+
+The generated route module can then import the same runtime-safe constraint object.
+
+Inline or local config-only path constraints are enough for validation and contract generation, but they do not produce a runtime import reference for generated `routes.ts`.
+
 ## `parseRouterConfig(path, contents)`
 
 ```ts
-function parseRouterConfig(path: string, contents: string): RouterCliConfig;
+function parseRouterConfig(
+  path: string,
+  contents: string,
+): RouterCliConfig;
 ```
 
-Parses the supported static config forms. It does not execute arbitrary TypeScript. Static parsing is a security and determinism boundary, not a half-built module loader.
+Parses supported static config forms from source text.
+
+It does not import the config module.
+
+It supports these default export forms:
+
+```ts
+export default defineRouterConfig({
+  // ...
+});
+```
+
+```ts
+export default {
+  // ...
+};
+```
+
+```ts
+const config = defineRouterConfig({
+  // ...
+});
+
+export default config;
+```
+
+```ts
+const config = {
+  // ...
+};
+
+export default config;
+```
+
+The local identifier form supports `const`, `let`, or `var`, optional `export`, and optional TypeScript annotation.
+
+### Static values
+
+`routeFiles` and `outDir` must be static strings or static string arrays.
+
+Supported:
+
+```ts
+const routeFiles =
+  ['src/**/*.route.tsx', 'features/**/*.route.tsx'] as const;
+
+const outDir = '.cookbook-router' as const;
+
+export default defineRouterConfig({
+  routeFiles,
+  outDir,
+} as const);
+```
+
+Unsupported:
+
+```ts
+export default defineRouterConfig({
+  routeFiles: getRouteFiles(),
+} as const);
+```
+
+Error:
+
+```text
+Router config "cookbook-router.config.ts" property "routeFiles" must be a static string or string array.
+```
+
+`pathOptions` must be an inline static object literal or a local static object declaration.
+
+Unsupported path options throw:
+
+```text
+Route file "cookbook-router.config.ts" uses pathOptions that the CLI cannot statically evaluate. Use an inline static object literal or a static object declaration for pathOptions.
+```
+
+`pathConstraints` support:
+
+* inline static object;
+* local static object declaration;
+* named import from a relative module, through `loadRouterConfig()`.
+
+`parseRouterConfig()` returns only `RouterCliConfig`. It does not return `runtimeRouteOptions`.
+
+Use `loadRouterConfig()` when imported path constraints must be preserved for generated runtime routes.
+
+## Static path-constraint extraction
+
+Inline config object:
+
+```ts
+export default defineRouterConfig({
+  routeFiles: 'src/**/*.route.tsx',
+  pathConstraints: {
+    slug: createPathConstraint({
+      parse() {},
+      verify() {},
+      toRegExp: () => '[a-z0-9-]+',
+    }),
+  },
+} as const);
+```
+
+Local static object:
+
+```ts
+const pathConstraints = {
+  slug: createPathConstraint({
+    parse() {},
+    verify() {},
+    toRegExp: () => '[a-z0-9-]+',
+  }),
+};
+
+export default defineRouterConfig({
+  routeFiles: 'src/**/*.route.tsx',
+  pathConstraints,
+} as const);
+```
+
+Named relative import:
+
+```ts
+import {
+  pathConstraints,
+} from './path-constraints';
+
+export default defineRouterConfig({
+  routeFiles: 'src/**/*.route.tsx',
+  pathConstraints,
+} as const);
+```
+
+Only the named relative import form can produce `runtimeRouteOptions`.
+
+Unsupported:
+
+```ts
+import pathConstraints from './path-constraints';
+```
+
+Unsupported:
+
+```ts
+import * as constraints from './path-constraints';
+```
+
+Unsupported:
+
+```ts
+import { pathConstraints } from '@acme/router-constraints';
+```
+
+Error for unsupported config path constraints:
+
+```text
+Router config "cookbook-router.config.ts" uses pathConstraints that the CLI cannot statically evaluate. Use an inline static object, a local static object declaration, or a named import from a runtime-safe module.
+```
+
+When an imported module cannot be resolved:
+
+```text
+Router config "cookbook-router.config.ts" imports pathConstraints from "./path-constraints", but the module could not be resolved.
+```
+
+When the imported export is not a static object declaration:
+
+```text
+Router config "cookbook-router.config.ts" imports pathConstraints from "./path-constraints", but export "pathConstraints" is not a static object declaration.
+```
+
+Import resolution checks:
+
+```text
+./module
+./module.ts
+./module.tsx
+./module.mts
+./module.cts
+./module.js
+./module.mjs
+./module.cjs
+./module/index.ts
+./module/index.tsx
+./module/index.js
+```
 
 ## `resolveEffectiveRouteOptions(options)`
 
@@ -95,19 +595,300 @@ function resolveEffectiveRouteOptions(
 ): Promise<CliRouteOptions>;
 ```
 
-Precedence:
+Resolves command/plugin options into the route options used by command execution.
 
-1. Direct `routes`
-2. Explicit command/plugin `routeFiles`, `outDir`, and config path
-3. Loaded config values
-4. Defaults
+It can:
 
-It expands globs, derives stable `routeFileWatchPaths`, resolves the output directory relative to the correct root, and carries runtime-safe config references forward.
+* load config;
+* resolve output directory;
+* expand route-file globs;
+* derive `routeFileWatchPaths`;
+* merge config route options and command route options;
+* preserve runtime-safe config references;
+* carry injected `fs`, `cwd`, and watch-mode flags forward.
+
+## Resolution behavior
+
+### Direct routes
+
+When `options.routes` is present:
+
+* config is not loaded;
+* route files are ignored;
+* `outDir` is still resolved;
+* `options.routeOptions` is kept as supplied.
+
+```ts
+{
+  routes,
+  routeOptions,
+  outDir: resolveOutDir(...),
+}
+```
+
+### Explicit route files without explicit config
+
+When `options.routeFiles?.[0]` exists and `configFile` is omitted:
+
+* config is not loaded;
+* explicit route files are used;
+* `outDir` falls back to `cwd/.cookbook-router` or `.cookbook-router`;
+* no config `pathOptions` or `pathConstraints` are applied.
+
+### Explicit route files with explicit config
+
+When both `routeFiles` and `configFile` are supplied:
+
+* the config is loaded;
+* explicit route files override config `routeFiles`;
+* explicit `outDir` overrides config `outDir`;
+* config route options can still merge with `options.routeOptions`;
+* config runtime route options can be carried forward.
+
+### Config route files
+
+When no direct routes and no explicit route files exist:
+
+* config discovery or explicit config loading provides `routeFiles`;
+* config `routeFiles` are resolved relative to the config `rootDir`;
+* config `outDir` is resolved relative to the config `rootDir`;
+* config route options participate in validation/generation.
+
+### Defaults
+
+When no `outDir` is supplied by command options or config:
+
+```text
+.cookbook-router
+```
+
+is scoped under `config.rootDir`, then `cwd`, then the current process directory shape.
+
+## Route option merge rules
+
+Config route options and explicit `options.routeOptions` are merged.
+
+`pathOptions` are not last-writer-wins. Conflicting values throw.
+
+Error:
+
+```text
+Conflicting pathOptions were provided by router config or route source files. Move pathOptions to cookbook-router.config.ts or use the same pathOptions everywhere.
+```
+
+`pathConstraints` are merged by name.
+
+Duplicate names with different constraint objects throw:
+
+```text
+Duplicate path constraint name "slug" was provided by router config or route source files. Define each custom path constraint name once, preferably in a runtime-safe module imported by cookbook-router.config.ts.
+```
+
+## Glob expansion
+
+Config and command `routeFiles` can be exact paths or simple globs.
+
+Supported glob syntax includes:
+
+* `*`;
+* `**`;
+* `?`;
+* `{a,b}` alternatives.
+
+Default excluded directories:
+
+```text
+node_modules
+.git
+dist
+build
+coverage
+.next
+.nuxt
+.svelte-kit
+.turbo
+.vite
+.cache
+```
+
+Glob expansion requires `fs.readdir` and `fs.stat`.
+
+Error:
+
+```text
+Glob routeFiles require a file system with readdir and stat support.
+```
+
+If no files match and `allowEmptyRouteFiles` is not true:
+
+```text
+No route files matched routeFiles pattern ["src/**/*.route.tsx"].
+```
+
+## Route-file watch paths
+
+`resolveEffectiveRouteOptions()` derives `routeFileWatchPaths` from the route-file patterns before expansion.
+
+For exact files, the watch path is the file itself.
+
+For globs, the watch path is the static root before the first glob token.
+
+Example:
+
+```text
+src/**/*.route.tsx
+```
+
+watch root:
+
+```text
+src
+```
+
+Duplicate watch paths are removed.
+
+Watch paths are useful for plugins and watch mode because a route file can be created after the first glob expansion.
 
 ## Path safety
 
-Config, route, and output paths pass CLI safety checks before reading or writing. Relative paths are allowed; traversal that escapes the intended project/output boundary is not.
+The CLI path checks are intentionally limited.
+
+It rejects:
+
+* non-string paths;
+* empty or whitespace-only paths;
+* null bytes.
+
+It also prevents generated artifact filenames from escaping the resolved `outDir`.
+
+Error:
+
+```text
+Refusing to write generated router artifact outside outDir: "...".
+```
+
+It refuses to write generated files over route source files:
+
+```text
+Refusing to write generated router artifacts over route source file "...".
+```
+
+Relative paths are allowed. The current safety layer does not categorically reject every `../` in config, route, or output inputs.
+
+## Export inventory for this page
+
+`@cookbook/router-cli` exports these config values:
+
+```text
+ROUTER_CONFIG_FILENAMES
+defineRouterConfig
+getRouterConfigFilenames
+getRouterConfigWatchCandidates
+loadRouterConfig
+parseRouterConfig
+resolveEffectiveRouteOptions
+```
+
+It exports these config-related types:
+
+```text
+GeneratedRouteTreeRuntimeOptions
+LoadedRouterConfig
+RouterCliConfig
+RouterConfigFilename
+RuntimeImportReference
+```
+
+It also exports these route-option types used by this page:
+
+```text
+CliRouteOptions
+CliOutputOptions
+CliFileSystem
+```
+
+The package root does not export a named `LoadRouterConfigOptions` type.
 
 ## Where this bites
 
-An explicit empty `routeFiles` array does not magically mean “use config.” APIs test whether the first entry exists. Pass no override when you want config discovery.
+### `prune: true` is invalid
+
+Use:
+
+```ts
+pathOptions: {
+  prune: 'all',
+}
+```
+
+or:
+
+```ts
+pathOptions: {
+  prune: false,
+}
+```
+
+Do not use:
+
+```ts
+pathOptions: {
+  prune: true,
+}
+```
+
+### Explicit route files can suppress config loading
+
+This command does not load discovered config:
+
+```sh
+cbr generate --routes "src/**/*.route.tsx"
+```
+
+That means config `pathOptions`, `pathConstraints`, and `outDir` are not applied.
+
+Pass `--config` when you need config options and explicit route files together:
+
+```sh
+cbr generate --config cookbook-router.config.ts --routes "src/**/*.route.tsx"
+```
+
+### Empty `routeFiles` is treated as no override
+
+Programmatic option resolution checks the first route-file entry.
+
+An empty array behaves like no explicit route-file override and can fall back to config.
+
+Use `routeFiles` with at least one entry when you mean to override config route files.
+
+### Imported path constraints must be named relative imports
+
+This can preserve a runtime import:
+
+```ts
+import {
+  pathConstraints,
+} from './path-constraints';
+```
+
+This cannot:
+
+```ts
+import {
+  pathConstraints,
+} from '@acme/path-constraints';
+```
+
+Generated `routes.ts` needs a runtime-safe relative module path.
+
+### `parseRouterConfig()` does not return runtime imports
+
+`parseRouterConfig()` returns only `RouterCliConfig`.
+
+Use `loadRouterConfig()` when generated route modules need runtime-safe path constraint imports.
+
+### Path safety is not a sandbox
+
+The CLI validates path strings and generated artifact placement.
+
+It is not a general filesystem sandbox. Run it with trusted config and route inputs.

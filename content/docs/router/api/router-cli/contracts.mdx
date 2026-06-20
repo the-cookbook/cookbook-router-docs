@@ -1,38 +1,99 @@
 ---
 title: "CLI contract types"
-description: "Complete public CLI data contracts for filesystems, route inputs, config loading, command results, manifests, watch handles, and build integration."
+description: "Public CLI data contracts for filesystems, route inputs, config loading, command results, manifests, watch handles, and build integration."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 <InlineTOC items={toc}>On this page</InlineTOC>
 
+`@cookbook/router-cli` exposes one public package entrypoint.
+
+This page documents the public CLI data contracts exported from that entrypoint.
+
+It intentionally does not duplicate command behavior. Behavior belongs to the command, configuration, route-loading, generation, and build-integration pages.
+
 ## Registration placeholders
 
 ```ts
 interface Register {}
+```
+
+`Register` is reserved for future CLI-side module augmentation.
+
+Current generated `register.d.ts` does not augment `@cookbook/router-cli`.
+
+```ts
 interface RouterContracts {}
 ```
 
-Generated `register.d.ts` augments `Register`. `RouterContracts` is a placeholder shape re-exported for generated files.
+`RouterContracts` is an empty placeholder shape re-exported by the CLI package.
 
-## Configuration and runtime references
+It is not the generated application `RouterContracts` emitted in `.cookbook-router/contracts.ts`.
+
+## Configuration contracts
 
 ```ts
 interface RouterCliConfig extends DefineRoutesOptions {
   readonly routeFiles?: string | readonly string[];
   readonly outDir?: string;
 }
+```
 
+<TypeTable
+  type={{
+    routeFiles: {
+      description: 'Route source file, glob, or list of route source files/globs.',
+      type: 'string | readonly string[]',
+      optional: true,
+    },
+    outDir: {
+      description: 'Generated output directory.',
+      type: 'string',
+      optional: true,
+    },
+  }}
+/>
+
+`RouterCliConfig` extends `DefineRoutesOptions`, so it also accepts route-validation options such as `pathOptions` and `pathConstraints`.
+
+```ts
 interface RuntimeImportReference {
   readonly path: string;
   readonly exportName: string;
 }
+```
 
+<TypeTable
+  type={{
+    path: {
+      description: 'Runtime-safe module path resolved by the CLI.',
+      type: 'string',
+    },
+    exportName: {
+      description: 'Named export imported from the runtime-safe module.',
+      type: 'string',
+    },
+  }}
+/>
+
+```ts
 interface GeneratedRouteTreeRuntimeOptions {
   readonly pathConstraints?: RuntimeImportReference;
 }
+```
 
+<TypeTable
+  type={{
+    pathConstraints: {
+      description: 'Runtime import reference for generated routes.ts path constraints.',
+      type: 'RuntimeImportReference',
+      optional: true,
+    },
+  }}
+/>
+
+```ts
 interface LoadedRouterConfig {
   readonly config: RouterCliConfig;
   readonly configFile: string;
@@ -41,64 +102,278 @@ interface LoadedRouterConfig {
 }
 ```
 
-## Filesystem
+<TypeTable
+  type={{
+    config: {
+      description: 'Parsed router CLI config.',
+      type: 'RouterCliConfig',
+    },
+    configFile: {
+      description: 'Resolved config file path.',
+      type: 'string',
+    },
+    rootDir: {
+      description: 'Directory containing the loaded config file.',
+      type: 'string',
+    },
+    runtimeRouteOptions: {
+      description: 'Runtime-safe import references preserved for generated route modules.',
+      type: 'GeneratedRouteTreeRuntimeOptions',
+      optional: true,
+    },
+  }}
+/>
+
+```ts
+type RouterConfigFilename =
+  | 'cookbook-router.config.ts'
+  | 'cookbook-router.config.mts'
+  | 'cookbook-router.config.cts'
+  | 'cookbook-router.config.js'
+  | 'cookbook-router.config.mjs'
+  | 'cookbook-router.config.cjs';
+```
+
+## Filesystem contract
 
 ```ts
 interface CliFileSystem {
   readFile(path: string): Promise<string>;
-  writeFile(path: string, contents: string): Promise<void>;
-  mkdir(path: string, options?: { readonly recursive?: boolean }): Promise<void>;
-  readdir?(path: string, options?: { readonly withFileTypes?: false }): Promise<readonly string[]>;
+
+  writeFile(
+    path: string,
+    contents: string,
+  ): Promise<void>;
+
+  mkdir(
+    path: string,
+    options?: {
+      readonly recursive?: boolean;
+    },
+  ): Promise<void>;
+
+  readdir?(
+    path: string,
+    options?: {
+      readonly withFileTypes?: false;
+    },
+  ): Promise<readonly string[]>;
+
   stat?(path: string): Promise<{
     readonly mtimeMs?: number;
     readonly isDirectory?: () => boolean;
     readonly isFile?: () => boolean;
   }>;
+
   watch?(
     path: string,
-    listener: (event: 'rename' | 'change', filename: string | null) => void,
-  ): { close: () => void };
+    listener: (
+      event: 'rename' | 'change',
+      filename: string | null,
+    ) => void,
+  ): {
+    close: () => void;
+  };
 }
 ```
 
-Required capabilities depend on the operation: explicit reads need the first three methods; globs need `readdir`/`stat`; watch mode needs `watch`.
+<TypeTable
+  type={{
+    readFile: {
+      description: 'Required file read operation.',
+      type: '(path: string) => Promise<string>',
+    },
+    writeFile: {
+      description: 'Required file write operation.',
+      type: '(path: string, contents: string) => Promise<void>',
+    },
+    mkdir: {
+      description: 'Required directory creation operation.',
+      type: '(path: string, options?: { readonly recursive?: boolean }) => Promise<void>',
+    },
+    readdir: {
+      description: 'Optional directory listing operation. Required for glob expansion.',
+      type: "(path: string, options?: { readonly withFileTypes?: false }) => Promise<readonly string[]>",
+      optional: true,
+    },
+    stat: {
+      description: 'Optional file stat operation. Required for glob expansion and source-root inference.',
+      type: '(path: string) => Promise<{ readonly mtimeMs?: number; readonly isDirectory?: () => boolean; readonly isFile?: () => boolean }>',
+      optional: true,
+    },
+    watch: {
+      description: 'Optional watch operation. Required by watch mode.',
+      type: "(path: string, listener: (event: 'rename' | 'change', filename: string | null) => void) => { close: () => void }",
+      optional: true,
+    },
+  }}
+/>
 
-## Route source model
+Required capabilities depend on the operation.
+
+| Operation             | Required filesystem methods                                  |
+| --------------------- | ------------------------------------------------------------ |
+| Explicit file loading | `readFile`, `writeFile`, `mkdir`                             |
+| Glob expansion        | `readFile`, `writeFile`, `mkdir`, `readdir`, `stat`          |
+| Watch mode            | `readFile`, `writeFile`, `mkdir`, `readdir`, `stat`, `watch` |
+
+## Route source contracts
 
 ```ts
 interface RouteFileExport {
   readonly exportName: string;
   readonly kind: 'route' | 'routes' | 'routeTree';
 }
+```
 
+<TypeTable
+  type={{
+    exportName: {
+      description: 'Export name discovered in the source module.',
+      type: 'string',
+    },
+    kind: {
+      description: 'Discovered route export shape.',
+      type: "'route' | 'routes' | 'routeTree'",
+    },
+  }}
+/>
+
+`CliRouteSource` is not re-exported from the package root index as a named public import.
+
+It appears structurally in route-loading results:
+
+```ts
 interface CliRouteSource {
   readonly path: string;
   readonly routes: readonly RouteDefinition[];
   readonly routeOptions?: DefineRoutesOptions;
   readonly routeExports?: readonly RouteFileExport[];
 }
+```
 
+<TypeTable
+  type={{
+    path: {
+      description: 'Physical route source path.',
+      type: 'string',
+    },
+    routes: {
+      description: 'Routes loaded from this source.',
+      type: 'readonly RouteDefinition[]',
+    },
+    routeOptions: {
+      description: 'Route validation options extracted from this source.',
+      type: 'DefineRoutesOptions',
+      optional: true,
+    },
+    routeExports: {
+      description: 'Route export metadata extracted from this source.',
+      type: 'readonly RouteFileExport[]',
+      optional: true,
+    },
+  }}
+/>
+
+```ts
 interface RouteFile {
   readonly routes: readonly RouteDefinition[];
   readonly routeOptions?: DefineRoutesOptions;
   readonly routeExports?: readonly RouteFileExport[];
   readonly routeSources?: readonly CliRouteSource[];
 }
+```
 
+<TypeTable
+  type={{
+    routes: {
+      description: 'Resolved route definitions.',
+      type: 'readonly RouteDefinition[]',
+    },
+    routeOptions: {
+      description: 'Merged route validation options.',
+      type: 'DefineRoutesOptions',
+      optional: true,
+    },
+    routeExports: {
+      description: 'Export metadata from a route source when available.',
+      type: 'readonly RouteFileExport[]',
+      optional: true,
+    },
+    routeSources: {
+      description: 'Loaded route source records when route input came from files.',
+      type: 'readonly CliRouteSource[]',
+      optional: true,
+    },
+  }}
+/>
+
+```ts
 interface LoadRouteFilesOptions {
   readonly routeFiles: readonly string[];
   readonly fs?: CliFileSystem;
 }
 ```
 
-## Command option model
+<TypeTable
+  type={{
+    routeFiles: {
+      description: 'Concrete route file paths. Globs should be expanded before calling loadRouteFiles.',
+      type: 'readonly string[]',
+    },
+    fs: {
+      description: 'Injected filesystem.',
+      type: 'CliFileSystem',
+      optional: true,
+    },
+  }}
+/>
+
+```ts
+interface ResolvedRouteInput {
+  readonly routeFile: RouteFile;
+  readonly options: CliRouteOptions;
+}
+```
+
+<TypeTable
+  type={{
+    routeFile: {
+      description: 'Resolved route input model.',
+      type: 'RouteFile',
+    },
+    options: {
+      description: 'Effective route options after config, glob, output, and runtime option resolution.',
+      type: 'CliRouteOptions',
+    },
+  }}
+/>
+
+## Command option contracts
 
 ```ts
 interface CliOutputOptions {
   readonly outDir?: string;
   readonly fs?: CliFileSystem;
 }
+```
 
+<TypeTable
+  type={{
+    outDir: {
+      description: 'Generated output directory.',
+      type: 'string',
+      optional: true,
+    },
+    fs: {
+      description: 'Injected filesystem.',
+      type: 'CliFileSystem',
+      optional: true,
+    },
+  }}
+/>
+
+```ts
 interface CliRouteOptions extends CliOutputOptions {
   readonly routes?: readonly RouteDefinition[];
   readonly routeFiles?: readonly string[];
@@ -112,9 +387,92 @@ interface CliRouteOptions extends CliOutputOptions {
 }
 ```
 
-`allowEmptyRouteFiles` and `runtimeRouteOptions` are exported because the shared engines carry them, but they primarily support watchers and generated runtime imports rather than ordinary application calls.
+<TypeTable
+  type={{
+    routes: {
+      description: 'Direct route definitions. Skips config and route-file loading when present.',
+      type: 'readonly RouteDefinition[]',
+      optional: true,
+    },
+    routeFiles: {
+      description: 'Concrete route files after CLI/config normalization.',
+      type: 'readonly string[]',
+      optional: true,
+    },
+    routeFileWatchPaths: {
+      description: 'Stable route-file watch roots derived from patterns.',
+      type: 'readonly string[]',
+      optional: true,
+    },
+    routeOptions: {
+      description: 'Route validation options such as pathOptions and pathConstraints.',
+      type: 'DefineRoutesOptions',
+      optional: true,
+    },
+    configFile: {
+      description: 'Resolved or explicit router config path.',
+      type: 'string',
+      optional: true,
+    },
+    cwd: {
+      description: 'Base directory for config, routes, and output.',
+      type: 'string',
+      optional: true,
+    },
+    verbose: {
+      description: 'Enables additional error context where supported.',
+      type: 'boolean',
+      optional: true,
+    },
+    allowEmptyRouteFiles: {
+      description: 'Internal watcher option that permits glob roots before matching files exist.',
+      type: 'boolean',
+      optional: true,
+    },
+    runtimeRouteOptions: {
+      description: 'Internal metadata used to preserve runtime-safe generated route-tree imports.',
+      type: 'GeneratedRouteTreeRuntimeOptions',
+      optional: true,
+    },
+  }}
+/>
 
-## Results and watch
+`allowEmptyRouteFiles` and `runtimeRouteOptions` are exported because shared engines carry them. They primarily support watchers and generated runtime imports.
+
+## Command-specific option contracts
+
+```ts
+interface InitOptions {
+  readonly cwd?: string;
+  readonly fs?: CliFileSystem;
+  readonly routeFiles?: string | readonly string[];
+  readonly outDir?: string;
+  readonly configFile?: string;
+  readonly starterRouteFile?: string;
+  readonly skipGenerate?: boolean;
+  readonly verbose?: boolean;
+}
+```
+
+```ts
+interface GenerateOptions extends CliRouteOptions {}
+
+interface ManifestOptions extends CliRouteOptions {}
+
+interface ValidateOptions extends CliRouteOptions {}
+
+interface WatchCommandOptions extends WatchOptions {}
+```
+
+```ts
+interface CliRunnerOptions {
+  readonly stdout?: (message: string) => void;
+  readonly stderr?: (message: string) => void;
+  readonly version?: string;
+}
+```
+
+## Results and watch contracts
 
 ```ts
 interface CommandResult {
@@ -123,19 +481,75 @@ interface CommandResult {
   readonly errors: readonly string[];
   readonly changedFiles?: readonly string[];
 }
+```
 
+<TypeTable
+  type={{
+    ok: {
+      description: 'Whether the command completed successfully.',
+      type: 'boolean',
+    },
+    files: {
+      description: 'Applicable output files on success, or setup files written before some init failures.',
+      type: 'readonly string[]',
+    },
+    errors: {
+      description: 'User-facing error messages.',
+      type: 'readonly string[]',
+    },
+    changedFiles: {
+      description: 'Subset of files whose contents were actually rewritten. Present only on some write commands.',
+      type: 'readonly string[]',
+      optional: true,
+    },
+  }}
+/>
+
+```ts
 interface WatchOptions extends CliRouteOptions {
   readonly debounceMs?: number;
-  readonly onChange?: (result: CommandResult) => void | Promise<void>;
+  readonly onChange?: (
+    result: CommandResult,
+  ) => void | Promise<void>;
 }
+```
 
+<TypeTable
+  type={{
+    debounceMs: {
+      description: 'Watch debounce duration in milliseconds.',
+      type: 'number',
+      optional: true,
+    },
+    onChange: {
+      description: 'Callback for the initial watch result and later rerun results.',
+      type: '(result: CommandResult) => void | Promise<void>',
+      optional: true,
+    },
+  }}
+/>
+
+```ts
 interface WatchHandle {
   readonly initial: Promise<CommandResult>;
   close: () => void;
 }
 ```
 
-## Manifest
+<TypeTable
+  type={{
+    initial: {
+      description: 'Promise for the initial generation result.',
+      type: 'Promise<CommandResult>',
+    },
+    close: {
+      description: 'Stops timers and closes active watchers.',
+      type: '() => void',
+    },
+  }}
+/>
+
+## Manifest contracts
 
 ```ts
 interface ManifestRoute {
@@ -145,13 +559,52 @@ interface ManifestRoute {
   readonly index: boolean;
   readonly url?: RouterUrlOptions;
 }
+```
 
+<TypeTable
+  type={{
+    id: {
+      description: 'Route ID.',
+      type: 'string',
+    },
+    path: {
+      description: 'Normalized route full path. Omitted for pathless routes.',
+      type: 'string',
+      optional: true,
+    },
+    parentId: {
+      description: 'Parent route ID. Omitted for root-level routes.',
+      type: 'string',
+      optional: true,
+    },
+    index: {
+      description: 'Whether the route is an index route.',
+      type: 'boolean',
+    },
+    url: {
+      description: 'Route-level URL policy.',
+      type: 'RouterUrlOptions',
+      optional: true,
+    },
+  }}
+/>
+
+```ts
 interface RouteManifest {
   readonly routes: readonly ManifestRoute[];
 }
 ```
 
-## Build contracts
+<TypeTable
+  type={{
+    routes: {
+      description: 'Serialized route entries.',
+      type: 'readonly ManifestRoute[]',
+    },
+  }}
+/>
+
+## Build integration contracts
 
 ```ts
 interface CookbookRouterBuilderPluginOptions {
@@ -161,31 +614,216 @@ interface CookbookRouterBuilderPluginOptions {
   readonly outDir?: string;
   readonly fs?: CliFileSystem;
 }
+```
 
+<TypeTable
+  type={{
+    cwd: {
+      description: 'Project root used for config discovery, relative route files, and output resolution.',
+      type: 'string',
+      optional: true,
+    },
+    configFile: {
+      description: 'Router config file. Defaults to cookbook-router.config.* discovery.',
+      type: 'string',
+      optional: true,
+    },
+    routeFiles: {
+      description: 'Route source files or globs. Overrides config routeFiles when provided.',
+      type: 'string | readonly string[]',
+      optional: true,
+    },
+    outDir: {
+      description: 'Generated output directory.',
+      type: 'string',
+      optional: true,
+    },
+    fs: {
+      description: 'Injected filesystem.',
+      type: 'CliFileSystem',
+      optional: true,
+    },
+  }}
+/>
+
+```ts
 interface RouterBuildRunnerOptions
   extends CookbookRouterBuilderPluginOptions {}
+```
 
-interface RouterBuildRunnerResult extends CommandResult {
+```ts
+interface RouterBuildRunnerResult
+  extends CommandResult {
   readonly watchPaths: readonly string[];
   readonly outDir: string;
   readonly error?: Error;
 }
+```
 
+<TypeTable
+  type={{
+    watchPaths: {
+      description: 'Resolved paths a build adapter should watch.',
+      type: 'readonly string[]',
+    },
+    outDir: {
+      description: 'Resolved generated output directory.',
+      type: 'string',
+    },
+    error: {
+      description: 'Original thrown Error normalized by the build runner. Not present for ordinary failed CommandResult values.',
+      type: 'Error',
+      optional: true,
+    },
+  }}
+/>
+
+```ts
 interface RouterBuildRunner {
   run(): Promise<RouterBuildRunnerResult>;
 }
+```
 
+```ts
 interface RouterBuildWatchState {
   readonly watchPaths: readonly string[];
   readonly outDir: string;
 }
+```
 
+```ts
 interface RouterCompilerBuildHooksOptions
   extends RouterBuildRunnerOptions {
   readonly pluginName?: string;
 }
 ```
 
-## Additional exported option types
+<TypeTable
+  type={{
+    pluginName: {
+      description: 'Webpack/Rspack hook tap name and infrastructure logger name.',
+      type: 'string',
+      optional: true,
+    },
+  }}
+/>
 
-The root also exports `GenerateOptions`, `InitOptions`, `ManifestOptions`, `ValidateOptions`, `WatchCommandOptions`, `ResolvedRouteInput`, `CliRunnerOptions`, and `RouterConfigFilename`. Their complete shapes and behavior are documented on the command, configuration, loading, and build pages rather than duplicated here.
+## Export inventory
+
+`@cookbook/router-cli` exports these registration placeholder types:
+
+```text
+Register
+RouterContracts
+```
+
+It exports these config and runtime-reference types:
+
+```text
+GeneratedRouteTreeRuntimeOptions
+LoadedRouterConfig
+RouterCliConfig
+RouterConfigFilename
+RuntimeImportReference
+```
+
+It exports these filesystem and route-loading types:
+
+```text
+CliFileSystem
+LoadRouteFilesOptions
+ResolvedRouteInput
+RouteFile
+RouteFileExport
+```
+
+It exports these command option and result types:
+
+```text
+CliOutputOptions
+CliRouteOptions
+CliRunnerOptions
+CommandResult
+GenerateOptions
+InitOptions
+ManifestOptions
+ValidateOptions
+WatchCommandOptions
+WatchHandle
+WatchOptions
+```
+
+It exports these manifest types:
+
+```text
+ManifestRoute
+RouteManifest
+```
+
+It exports these build integration types:
+
+```text
+CookbookRouterBuilderPluginOptions
+RouterBuildRunner
+RouterBuildRunnerOptions
+RouterBuildRunnerResult
+RouterBuildWatchState
+RouterCompilerBuildHooksOptions
+```
+
+## Not root public import targets
+
+These source-level names are not exported from the package root as named public types:
+
+```text
+CliRouteSource
+CreateCliProgramOptions
+CliProgramIo
+ExpandRouteFilePatternsOptions
+GenerateRouterArtifactsOptions
+LoadRouterConfigOptions
+ParseStaticRouteModuleOptions
+RouteFilePatternWatchPathsOptions
+RouterCompilationLike
+RouterCompilerHook
+RouterCompilerHooks
+RouterCompilerLike
+RouterCompilerLogger
+RouterCompilerOptions
+WatchIgnored
+WatchIgnoredEntry
+```
+
+Some of these shapes appear in implementation signatures or nested exported types. That does not make them stable named imports from `@cookbook/router-cli`.
+
+## Where this bites
+
+### CLI `RouterContracts` is not generated application contracts
+
+The CLI package exports this placeholder:
+
+```ts
+interface RouterContracts {}
+```
+
+The generated application file emits a concrete `RouterContracts` in `.cookbook-router/contracts.ts`.
+
+Do not confuse the two.
+
+### `CliRouteSource` is structural here
+
+`RouteFile.routeSources` exposes the shape, but the root package index does not export `CliRouteSource` as a named type.
+
+Use `RouteFile` as the public result type, or annotate the local structural shape yourself.
+
+### `CommandResult.changedFiles` is optional
+
+Not every command result includes `changedFiles`.
+
+Consumers should treat it as optional.
+
+### Build runner `error` is not every failure
+
+`RouterBuildRunnerResult.error` is only for thrown failures normalized by the runner.
+
+Ordinary command failures return `ok: false` and `errors`, but may not include `error`.
