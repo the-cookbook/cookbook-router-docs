@@ -1,0 +1,134 @@
+---
+title: "Lifecycle instrumentation"
+description: "Track route transitions, timings, and navigation errors with core lifecycle hooks."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Lifecycle hooks observe transition order around resolved route changes. They are useful for analytics, timings, logging, cleanup, and transition-scoped diagnostics.
+
+Use middleware for redirects and rewrites. Use lifecycle when the transition itself should be observed or cancelled.
+
+## Add global lifecycle hooks
+
+```ts ts2js
+import {
+  createRouter,
+  defineRoutes,
+} from '@cookbook/router';
+
+const routes = defineRoutes([
+  {
+    id: 'home',
+    path: '/',
+    view: 'home',
+  },
+  {
+    id: 'reports',
+    path: '/reports',
+    view: 'reports',
+  },
+] as const);
+
+let transitionStartedAt = 0;
+
+const router = createRouter({
+  routes,
+  lifecycle: {
+    beforeNavigate({ to }) {
+      transitionStartedAt = performance.now();
+
+      analytics.track('route_start', {
+        to: to?.id,
+      });
+    },
+    afterNavigate({ from, to }) {
+      analytics.track('route_complete', {
+        from: from?.id,
+        to: to?.id,
+        durationMs: performance.now() - transitionStartedAt,
+      });
+    },
+    onNavigationError(error, { to }) {
+      analytics.track('route_error', {
+        to: to?.id,
+        message:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      });
+    },
+  },
+});
+```
+
+Global lifecycle sees transitions across the route tree.
+
+## Add route lifecycle hooks
+
+Route lifecycle belongs to the route definition.
+
+```ts ts2js
+const routes = defineRoutes([
+  {
+    id: 'reports',
+    path: '/reports',
+    view: 'reports',
+    lifecycle: {
+      beforeEnter() {
+        reportsTimer.start();
+      },
+      afterEnter() {
+        reportsTimer.finish();
+      },
+      beforeLeave() {
+        reportsTimer.flush();
+      },
+      onError(error) {
+        reportsTimer.fail(error);
+      },
+    },
+  },
+] as const);
+```
+
+Route lifecycle is tied to entering and leaving matched routes, not mounting and unmounting UI.
+
+## Cancel from lifecycle
+
+`beforeNavigate`, `beforeEnter`, and `beforeLeave` can return `false`.
+
+```ts ts2js
+const routes = defineRoutes([
+  {
+    id: 'editor',
+    path: '/editor',
+    view: 'editor',
+    lifecycle: {
+      beforeLeave() {
+        if (editor.hasUnsavedChanges()) {
+          return false;
+        }
+      },
+    },
+  },
+] as const);
+```
+
+Cancellation keeps the previous committed route state.
+
+## Where this bites
+
+### Lifecycle is not middleware
+
+Lifecycle can cancel. It does not redirect or rewrite. Use middleware for destination changes.
+
+### Lifecycle is not component lifecycle
+
+A renderer may keep views alive, remount them, stream them, or render them elsewhere. Router lifecycle follows route transitions.
+
+### Timings need failure paths
+
+Transitions can fail, redirect, or be cancelled. Track completion and error paths explicitly instead of assuming every start reaches `afterNavigate`.

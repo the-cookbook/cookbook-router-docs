@@ -13,7 +13,7 @@ If you ran `cbr init`, the configuration file already exists. Most projects only
 
 ## Basic configuration
 
-```ts title="cookbook-router.config.ts"
+```ts ts2js title="cookbook-router.config.ts"
 import { defineRouterConfig } from '@cookbook/router-cli';
 
 export default defineRouterConfig({
@@ -85,7 +85,7 @@ Use `routeFiles` to identify the modules containing route declarations that the 
 
 Use a string:
 
-```ts title="cookbook-router.config.ts"
+```ts ts2js title="cookbook-router.config.ts"
 export default defineRouterConfig({
   routeFiles: 'src/**/*.route.{ts,tsx}',
 });
@@ -95,7 +95,7 @@ export default defineRouterConfig({
 
 Use an array with two or more entries:
 
-```ts title="cookbook-router.config.ts"
+```ts ts2js title="cookbook-router.config.ts"
 export default defineRouterConfig({
   routeFiles: [
     'src/**/*.route.{ts,tsx}',
@@ -112,7 +112,7 @@ Folder structure does not define route hierarchy. Nesting comes from the route d
 
 `outDir` controls where Cookbook Router writes generated artifacts:
 
-```ts title="cookbook-router.config.ts"
+```ts ts2js title="cookbook-router.config.ts"
 export default defineRouterConfig({
   routeFiles: 'src/**/*.route.{ts,tsx}',
   outDir: '.generated/router',
@@ -145,7 +145,7 @@ See [Generated artifacts](/docs/router/getting-started/generated-artifacts) for 
 
 It does not remove route definitions, path segments, parameters, or constraints. It only determines whether duplicate and trailing slashes are removed.
 
-```ts title="cookbook-router.config.ts"
+```ts ts2js title="cookbook-router.config.ts"
 export default defineRouterConfig({
   routeFiles: 'src/**/*.route.{ts,tsx}',
   pathOptions: {
@@ -171,7 +171,7 @@ the available values behave as follows:
 
 The default is:
 
-```ts
+```ts ts2js
 {
   prune: 'all',
 }
@@ -189,7 +189,7 @@ If any route path uses a custom constraint, register it in `pathConstraints`.
 
 This is required for route validation and generation. Without the constraint definition, Cookbook Router cannot validate the path pattern, generate the route tree, or keep generated contracts aligned with runtime behavior.
 
-```ts title="cookbook-router.config.ts"
+```ts ts2js title="cookbook-router.config.ts"
 import { defineRouterConfig } from '@cookbook/router-cli';
 import { pathConstraints } from './src/path-constraints';
 
@@ -201,7 +201,7 @@ export default defineRouterConfig({
 
 A route can then use the registered name:
 
-```ts
+```ts ts2js
 {
   id: 'posts.show',
   path: '/posts/{slug:slug}',
@@ -218,7 +218,7 @@ Cookbook Router statically inspects configuration files. It does not execute arb
 
 Recommended:
 
-```ts
+```ts ts2js
 const routeFiles = [
   'src/**/*.route.tsx',
   'features/**/*.route.tsx',
@@ -232,7 +232,7 @@ export default defineRouterConfig({
 
 Not supported:
 
-```ts
+```ts ts2js
 export default defineRouterConfig({
   routeFiles: discoverRouteFiles(),
 });

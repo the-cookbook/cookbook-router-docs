@@ -1,6 +1,6 @@
 ---
 title: "Recipes Overview"
-description: "Production patterns for access control, URL state, rendering, testing, SSR, and build-time generation."
+description: "Production patterns for core router primitives, React applications, URL state, rendering, testing, SSR, and build-time generation."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
@@ -11,11 +11,28 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 Recipes start from application work. Each one shows the route declaration, runtime integration, and the failure mode that usually arrives five minutes after the happy-path demo.
 
+## Core Router recipes
+
+Core Router recipes use `@cookbook/router` directly. They show how to build links, render route matches, place layouts and slots, handle intercepts, read metadata, and test router state from the runtime primitives.
+
+<Cards>
+  <Card title="Links and navigation" href="/docs/router/recipes/core-links-and-navigation" description="Build hrefs, active state, preloads, and navigation actions from route IDs." />
+  <Card title="Rendering adapter" href="/docs/router/recipes/core-rendering-adapter" description="Convert opaque route views into renderer output with renderRouteMatch()." />
+  <Card title="Layouts" href="/docs/router/recipes/core-layouts" description="Render persistent layout shells with context.outlet." />
+  <Card title="Slots" href="/docs/router/recipes/core-slots" description="Render named layout regions with context.slots and renderSlot()." />
+  <Card title="Intercepts" href="/docs/router/recipes/core-intercepts" description="Commit the destination URL and render through a source-owned slot." />
+  <Card title="Route metadata" href="/docs/router/recipes/core-route-metadata" description="Read, chain, and merge metadata from normalized routes and active matches." />
+</Cards>
+
+## Application and production recipes
+
+React application recipes use the official React integration. Runtime and production recipes cover URL state, generated route files, tests, SSR, hydration, and build tooling.
+
 <Cards>
   <Card title="Protected routes" href="/docs/router/recipes/protected-routes" description="Route metadata plus middleware from first resolution." />
   <Card title="Typed links" href="/docs/router/recipes/typed-links" description="Route IDs, params, search, hash, and generated contracts." />
   <Card title="URL-backed filters" href="/docs/router/recipes/url-backed-filters" description="Make filters shareable without making the URL unreadable." />
   <Card title="Lazy routes and prefetch" href="/docs/router/recipes/lazy-routes-and-prefetch" description="Warm modules without pretending the router owns your cache." />
-  <Card title="Routed modal slot" href="/docs/router/recipes/routed-modal-slot" description="Drive layout UI from the matched route tree." />
-  <Card title="Static-router SSR" href="/docs/router/recipes/static-router-ssr" description="Resolve one request, render once, map the response." />
+  <Card title="Memory-router tests" href="/docs/router/recipes/core-memory-router-tests" description="Assert router state directly with createMemoryRouter()." />
+  <Card title="Static request handling" href="/docs/router/recipes/core-static-request-handling" description="Resolve one request, render once, and serialize router state." />
 </Cards>

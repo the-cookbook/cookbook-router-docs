@@ -9,7 +9,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 ## Vite example
 
-```ts title="vite.config.ts"
+```ts ts2js title="vite.config.ts"
 import { cookbookRouterVitePlugin } from '@cookbook/router-vite-plugin';
 import { defineConfig } from 'vite';
 
@@ -18,7 +18,7 @@ export default defineConfig({
 });
 ```
 
-```ts title="cookbook-router.config.ts"
+```ts ts2js title="cookbook-router.config.ts"
 import { defineRouterConfig } from '@cookbook/router-cli';
 
 export default defineRouterConfig({
@@ -31,7 +31,7 @@ Keep route discovery in the router config unless the bundler instance genuinely 
 
 ## Consume physical artifacts
 
-```ts
+```ts ts2js
 import { routes } from '../.cookbook-router/routes';
 ```
 

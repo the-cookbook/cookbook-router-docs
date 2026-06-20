@@ -11,7 +11,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 The config API is intentionally narrow. The CLI extracts supported static shapes instead of importing and executing arbitrary config modules.
 
-```ts
+```ts ts2js
 import {
   defineRouterConfig,
   getRouterConfigFilenames,
@@ -33,7 +33,7 @@ import type {
 
 ## `defineRouterConfig(config)`
 
-```ts
+```ts ts2js
 function defineRouterConfig<
   const Config extends RouterCliConfig,
 >(config: Config): Config;
@@ -43,7 +43,7 @@ Identity helper for contextual typing and literal preservation.
 
 It validates the config object at runtime when the config module is actually executed by TypeScript or Node.
 
-```ts title="cookbook-router.config.ts"
+```ts ts2js title="cookbook-router.config.ts"
 import {
   defineRouterConfig,
 } from '@cookbook/router-cli';
@@ -61,7 +61,7 @@ export default defineRouterConfig({
 
 Valid values:
 
-```ts
+```ts ts2js
 'all'
 'duplication'
 'trailing'
@@ -70,7 +70,7 @@ false
 
 Invalid:
 
-```ts
+```ts ts2js
 pathOptions: {
   prune: true,
 }
@@ -111,7 +111,7 @@ The static CLI parser is more permissive than the runtime helper in one place: i
 
 ## `RouterCliConfig`
 
-```ts
+```ts ts2js
 interface RouterCliConfig extends DefineRoutesOptions {
   readonly routeFiles?: string | readonly string[];
   readonly outDir?: string;
@@ -120,7 +120,7 @@ interface RouterCliConfig extends DefineRoutesOptions {
 
 Because it extends `DefineRoutesOptions`, config also accepts:
 
-```ts
+```ts ts2js
 pathOptions?: RouterPathOptions;
 pathConstraints?: RouterPathConstraints;
 ```
@@ -154,7 +154,7 @@ pathConstraints?: RouterPathConstraints;
 
 ## Config filenames
 
-```ts
+```ts ts2js
 const ROUTER_CONFIG_FILENAMES = [
   'cookbook-router.config.ts',
   'cookbook-router.config.mts',
@@ -172,14 +172,14 @@ The order is the discovery priority.
 
 ## `getRouterConfigFilenames()`
 
-```ts
+```ts ts2js
 function getRouterConfigFilenames():
   readonly RouterConfigFilename[];
 ```
 
 Returns the six standard filenames in priority order.
 
-```ts
+```ts ts2js
 getRouterConfigFilenames() === ROUTER_CONFIG_FILENAMES;
 // true
 ```
@@ -188,7 +188,7 @@ The returned value is the exported constant, not a copied array.
 
 ## `getRouterConfigWatchCandidates(cwd?)`
 
-```ts
+```ts ts2js
 function getRouterConfigWatchCandidates(
   cwd?: string,
 ): readonly string[];
@@ -196,13 +196,13 @@ function getRouterConfigWatchCandidates(
 
 Returns every standard config filename scoped to `cwd`.
 
-```ts
+```ts ts2js
 getRouterConfigWatchCandidates('apps/dashboard');
 ```
 
 returns:
 
-```ts
+```ts ts2js
 [
   'apps/dashboard/cookbook-router.config.ts',
   'apps/dashboard/cookbook-router.config.mts',
@@ -215,7 +215,7 @@ returns:
 
 With default `cwd`, candidates are relative filenames:
 
-```ts
+```ts ts2js
 [
   'cookbook-router.config.ts',
   'cookbook-router.config.mts',
@@ -232,7 +232,7 @@ That is how watch mode can recover when a missing config is created later.
 
 ## `loadRouterConfig(options?)`
 
-```ts
+```ts ts2js
 function loadRouterConfig(
   options?: {
     readonly configFile?: string;
@@ -294,7 +294,7 @@ Malformed config still throws even with `optional: true`.
 
 ## `LoadedRouterConfig`
 
-```ts
+```ts ts2js
 interface LoadedRouterConfig {
   readonly config: RouterCliConfig;
   readonly configFile: string;
@@ -329,7 +329,7 @@ interface LoadedRouterConfig {
 
 ## `GeneratedRouteTreeRuntimeOptions`
 
-```ts
+```ts ts2js
 interface RuntimeImportReference {
   readonly path: string;
   readonly exportName: string;
@@ -362,7 +362,7 @@ interface GeneratedRouteTreeRuntimeOptions {
 
 Supported import shape:
 
-```ts title="cookbook-router.config.ts"
+```ts ts2js title="cookbook-router.config.ts"
 import { pathConstraints } from './path-constraints';
 
 export default defineRouterConfig({
@@ -373,7 +373,7 @@ export default defineRouterConfig({
 
 Supported exported constraint module:
 
-```ts title="path-constraints.ts"
+```ts ts2js title="path-constraints.ts"
 import {
   createPathConstraint,
 } from '@cookbook/router/path';
@@ -393,7 +393,7 @@ Inline or local config-only path constraints are enough for validation and contr
 
 ## `parseRouterConfig(path, contents)`
 
-```ts
+```ts ts2js
 function parseRouterConfig(
   path: string,
   contents: string,
@@ -406,19 +406,19 @@ It does not import the config module.
 
 It supports these default export forms:
 
-```ts
+```ts ts2js
 export default defineRouterConfig({
   // ...
 });
 ```
 
-```ts
+```ts ts2js
 export default {
   // ...
 };
 ```
 
-```ts
+```ts ts2js
 const config = defineRouterConfig({
   // ...
 });
@@ -426,7 +426,7 @@ const config = defineRouterConfig({
 export default config;
 ```
 
-```ts
+```ts ts2js
 const config = {
   // ...
 };
@@ -442,7 +442,7 @@ The local identifier form supports `const`, `let`, or `var`, optional `export`, 
 
 Supported:
 
-```ts
+```ts ts2js
 const routeFiles =
   ['src/**/*.route.tsx', 'features/**/*.route.tsx'] as const;
 
@@ -456,7 +456,7 @@ export default defineRouterConfig({
 
 Unsupported:
 
-```ts
+```ts ts2js
 export default defineRouterConfig({
   routeFiles: getRouteFiles(),
 } as const);
@@ -490,7 +490,7 @@ Use `loadRouterConfig()` when imported path constraints must be preserved for ge
 
 Inline config object:
 
-```ts
+```ts ts2js
 export default defineRouterConfig({
   routeFiles: 'src/**/*.route.tsx',
   pathConstraints: {
@@ -505,7 +505,7 @@ export default defineRouterConfig({
 
 Local static object:
 
-```ts
+```ts ts2js
 const pathConstraints = {
   slug: createPathConstraint({
     parse() {},
@@ -522,7 +522,7 @@ export default defineRouterConfig({
 
 Named relative import:
 
-```ts
+```ts ts2js
 import {
   pathConstraints,
 } from './path-constraints';
@@ -537,19 +537,19 @@ Only the named relative import form can produce `runtimeRouteOptions`.
 
 Unsupported:
 
-```ts
+```ts ts2js
 import pathConstraints from './path-constraints';
 ```
 
 Unsupported:
 
-```ts
+```ts ts2js
 import * as constraints from './path-constraints';
 ```
 
 Unsupported:
 
-```ts
+```ts ts2js
 import { pathConstraints } from '@acme/router-constraints';
 ```
 
@@ -589,7 +589,7 @@ Import resolution checks:
 
 ## `resolveEffectiveRouteOptions(options)`
 
-```ts
+```ts ts2js
 function resolveEffectiveRouteOptions(
   options: CliRouteOptions,
 ): Promise<CliRouteOptions>;
@@ -618,7 +618,7 @@ When `options.routes` is present:
 * `outDir` is still resolved;
 * `options.routeOptions` is kept as supplied.
 
-```ts
+```ts ts2js
 {
   routes,
   routeOptions,
@@ -815,7 +815,7 @@ The package root does not export a named `LoadRouterConfigOptions` type.
 
 Use:
 
-```ts
+```ts ts2js
 pathOptions: {
   prune: 'all',
 }
@@ -823,7 +823,7 @@ pathOptions: {
 
 or:
 
-```ts
+```ts ts2js
 pathOptions: {
   prune: false,
 }
@@ -831,7 +831,7 @@ pathOptions: {
 
 Do not use:
 
-```ts
+```ts ts2js
 pathOptions: {
   prune: true,
 }
@@ -865,7 +865,7 @@ Use `routeFiles` with at least one entry when you mean to override config route 
 
 This can preserve a runtime import:
 
-```ts
+```ts ts2js
 import {
   pathConstraints,
 } from './path-constraints';
@@ -873,7 +873,7 @@ import {
 
 This cannot:
 
-```ts
+```ts ts2js
 import {
   pathConstraints,
 } from '@acme/path-constraints';

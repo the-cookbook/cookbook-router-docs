@@ -13,7 +13,7 @@ It compiles route URL descriptors, resolves layered URL policy, and exposes low-
 
 It is not the whole router. It does not rank routes, run middleware, commit navigation, preload modules, or render anything.
 
-```ts
+```ts ts2js
 import {
   buildRouteHash,
   buildRoutePath,
@@ -31,7 +31,7 @@ import {
 
 The package root re-exports only the common URL-state helpers:
 
-```ts
+```ts ts2js
 import {
   createRouteUrlContract,
   resolveUrlOptions,
@@ -40,13 +40,13 @@ import {
 
 There is no `registerUrlPathConstraints()` export. For custom path constraints, either pass `pathConstraints` to the operation that compiles the contract, or register them through the path API.
 
-```ts
+```ts ts2js
 import { registerPathConstraints } from '@cookbook/router/path';
 ```
 
 ## `createRouteUrlContract(route, options?)`
 
-```ts
+```ts ts2js
 interface RouterRouteUrlDescriptor {
   readonly path?: string;
   readonly search?: RouteSearchSchema;
@@ -94,7 +94,7 @@ Compiles one static route URL descriptor into the URLKit contract used by route 
   }}
 />
 
-```ts
+```ts ts2js
 import { createRouteUrlContract } from '@cookbook/router/url-state';
 
 const contract = createRouteUrlContract(
@@ -143,7 +143,7 @@ const href = contract.build({
 
 Path parameters are compiled in parsed mode. A path such as `{id:int}` produces a numeric `id`, not the source string `'42'`.
 
-```ts
+```ts ts2js
 contract.parsePathname('/articles/42');
 // { id: 42 }
 ```
@@ -158,7 +158,7 @@ The effective URL policy is merged in this order, from lowest to highest priorit
 
 Only supplied fields override lower layers. Omitted fields stay omitted so URLKit defaults remain authoritative.
 
-```ts
+```ts ts2js
 const contract = createRouteUrlContract(
   {
     path: '/products',
@@ -194,7 +194,7 @@ contract.build({
 
 Prefer passing constraints directly when compiling the contract:
 
-```ts
+```ts ts2js
 import { createPathConstraint } from '@cookbook/router/path';
 import { createRouteUrlContract } from '@cookbook/router/url-state';
 
@@ -240,7 +240,7 @@ Existing compiled contracts are immutable. Registering a constraint later does n
 
 Router forwards static date and date-time formats to URLKit without rewriting tokens.
 
-```ts
+```ts ts2js
 const contract = createRouteUrlContract({
   path: '/reports',
   search: {
@@ -276,7 +276,7 @@ Route "reports" has an invalid URL descriptor. ...
 
 ## `RouterRouteUrlContract`
 
-```ts
+```ts ts2js
 interface RouterRouteUrlContract {
   readonly pattern: string | undefined;
 
@@ -346,7 +346,7 @@ Pathless descriptors expose path operations as `never` at the public contract bo
 
 ### `RouterUrlArrayFormat`
 
-```ts
+```ts ts2js
 type RouterUrlArrayFormat =
   | 'repeat'
   | 'comma';
@@ -359,7 +359,7 @@ type RouterUrlArrayFormat =
 
 ### `RouterInvalidUrlStatePolicy`
 
-```ts
+```ts ts2js
 type RouterInvalidUrlStatePolicy =
   | 'recover'
   | 'no-match'
@@ -378,7 +378,7 @@ At the low-level contract/helper layer, both `'no-match'` and `'error'` map to s
 
 ### `RouterUnknownSearchPolicy`
 
-```ts
+```ts ts2js
 type RouterUnknownSearchPolicy =
   | 'strip'
   | 'preserve'
@@ -395,7 +395,7 @@ Controls query-string keys not declared by the route search schema.
 
 ### `RouterUnknownSearchParams`
 
-```ts
+```ts ts2js
 type RouterUnknownSearchParams =
   Record<string, unknown>;
 ```
@@ -404,7 +404,7 @@ Unknown query-string keys preserved when the effective `unknownSearch` policy is
 
 ## `RouterUrlOptions`
 
-```ts
+```ts ts2js
 interface RouterUrlOptions {
   readonly arrayFormat?: RouterUrlArrayFormat;
   readonly defaults?: 'include' | 'omit';
@@ -456,7 +456,7 @@ interface RouterUrlOptions {
 
 Example router-level policy:
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   url: {
@@ -470,7 +470,7 @@ const router = createRouter({
 
 Route-level override:
 
-```ts
+```ts ts2js
 {
   id: 'products',
   path: '/products',
@@ -490,7 +490,7 @@ Route-level override:
 
 Unsupported path-match prefix mode:
 
-```ts
+```ts ts2js
 url: {
   pathMatch: {
     end: false,
@@ -506,7 +506,7 @@ Router url.pathMatch.end: false is not supported yet. Prefix matching requires r
 
 ## `RouterRouteSearchParseOptions`
 
-```ts
+```ts ts2js
 interface RouterRouteSearchParseOptions
   extends RouterPathMatchOptions {
   readonly arrayFormat?: RouterUrlArrayFormat;
@@ -529,7 +529,7 @@ It is not the same as `RouterUrlOptions`.
 
 ## `RouterUrlBuildOptions`
 
-```ts
+```ts ts2js
 interface RouterUrlBuildOptions {
   readonly arrayFormat?: RouterUrlArrayFormat;
   readonly defaults?: 'include' | 'omit';
@@ -557,7 +557,7 @@ Serialization does not decide which route candidate wins.
 
 ## `resolveUrlOptions(input?)`
 
-```ts
+```ts ts2js
 interface ResolveUrlOptionsInput {
   readonly router?: RouterUrlOptions;
   readonly route?: RouterUrlOptions;
@@ -591,7 +591,7 @@ Performs the Router URL policy merge.
   }}
 />
 
-```ts
+```ts ts2js
 import { resolveUrlOptions } from '@cookbook/router/url-state';
 
 const options = resolveUrlOptions({
@@ -622,7 +622,7 @@ It does not inject defaults and does not validate the resulting policy. Contract
 
 ### `RouteUrlStateOptions`
 
-```ts
+```ts ts2js
 interface RouteUrlStateOptions {
   readonly routerUrl?: RouterUrlOptions;
   readonly callUrl?: RouterUrlOptions;
@@ -660,7 +660,7 @@ interface RouteUrlStateOptions {
 
 ### `ParsedRouteSearchState`
 
-```ts
+```ts ts2js
 interface ParsedRouteSearchState {
   readonly search: Record<string, unknown>;
   readonly unknownSearch?: RouterUnknownSearchParams;
@@ -683,7 +683,7 @@ interface ParsedRouteSearchState {
 
 ### `ParsedRouteUrlState`
 
-```ts
+```ts ts2js
 interface ParsedRouteUrlState
   extends ParsedRouteSearchState {
   readonly params: Record<string, unknown>;
@@ -715,7 +715,7 @@ interface ParsedRouteUrlState
 
 ## `resolveRouteUrlOptions(route, options)`
 
-```ts
+```ts ts2js
 function resolveRouteUrlOptions(
   route: NormalizedRoute,
   options: RouteUrlStateOptions,
@@ -730,7 +730,7 @@ The merge order is:
 2. `route.route.url`
 3. `options.callUrl`
 
-```ts
+```ts ts2js
 const url = resolveRouteUrlOptions(route, {
   routerUrl: {
     arrayFormat: 'repeat',
@@ -746,7 +746,7 @@ Route-level `url` lives on the original authored route definition stored under `
 
 ## `parseRoutePathParams(route, pathname, options?)`
 
-```ts
+```ts ts2js
 function parseRoutePathParams(
   route: NormalizedRoute,
   pathname: string,
@@ -758,7 +758,7 @@ Attempts to parse path params for one normalized route.
 
 Returns `null` when path parsing fails.
 
-```ts
+```ts ts2js
 const params = parseRoutePathParams(
   route,
   '/users/42',
@@ -769,7 +769,7 @@ const params = parseRoutePathParams(
 
 Failed parse:
 
-```ts
+```ts ts2js
 parseRoutePathParams(
   route,
   '/users/not-a-number',
@@ -779,7 +779,7 @@ parseRoutePathParams(
 
 Wildcard params normalize to arrays:
 
-```ts
+```ts ts2js
 parseRoutePathParams(
   filesRoute,
   '/files/docs/readme',
@@ -789,7 +789,7 @@ parseRoutePathParams(
 
 With decoding:
 
-```ts
+```ts ts2js
 parseRoutePathParams(
   filesRoute,
   '/files/a%2Fb/c%20d',
@@ -806,7 +806,7 @@ parseRoutePathParams(
 
 ## `buildRoutePath(route, params, options?)`
 
-```ts
+```ts ts2js
 function buildRoutePath(
   route: NormalizedRoute,
   params: unknown,
@@ -816,7 +816,7 @@ function buildRoutePath(
 
 Builds a pathname for one normalized route.
 
-```ts
+```ts ts2js
 buildRoutePath(
   userRoute,
   {
@@ -828,7 +828,7 @@ buildRoutePath(
 
 Wildcard params can be strings or arrays:
 
-```ts
+```ts ts2js
 buildRoutePath(
   filesRoute,
   {
@@ -850,7 +850,7 @@ If the normalized route full path ends with a trailing slash, Router preserves t
 
 ## `parseRouteSearch(route, search, options?)`
 
-```ts
+```ts ts2js
 function parseRouteSearch(
   route: NormalizedRoute,
   search: string,
@@ -862,7 +862,7 @@ Parses search state for one normalized route.
 
 When the route has a declared search schema, URLKit validates and coerces the declared fields.
 
-```ts
+```ts ts2js
 parseRouteSearch(
   productsRoute,
   '?tags=router,typescript',
@@ -877,7 +877,7 @@ parseRouteSearch(
 
 By default, invalid optional or defaulted fields recover when URLKit can omit or default them.
 
-```ts
+```ts ts2js
 parseRouteSearch(
   overviewRoute,
   '?page=a&pageSize=10',
@@ -887,7 +887,7 @@ parseRouteSearch(
 
 Invalid required fields still throw:
 
-```ts
+```ts ts2js
 parseRouteSearch(
   reportsRoute,
   '?page=a',
@@ -899,7 +899,7 @@ parseRouteSearch(
 
 ## `parseRouteSearchState(route, pathname, search, options?)`
 
-```ts
+```ts ts2js
 function parseRouteSearchState(
   route: NormalizedRoute,
   pathname: string,
@@ -910,7 +910,7 @@ function parseRouteSearchState(
 
 Parses declared search and returns preserved unknown search when available.
 
-```ts
+```ts ts2js
 const state = parseRouteSearchState(
   productsRoute,
   '/products',
@@ -934,7 +934,7 @@ When a route has no search schema, the helper returns generic parsed search stat
 
 ## `buildRouteSearch(route, search, options?)`
 
-```ts
+```ts ts2js
 function buildRouteSearch(
   route: NormalizedRoute,
   search: unknown,
@@ -944,7 +944,7 @@ function buildRouteSearch(
 
 Builds a query string for one normalized route.
 
-```ts
+```ts ts2js
 buildRouteSearch(
   productsRoute,
   {
@@ -963,7 +963,7 @@ Search keys are sorted while building route search so generated output is stable
 
 Defaults are controlled by `defaults`.
 
-```ts
+```ts ts2js
 buildRouteSearch(
   overviewRoute,
   {
@@ -980,7 +980,7 @@ buildRouteSearch(
 
 ## `parseRouteHash(route, hash, options?)`
 
-```ts
+```ts ts2js
 function parseRouteHash(
   route: NormalizedRoute,
   hash: string,
@@ -992,7 +992,7 @@ Parses hash state for one normalized route.
 
 For schema-backed hashes, URLKit validates and coerces the descriptor.
 
-```ts
+```ts ts2js
 parseRouteHash(
   productsRoute,
   '#grid',
@@ -1002,7 +1002,7 @@ parseRouteHash(
 
 By default, invalid optional/defaulted hash values recover.
 
-```ts
+```ts ts2js
 parseRouteHash(
   productsRoute,
   '#missing',
@@ -1012,7 +1012,7 @@ parseRouteHash(
 
 Strict hash behavior throws:
 
-```ts
+```ts ts2js
 parseRouteHash(
   productsRoute,
   '#missing',
@@ -1029,7 +1029,7 @@ When a route has no hash schema, Router normalizes the hash and preserves unrest
 
 ## `buildRouteHash(route, hash, options?)`
 
-```ts
+```ts ts2js
 function buildRouteHash(
   route: NormalizedRoute,
   hash: unknown,
@@ -1041,7 +1041,7 @@ Builds a hash string for one normalized route.
 
 It accepts bare or `#`-prefixed input and returns a normalized hash string.
 
-```ts
+```ts ts2js
 buildRouteHash(
   productsRoute,
   'grid',
@@ -1059,7 +1059,7 @@ For schema-backed hashes, defaults are controlled by build options.
 
 ## `parseRouteUrlState(route, pathname, search, hash, options?)`
 
-```ts
+```ts ts2js
 function parseRouteUrlState(
   route: NormalizedRoute,
   pathname: string,
@@ -1071,7 +1071,7 @@ function parseRouteUrlState(
 
 Parses path params, declared search, unknown search, and hash in one operation.
 
-```ts
+```ts ts2js
 const state = parseRouteUrlState(
   userRoute,
   '/users/42',
@@ -1098,7 +1098,7 @@ Use `matchRoutes()` or router matching when you need candidate selection.
 
 ## `UrlContractRouteDescriptor`
 
-```ts
+```ts ts2js
 type UrlContractRouteDescriptor =
   Pick<
     RouteDefinition,
@@ -1114,7 +1114,7 @@ Use this when an adapter needs to pass only URL-relevant route fields.
 
 Search and hash descriptor helpers are related to URL state, but they are root exports.
 
-```ts
+```ts ts2js
 import {
   defineHash,
   defineSearch,
@@ -1124,7 +1124,7 @@ import {
 
 They are not exported from `@cookbook/router/url-state`.
 
-```ts
+```ts ts2js
 // Wrong.
 import {
   defineSearch,
@@ -1213,7 +1213,7 @@ resolveRouteUrlOptions
 
 This is valid:
 
-```ts
+```ts ts2js
 import {
   parseRouteUrlState,
 } from '@cookbook/router/url-state';
@@ -1225,7 +1225,7 @@ The old “root-only” wording is wrong.
 
 This is wrong:
 
-```ts
+```ts ts2js
 import {
   registerUrlPathConstraints,
 } from '@cookbook/router/url-state';
@@ -1233,7 +1233,7 @@ import {
 
 Use path constraints directly:
 
-```ts
+```ts ts2js
 createRouteUrlContract(
   {
     path: '/posts/{slug:slug}',
@@ -1248,7 +1248,7 @@ createRouteUrlContract(
 
 or register globally through the path API:
 
-```ts
+```ts ts2js
 import {
   registerPathConstraints,
 } from '@cookbook/router/path';
@@ -1258,7 +1258,7 @@ import {
 
 This parses declared search:
 
-```ts
+```ts ts2js
 parseRouteSearch(
   productsRoute,
   '?page=1&debug=true',
@@ -1272,7 +1272,7 @@ parseRouteSearch(
 
 Use this when you need undeclared keys:
 
-```ts
+```ts ts2js
 parseRouteSearchState(
   productsRoute,
   '/products',
@@ -1289,7 +1289,7 @@ parseRouteSearchState(
 
 Low-level parse helpers throw for both strict modes:
 
-```ts
+```ts ts2js
 invalidSearch: 'error'
 invalidSearch: 'no-match'
 ```
@@ -1300,7 +1300,7 @@ The router runtime decides whether a strict parse failure becomes route error st
 
 This is rejected:
 
-```ts
+```ts ts2js
 url: {
   pathMatch: {
     end: false,
@@ -1314,7 +1314,7 @@ Prefix matching requires match state that exposes consumed and remaining pathnam
 
 This is too late:
 
-```ts
+```ts ts2js
 const contract = createRouteUrlContract({
   path: '/posts/{slug:slug}',
 });

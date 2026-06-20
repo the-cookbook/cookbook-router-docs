@@ -1,0 +1,160 @@
+---
+title: "Intercepts"
+description: "Render intercepted destinations through source-owned slots with route hrefs and renderIntercept()."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Intercepts commit the destination URL but render the destination through a slot owned by the previous source branch.
+
+Use them for modal details, inspectors, compose drawers, preview panels, and contextual editors.
+
+## Declare the source slot and intercept
+
+```ts ts2js
+import {
+  createRouter,
+  defineRoutes,
+  renderRouteMatch,
+  type RouteMatch,
+} from '@cookbook/router';
+
+const routes = defineRoutes([
+  {
+    id: 'gallery',
+    path: '/gallery',
+    layout: {
+      view: 'gallery.layout',
+      slots: {
+        modal: true,
+      },
+    },
+    intercepts: {
+      modal: {
+        to: 'photos.show',
+        view: 'photo.modal',
+      },
+    },
+    children: [
+      {
+        id: 'gallery.index',
+        index: true,
+        view: 'gallery.index',
+      },
+    ],
+  },
+  {
+    id: 'photos.show',
+    path: '/photos/{photoId:int}',
+    view: 'photo.page',
+  },
+] as const);
+
+const router = createRouter({ routes });
+```
+
+The canonical destination is still `photos.show`. The source route decides that navigation from `gallery` can render through the `modal` slot.
+
+## Navigate with interception
+
+```ts ts2js
+await router.navigate.to({
+  route: 'photos.show',
+  params: {
+    photoId: 42,
+  },
+  intercept: 'modal',
+  context: {
+    openedFrom: 'thumbnail-grid',
+  },
+});
+```
+
+The router location becomes `/photos/42`.
+
+```ts ts2js
+router.state.match?.id;
+// 'photos.show'
+
+router.state.match?.intercepted?.slot;
+// 'modal'
+
+router.state.match?.intercepted?.previousHref;
+// '/gallery'
+```
+
+## Render the intercept shell
+
+`renderIntercept()` receives the intercept view and the already-rendered intercepted target as `context.outlet`.
+
+```ts ts2js
+interface Node {
+  readonly kind: string;
+  readonly routeId?: string;
+  readonly children?: readonly Node[];
+}
+
+function renderApp(match: RouteMatch | null): Node | null {
+  return renderRouteMatch<string, Node | null>(match, {
+    fallback: null,
+    renderView(view, context) {
+      return {
+        kind: view,
+        routeId: context.match.id,
+      };
+    },
+    renderLayout(view, context) {
+      return {
+        kind: view,
+        routeId: context.ownerRouteId,
+        children: [
+          context.outlet,
+          context.slots.modal ?? null,
+        ].filter((child): child is Node => child !== null),
+      };
+    },
+    renderIntercept(view, context) {
+      return {
+        kind: view,
+        routeId: context.intercepted.targetRouteId,
+        children: context.outlet ? [context.outlet] : [],
+      };
+    },
+    renderEmpty(context) {
+      return context.slot ? null : { kind: context.reason };
+    },
+  });
+}
+```
+
+The intercept shell and the canonical destination can use different views. `photo.modal` renders the shell; the destination branch still renders `photo.page` inside it.
+
+## Disable an intercept for one navigation
+
+```ts ts2js
+await router.navigate.to({
+  route: 'photos.show',
+  params: {
+    photoId: 42,
+  },
+  intercept: false,
+});
+```
+
+That commits and renders the canonical destination normally.
+
+## Where this bites
+
+### Interception is not a rewrite
+
+A rewrite changes which route resolves before committing a history entry. An intercept commits the destination URL and changes how the destination is rendered.
+
+### Intercepts need slot ownership
+
+The source branch must own the target slot. A renderer cannot place intercepted UI if the source layout has no slot for it.
+
+### Direct visits are canonical
+
+A direct visit to `/photos/42` has no previous source branch. It should render the canonical destination, not the contextual intercept surface.

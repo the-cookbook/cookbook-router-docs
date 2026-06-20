@@ -1,0 +1,167 @@
+---
+title: "Links and navigation"
+description: "Build route-ID hrefs, active checks, preloads, and programmatic navigation with the core router."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Core links are data plus event handling. The router builds hrefs, matches active state, preloads intent, and commits navigation. Your renderer decides whether those pieces become an anchor, button, command-palette row, or native-shell action.
+
+## Build from route identity
+
+```ts ts2js
+import {
+  createRouter,
+  defineRoutes,
+} from '@cookbook/router';
+
+const routes = defineRoutes([
+  {
+    id: 'users',
+    path: '/users',
+    children: [
+      {
+        id: 'users.details',
+        path: '{userId:int}',
+        view: 'users.details',
+      },
+    ],
+  },
+] as const);
+
+const router = createRouter({ routes });
+
+const target = {
+  route: 'users.details',
+  params: {
+    userId: 42,
+  },
+  search: {
+    tab: 'activity',
+  },
+  hash: 'summary',
+} as const;
+```
+
+## Build an href
+
+`router.href()` returns a URL string and does not navigate.
+
+```ts ts2js
+const href = router.href(target);
+
+href;
+// '/users/42?tab=activity#summary'
+```
+
+Href generation validates required params and path constraints. Broken route links fail before navigation.
+
+## Navigate from an event
+
+Your event layer owns browser defaults. Preserve modified clicks and other host-specific behavior before calling router navigation.
+
+```ts ts2js
+async function openUser(event: MouseEvent) {
+  if (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.shiftKey
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+
+  await router.navigate.to(target);
+}
+```
+
+For a command palette or native shell, there may be no DOM event at all:
+
+```ts ts2js
+await router.navigate.to(target);
+```
+
+## Compute active state
+
+Match the generated href against the router. Do not parse route IDs out of strings.
+
+```ts ts2js
+function isActive(targetHref: string) {
+  return router.match(targetHref)?.id === router.state.match?.id;
+}
+```
+
+Branch-active state is an application rule:
+
+```ts ts2js
+function isUnderUsers() {
+  return router.state.match?.branch.some(
+    (entry) => entry.id === 'users',
+  ) ?? false;
+}
+```
+
+## Preload on intent
+
+```ts ts2js
+function preloadUser() {
+  void router.preload(target);
+}
+
+function preloadHref(href: string) {
+  void router.preloadHref(href);
+}
+```
+
+Preloading warms route modules, lazy route views, and route-level preload hooks. It does not commit navigation.
+
+## Build a renderer-neutral link model
+
+```ts ts2js
+interface LinkModel {
+  readonly href: string;
+  readonly active: boolean;
+  readonly preload: () => void;
+  readonly navigate: () => Promise<void>;
+}
+
+function createUserLink(userId: number): LinkModel {
+  const target = {
+    route: 'users.details',
+    params: { userId },
+  } as const;
+
+  const href = router.href(target);
+
+  return {
+    href,
+    active: router.match(href)?.id === router.state.match?.id,
+    preload() {
+      void router.preload(target);
+    },
+    async navigate() {
+      await router.navigate.to(target);
+    },
+  };
+}
+```
+
+## Where this bites
+
+### Active state is not automatic
+
+The core router exposes match state. It does not decide whether your UI wants exact active state, branch active state, prefix active state, or custom tab state.
+
+### Preload is not navigation
+
+A successful preload does not change history, run a committed transition, or update `router.state.location`.
+
+### Preserve host behavior yourself
+
+Core navigation helpers do not know whether a click should open a new tab, download a file, or let the host own the action. That belongs to the event layer.

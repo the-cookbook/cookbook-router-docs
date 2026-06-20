@@ -14,6 +14,7 @@ const config = {
   images: {
     unoptimized: true,
   },
+  serverExternalPackages: ["oxc-transform"],
 };
 
 export default withMDX(config);

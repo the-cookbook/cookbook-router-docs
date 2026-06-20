@@ -23,7 +23,7 @@ Fallback ownership is core route metadata. Rendering behavior belongs to the ada
 
 Core renderers receive loading and error fallback ownership through `renderBoundary()`.
 
-```ts
+```ts ts2js
 import { renderRouteMatch } from '@cookbook/router';
 
 const output = renderRouteMatch(router.state.match, {
@@ -51,7 +51,7 @@ The core renderer decides what a boundary means. It can produce strings, templat
 
 React maps the same fallback ownership to Suspense and error boundaries.
 
-```tsx
+```tsx ts2js
 export const routes = defineRoutes([
   {
     id: 'dashboard',
@@ -100,7 +100,7 @@ The central rule is:
 
 A route can provide local fallbacks while its parent layout provides shared fallbacks for the rest of the section:
 
-```tsx
+```tsx ts2js
 import {
   defineRoutes,
 } from '@cookbook/router';
@@ -166,7 +166,7 @@ Typical causes include:
 * A component that throws a pending promise
 * A suspending descendant rendered inside a route or layout outlet
 
-```tsx
+```tsx ts2js
 const AccountPage = lazyRouteView(() =>
   import('./account-page').then(
     ({ AccountPage }) => ({
@@ -176,7 +176,7 @@ const AccountPage = lazyRouteView(() =>
 );
 ```
 
-```tsx
+```tsx ts2js
 {
   id: 'account',
   path: '/account',
@@ -202,7 +202,7 @@ Use loading fallbacks for rendering suspension. Use application state when non-r
 
 `route.loading` belongs to the active leaf route:
 
-```tsx
+```tsx ts2js
 import type {
   RouteLoadingFallbackProps,
 } from '@cookbook/router-react';
@@ -218,7 +218,7 @@ function ArticleLoading({
 }
 ```
 
-```tsx
+```tsx ts2js
 {
   id: 'articles.show',
   path: '/articles/{slug}',
@@ -243,7 +243,7 @@ the route fallback replaces the pending `articles.show` content while the surrou
 
 This does not give `ParentLoading` to `parent.child`:
 
-```tsx
+```tsx ts2js
 {
   id: 'parent',
   path: '/parent',
@@ -281,7 +281,7 @@ Do not use `route.loading` or `route.error` as a substitute for a shared branch 
 
 `layout.loading` belongs to the content rendered through the layout’s main `<Outlet />`.
 
-```tsx
+```tsx ts2js
 function DashboardLayout() {
   return (
     <section>
@@ -295,7 +295,7 @@ function DashboardLayout() {
 }
 ```
 
-```tsx
+```tsx ts2js
 {
   id: 'dashboard',
   path: '/dashboard',
@@ -327,7 +327,7 @@ This is the correct boundary for persistent application shells.
 
 Layout fallbacks are inherited down the main branch. The nearest active declaration wins.
 
-```tsx
+```tsx ts2js
 {
   id: 'app',
   path: '/app',
@@ -367,7 +367,7 @@ A leaf route loading fallback would win over both.
 
 The layout boundary is placed around the content inserted into the layout, not around the layout component itself.
 
-```tsx
+```tsx ts2js
 {
   id: 'dashboard',
   path: '/dashboard',
@@ -391,7 +391,7 @@ A layout loading or error fallback requires an active layout view.
 
 Valid:
 
-```tsx
+```tsx ts2js
 {
   id: 'dashboard',
   path: '/dashboard',
@@ -406,7 +406,7 @@ Valid:
 
 Invalid without a layout in the active scope:
 
-```tsx
+```tsx ts2js
 {
   id: 'dashboard',
   path: '/dashboard',
@@ -437,7 +437,7 @@ nothing
 
 Example provider default:
 
-```tsx
+```tsx ts2js
 <RouterProvider
   router={router}
   loadingFallback={
@@ -454,7 +454,7 @@ When a persistent layout is already rendered, the provider fallback can appear a
 
 `route.error` handles the active leaf route boundary:
 
-```tsx
+```tsx ts2js
 import type {
   RouteErrorFallbackProps,
 } from '@cookbook/router-react';
@@ -487,7 +487,7 @@ function ArticleError({
 }
 ```
 
-```tsx
+```tsx ts2js
 {
   id: 'articles.show',
   path: '/articles/{slug}',
@@ -500,7 +500,7 @@ For a React render error, `reset()` clears the local error-boundary state and re
 
 Like `route.loading`, `route.error` is not inherited by child routes.
 
-```tsx
+```tsx ts2js
 {
   id: 'articles',
   path: '/articles',
@@ -524,7 +524,7 @@ The child uses its own route error, the nearest layout error, or the provider er
 
 `layout.error` handles rendering failures from the main outlet content inside the layout shell:
 
-```tsx
+```tsx ts2js
 function DashboardError({
   error,
   reset,
@@ -546,7 +546,7 @@ function DashboardError({
 }
 ```
 
-```tsx
+```tsx ts2js
 {
   id: 'dashboard',
   path: '/dashboard',
@@ -586,7 +586,7 @@ unhandled render error
 
 Configure a provider fallback as the final application-level boundary:
 
-```tsx
+```tsx ts2js
 import type {
   RouterErrorFallbackProps,
 } from '@cookbook/router-react';
@@ -619,7 +619,7 @@ function ApplicationError({
 }
 ```
 
-```tsx
+```tsx ts2js
 <RouterProvider
   router={router}
   errorFallback={ApplicationError}
@@ -657,7 +657,7 @@ Examples include:
 
 The router stores these failures in:
 
-```ts
+```ts ts2js
 router.state.error;
 ```
 
@@ -667,7 +667,7 @@ A router-state error is not the same as a React render error. The fallback is be
 
 Do not treat the supplied `reset()` as a universal transition retry. Recover router-state errors by fixing the relevant state and navigating or refreshing:
 
-```tsx
+```tsx ts2js
 import {
   useRouter,
 } from '@cookbook/router-react';
@@ -702,7 +702,7 @@ function NavigationError({
 
 `RouterProvider` exposes three separate props:
 
-```tsx
+```tsx ts2js
 <RouterProvider
   router={router}
   fallback={
@@ -730,7 +730,7 @@ It is not:
 
 A wildcard route is usually preferable when not-found behavior needs normal route metadata, lifecycle, middleware, or layout rendering:
 
-```tsx
+```tsx ts2js
 {
   id: 'not-found',
   path: '/{*path}',
@@ -752,7 +752,7 @@ Always configure an application-level error fallback when router-state and rende
 
 Named slots have a separate error-isolation mechanism:
 
-```tsx
+```tsx ts2js
 function DashboardLayout() {
   return (
     <section>
@@ -767,7 +767,7 @@ function DashboardLayout() {
 }
 ```
 
-```tsx
+```tsx ts2js
 import type {
   SlotErrorFallbackProps,
 } from '@cookbook/router-react';
@@ -801,7 +801,7 @@ The main outlet and surrounding layout remain rendered.
 
 Pass `null` to isolate a slot failure and render nothing:
 
-```tsx
+```tsx ts2js
 <Slot
   name="notifications"
   errorFallback={null}
@@ -812,7 +812,7 @@ This is different from omitting the prop.
 
 ### Prop omitted
 
-```tsx
+```tsx ts2js
 <Slot name="notifications" />
 ```
 
@@ -820,7 +820,7 @@ The slot uses its normal route/layout/provider error handling and can bubble bey
 
 ### `null` provided
 
-```tsx
+```tsx ts2js
 <Slot
   name="notifications"
   errorFallback={null}
@@ -835,7 +835,7 @@ When `<Slot errorFallback>` is present, it owns render errors for that rendered 
 
 It takes precedence over a route-level error declared by a matched slot route:
 
-```tsx
+```tsx ts2js
 {
   id: 'dashboard.sidebar',
   path: 'reports',
@@ -844,7 +844,7 @@ It takes precedence over a route-level error declared by a matched slot route:
 }
 ```
 
-```tsx
+```tsx ts2js
 <Slot
   name="sidebar"
   errorFallback={SidebarBoundaryError}
@@ -863,7 +863,7 @@ A layout’s `loading` and `error` fallbacks belong to its main outlet branch.
 
 They are not automatically inherited into named slot route trees:
 
-```tsx
+```tsx ts2js
 layout: {
   view: DashboardLayout,
   loading: DashboardLoading,
@@ -892,7 +892,7 @@ Use loading and error declarations inside the slot route tree when it needs inde
 
 Intercept views render through a slot and follow the same error-isolation rule.
 
-```tsx
+```tsx ts2js
 <Slot
   name="modal"
   errorFallback={ModalError}
@@ -917,7 +917,7 @@ They do not directly catch:
 
 Handle those at their source:
 
-```tsx
+```tsx ts2js
 async function saveDocument() {
   try {
     await documents.save();
@@ -937,7 +937,7 @@ See [Lifecycle](/docs/router/concepts/lifecycle) for transition-error observatio
 
 Route and layout loading components receive:
 
-```ts
+```ts ts2js
 interface RouteLoadingFallbackProps {
   readonly route: MatchedRoute;
 }
@@ -947,7 +947,7 @@ interface RouteLoadingFallbackProps {
 
 ### Route or layout error fallback
 
-```ts
+```ts ts2js
 interface RouteErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -957,7 +957,7 @@ interface RouteErrorFallbackProps {
 
 ### Provider error fallback
 
-```ts
+```ts ts2js
 interface RouterErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -969,7 +969,7 @@ interface RouterErrorFallbackProps {
 
 ### Slot error fallback
 
-```ts
+```ts ts2js
 interface SlotErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;

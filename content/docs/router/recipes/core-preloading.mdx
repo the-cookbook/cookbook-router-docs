@@ -1,0 +1,114 @@
+---
+title: "Preloading"
+description: "Warm route modules, lazy views, and route-owned preload work before navigation commits."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Preloading prepares route work before navigation. It does not commit a transition and does not put data into the router.
+
+Use it to warm route modules, lazy route views, and application-owned data caches.
+
+## Add route preload work
+
+```ts ts2js
+import {
+  createRouter,
+  defineRoutes,
+} from '@cookbook/router';
+
+const routes = defineRoutes([
+  {
+    id: 'users.details',
+    path: '/users/{userId:int}',
+    view: 'users.details',
+    preload: async ({ params, signal }) => {
+      await userCache.prefetch(params.userId, {
+        signal,
+      });
+    },
+  },
+] as const);
+
+const router = createRouter({ routes });
+```
+
+The cache still owns data, invalidation, freshness, mutations, and rendering state.
+
+## Preload by route ID
+
+```ts ts2js
+await router.preload('users.details', {
+  params: {
+    userId: 42,
+  },
+});
+```
+
+Route-ID preloading validates params and path constraints before running work.
+
+## Preload by href
+
+```ts ts2js
+await router.preloadHref('/users/42');
+```
+
+Href preloading is useful when the URL already exists as a string.
+
+## Abort superseded work
+
+```ts ts2js
+const controller = new AbortController();
+
+const preload = router.preload('users.details', {
+  params: {
+    userId: 42,
+  },
+  signal: controller.signal,
+});
+
+controller.abort();
+
+await preload.catch((error) => {
+  if (
+    error instanceof DOMException &&
+    error.name === 'AbortError'
+  ) {
+    return;
+  }
+
+  throw error;
+});
+```
+
+Abort should stop application-owned work that respects the signal.
+
+## Preload on intent
+
+```ts ts2js
+function onItemHighlighted(userId: number) {
+  void router.preload('users.details', {
+    params: {
+      userId,
+    },
+  });
+}
+```
+
+A renderer can call preload from hover, focus, viewport, command-palette highlight, or any other intent signal.
+
+## Where this bites
+
+### Preload does not navigate
+
+Preloading does not push history, run the committed transition pipeline, or update `router.state.location`.
+
+### The router is not your data cache
+
+Route `preload` is a hook. It should warm systems you own. It does not define cache lifetime or invalidation policy.
+
+### Signals matter
+
+Ignoring `signal` can leave expensive speculative work running after the user moves somewhere else.

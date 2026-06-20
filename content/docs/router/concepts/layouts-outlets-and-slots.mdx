@@ -27,7 +27,7 @@ The same route tree can be rendered by a custom core adapter or by the React int
 
 Core rendering uses `renderRouteMatch()` and converts opaque `RouteView` values into adapter output.
 
-```ts
+```ts ts2js
 import {
   renderRouteMatch,
   type RouteMatch,
@@ -85,7 +85,7 @@ There is no `<Outlet />` component in core. `context.outlet` and `context.slots`
 
 React turns the same match into components, outlets, slots, boundaries, and hooks.
 
-```tsx
+```tsx ts2js
 import {
   Outlet,
   Slot,
@@ -125,7 +125,7 @@ app
 
 A layout wraps the content below it:
 
-```tsx
+```tsx ts2js
 function DashboardLayout() {
   return (
     <section>
@@ -140,7 +140,7 @@ function DashboardLayout() {
 
 `<Slot />` renders named content owned by the nearest active layout context.
 
-```tsx
+```tsx ts2js
 function DashboardLayout() {
   return (
     <section>
@@ -166,13 +166,13 @@ The filesystem does not decide this structure. The route tree does.
 
 A route view renders when its route appears in the active branch:
 
-```tsx
+```tsx ts2js
 function DashboardHome() {
   return <h1>Dashboard</h1>;
 }
 ```
 
-```tsx
+```tsx ts2js
 const routes = defineRoutes([
   {
     id: 'dashboard',
@@ -184,7 +184,7 @@ const routes = defineRoutes([
 
 A route view can render an outlet when it also has children:
 
-```tsx
+```tsx ts2js
 function DocumentsPage() {
   return (
     <section>
@@ -195,7 +195,7 @@ function DocumentsPage() {
 }
 ```
 
-```tsx
+```tsx ts2js
 {
   id: 'documents',
   path: '/documents',
@@ -221,7 +221,7 @@ For `/documents/handbook`, `DocumentsPage` renders and its `<Outlet />` renders 
 
 A layout view is a persistent shell around route content.
 
-```tsx
+```tsx ts2js
 function AppLayout() {
   return (
     <section>
@@ -235,7 +235,7 @@ function AppLayout() {
 }
 ```
 
-```tsx
+```tsx ts2js
 const routes = defineRoutes([
   {
     id: 'app',
@@ -274,7 +274,7 @@ Use a layout when the parent owns persistent UI:
 
 A route may have both `view` and `layout.view`.
 
-```tsx
+```tsx ts2js
 {
   id: 'dashboard',
   path: '/dashboard',
@@ -306,7 +306,7 @@ Most applications use either a route view or a layout view at a given level. Use
 
 `Outlet` renders the next primary child branch from the current route render context:
 
-```tsx
+```tsx ts2js
 import { Outlet } from '@cookbook/router-react';
 
 function RootLayout() {
@@ -322,7 +322,7 @@ When no child branch exists, `<Outlet />` renders nothing.
 
 You can pass explicit children to override the router-provided outlet:
 
-```tsx
+```tsx ts2js
 <Outlet>
   <CustomChild />
 </Outlet>
@@ -334,7 +334,7 @@ That is useful for custom shells, but normal route rendering should rely on the 
 
 `Outlet` can provide context to descendants rendered through that outlet:
 
-```tsx
+```tsx ts2js
 function DashboardLayout() {
   const user = useCurrentUser();
 
@@ -348,7 +348,7 @@ function DashboardLayout() {
 
 Read it with `useOutletContext()`:
 
-```tsx
+```tsx ts2js
 import { useOutletContext } from '@cookbook/router-react';
 
 interface DashboardContext {
@@ -368,7 +368,7 @@ Context is intentionally local. It is not URL state, not global state, and not a
 
 Use `strict: true` when missing context should be an error:
 
-```tsx
+```tsx ts2js
 const context =  useOutletContext<DashboardContext>({
     strict: true,
   });
@@ -384,7 +384,7 @@ Slots let a layout render named secondary regions.
 
 Declare slots on a layout:
 
-```tsx
+```tsx ts2js
 function DashboardLayout() {
   return (
     <section>
@@ -404,7 +404,7 @@ function DashboardLayout() {
 }
 ```
 
-```tsx
+```tsx ts2js
 const routes = defineRoutes([
   {
     id: 'dashboard',
@@ -433,7 +433,7 @@ const routes = defineRoutes([
 
 A layout must render the slot explicitly:
 
-```tsx
+```tsx ts2js
 <Slot name="sidebar" />
 ```
 
@@ -443,7 +443,7 @@ Declaring the slot makes it available. Rendering `<Slot />` chooses where it app
 
 A slot can be declared with a view shorthand:
 
-```tsx
+```tsx ts2js
 layout: {
   view: DashboardLayout,
   slots: {
@@ -454,7 +454,7 @@ layout: {
 
 or with an object:
 
-```tsx
+```tsx ts2js
 layout: {
   view: DashboardLayout,
   slots: {
@@ -489,7 +489,7 @@ There is no `fallback` key. The slot fallback view is declared with `view`.
 
 A slot can have its own route tree.
 
-```tsx
+```tsx ts2js
 const routes = defineRoutes([
   {
     id: 'dashboard',
@@ -535,7 +535,7 @@ The main route branch and the slot route branch are matched from the same active
 
 `Slot` can provide outlet context to the content it renders:
 
-```tsx
+```tsx ts2js
 <Slot
   name="sidebar"
   context={{
@@ -546,7 +546,7 @@ The main route branch and the slot route branch are matched from the same active
 
 Slot content reads it with `useOutletContext()`:
 
-```tsx
+```tsx ts2js
 interface SidebarContext {
   readonly source: 'dashboard';
 }
@@ -564,7 +564,7 @@ Slot context is local to that rendered slot subtree. It does not leak into the m
 
 Descendants can override an ancestor slot declaration while staying in the same layout shell:
 
-```tsx
+```tsx ts2js
 {
   id: 'dashboard',
   path: '/dashboard',
@@ -597,7 +597,7 @@ A descendant that declares its own `layout.view` owns a new layout scope. Slot o
 
 A slot can render nothing.
 
-```tsx
+```tsx ts2js
 layout: {
   view: DashboardLayout,
   slots: {
@@ -606,7 +606,7 @@ layout: {
 }
 ```
 
-```tsx
+```tsx ts2js
 <Slot name="modal" />
 ```
 
@@ -620,7 +620,7 @@ By default, a slot render error participates in the normal route/provider error-
 
 Pass `errorFallback` to isolate the error to that slot:
 
-```tsx
+```tsx ts2js
 <Slot
   name="modal"
   errorFallback={ModalError}
@@ -629,7 +629,7 @@ Pass `errorFallback` to isolate the error to that slot:
 
 The fallback receives:
 
-```ts
+```ts ts2js
 interface SlotErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -638,7 +638,7 @@ interface SlotErrorFallbackProps {
 
 Pass `null` when the slot should catch the error and render nothing:
 
-```tsx
+```tsx ts2js
 <Slot
   name="notifications"
   errorFallback={null}
@@ -647,7 +647,7 @@ Pass `null` when the slot should catch the error and render nothing:
 
 Omitting the prop is different:
 
-```tsx
+```tsx ts2js
 <Slot name="notifications" />
 ```
 
@@ -659,7 +659,7 @@ Layout fallbacks belong to the main outlet branch.
 
 They are not automatically inherited by named slot route trees.
 
-```tsx
+```tsx ts2js
 layout: {
   view: DashboardLayout,
   loading: DashboardLoading,
@@ -690,7 +690,7 @@ See [Loading and errors](/docs/router/concepts/loading-and-errors) for the compl
 
 An intercept renders a destination route through a slot while preserving the source branch.
 
-```tsx
+```tsx ts2js
 const routes = defineRoutes([
   {
     id: 'blog',
@@ -725,7 +725,7 @@ const routes = defineRoutes([
 
 The layout renders the slot:
 
-```tsx
+```tsx ts2js
 function BlogLayout() {
   return (
     <>
@@ -738,7 +738,7 @@ function BlogLayout() {
 
 When the active source route is `blog` and the user navigates to `blog.posts.show`, the router can keep the blog branch rendered and show `BlogPostModal` in the `modal` slot.
 
-```tsx
+```tsx ts2js
 <Link
   route="blog.posts.show"
   params={{ slug }}
@@ -751,7 +751,7 @@ Configured intercepts are automatic when the active source branch declares a mat
 
 Use `intercept={false}` to bypass a configured intercept for one navigation:
 
-```tsx
+```tsx ts2js
 <Link
   route="blog.posts.show"
   params={{ slug }}
@@ -763,7 +763,7 @@ Use `intercept={false}` to bypass a configured intercept for one navigation:
 
 Use an object form for an inline intercept:
 
-```tsx
+```tsx ts2js
 <Link
   route="blog.posts.show"
   params={{ slug }}
@@ -784,7 +784,7 @@ Intercept views receive the destination route render context.
 
 Inside an intercepted `blog.posts.show` view, route hooks read the destination state:
 
-```tsx
+```tsx ts2js
 function BlogPostModal() {
   const params = useParams('blog.posts.show');
 
@@ -798,7 +798,7 @@ function BlogPostModal() {
 
 A link can also pass intercept context:
 
-```tsx
+```tsx ts2js
 <Link
   route="blog.posts.show"
   params={{ slug }}
@@ -816,7 +816,7 @@ A link can also pass intercept context:
 
 The intercept view can read that value with `useOutletContext()`:
 
-```tsx
+```tsx ts2js
 const context = useOutletContext<{ source: string }>();
 ```
 
@@ -824,7 +824,7 @@ const context = useOutletContext<{ source: string }>();
 
 `RouterProvider` has three fallback props:
 
-```tsx
+```tsx ts2js
 <RouterProvider
   router={router}
   fallback={<NotFoundPage />}
@@ -845,7 +845,7 @@ They do different jobs:
 
 Use a wildcard route when not-found should participate in layouts, metadata, middleware, or lifecycle:
 
-```tsx
+```tsx ts2js
 {
   id: 'not-found',
   path: '/{*path}',
@@ -872,7 +872,7 @@ For router-state errors, `reset()` is not a universal retry. Use navigation or `
 
 A route with no `view` can still participate in rendering.
 
-```tsx
+```tsx ts2js
 {
   id: 'documents',
   path: '/documents',
@@ -896,7 +896,7 @@ When no match exists, `RouterProvider.fallback` renders.
 
 Route and slot views receive a local render context.
 
-```tsx
+```tsx ts2js
 function DocumentDetails() {
   const params = useParams('documents.details');
 

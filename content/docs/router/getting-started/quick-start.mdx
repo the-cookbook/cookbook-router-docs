@@ -26,7 +26,7 @@ This guide uses the CLI directly to keep the generation flow visible. In a produ
 
 Create `src/routes.ts`.
 
-```tsx
+```tsx ts2js
 import { defineRoutes } from '@cookbook/router';
 import { HomePage, RootLayout, UserPage, NotFoundPage } from './pages';
 
@@ -75,7 +75,7 @@ Use `as const` so route IDs, paths, hash values, URL options, and metadata remai
 
 Create `src/pages.tsx`.
 
-```tsx
+```tsx ts2js
 import { Link, Outlet, useParams, useSearchParams, useHashParams } from '@cookbook/router-react';
 
 export function RootLayout() {
@@ -119,7 +119,7 @@ export function NotFoundPage() {
 
 Create `src/router.ts`.
 
-```ts
+```ts ts2js
 import { createRouter } from '@cookbook/router';
 import { routes } from './routes';
 
@@ -134,7 +134,7 @@ The default router chooses browser history when `window` exists and memory histo
 
 Create `src/main.tsx`.
 
-```tsx
+```tsx ts2js
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from '@cookbook/router-react';
 import { router } from './router';
@@ -182,7 +182,7 @@ Path params follow the generated constraint contract:
 
 ## Use typed navigation
 
-```tsx
+```tsx ts2js
 import { useNavigate } from '@cookbook/router-react';
 
 export function OpenSettingsButton() {
@@ -208,7 +208,7 @@ export function OpenSettingsButton() {
 
 A two-argument variant is also supported:
 
-```ts
+```ts ts2js
 await navigate.to('users.show', {
   params: { id: 42 },
 });
@@ -219,7 +219,7 @@ await navigate.to('users.show', {
 `RouterProvider.fallback` is the last-resort UI for unmatched locations that do
 not resolve to any route.
 
-```tsx
+```tsx ts2js
 <RouterProvider router={router} fallback={<h1>Not found</h1>} />
 ```
 
@@ -228,7 +228,7 @@ definitions are still incomplete.
 
 For production route handling, prefer an explicit catch-all route:
 
-```tsx
+```tsx ts2js
 {
   id: 'not-found',
   path: '{*path}', // [!code highlight]
@@ -244,7 +244,7 @@ contracts.
 You can also place catch-all routes under specific layouts or route groups to
 show different not-found pages in different parts of the app, example:
 
-```tsx
+```tsx ts2js
 {
   id: 'dashboard',
   path: '/dashboard',

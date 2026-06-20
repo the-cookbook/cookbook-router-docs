@@ -21,7 +21,7 @@ Modular route trees are still core route definitions. React consumes the compose
 <Tabs items={['Core router', 'React integration']}>
   <Tab value="Core router">
 
-```ts
+```ts ts2js
 import {
   createRouter,
   defineRoute,
@@ -52,7 +52,7 @@ The core tree composer resolves parents, children, ordering, and validation befo
 
   <Tab value="React integration">
 
-```tsx
+```tsx ts2js
 import {
   createRouter,
 } from '@cookbook/router';
@@ -82,7 +82,7 @@ Modular routing has two steps:
 1. `defineRoute()` preserves an independent route declaration.
 2. `defineRouteTree()` composes declarations into one validated route tree.
 
-```ts
+```ts ts2js
 import { defineRoute, defineRouteTree } from '@cookbook/router';
 
 const usersRoute = defineRoute({
@@ -134,7 +134,7 @@ src/
 
 Each route file exports an independent declaration.
 
-```tsx title="src/features/accounts/account.route.ts"
+```tsx ts2js title="src/features/accounts/account.route.ts"
 import { defineRoute } from '@cookbook/router';
 
 export const accountRoute = defineRoute({
@@ -144,7 +144,7 @@ export const accountRoute = defineRoute({
 });
 ```
 
-```tsx title="src/features/accounts/profile.route.ts"
+```tsx ts2js title="src/features/accounts/profile.route.ts"
 import { defineRoute } from '@cookbook/router';
 
 export const profileRoute = defineRoute({
@@ -155,7 +155,7 @@ export const profileRoute = defineRoute({
 });
 ```
 
-```tsx title="src/admin/audit/audit.route.ts"
+```tsx ts2js title="src/admin/audit/audit.route.ts"
 import { defineRoute } from '@cookbook/router';
 
 export const auditRoute = defineRoute({
@@ -170,7 +170,7 @@ Their locations do not affect the resulting tree. Only `id`, `parent`, `path`, a
 
 For manual composition, import the declarations from wherever they live:
 
-```ts title="src/routes.ts"
+```ts ts2js title="src/routes.ts"
 import { defineRouteTree } from '@cookbook/router';
 
 import { auditRoute } from './admin/audit/audit.route';
@@ -194,7 +194,7 @@ The composition module is an application boundary. It does not need to own the r
 
 The generator can collect route declarations from multiple files and source roots.
 
-```ts title="cookbook-router.config.ts"
+```ts ts2js title="cookbook-router.config.ts"
 import { defineRouterConfig } from '@cookbook/router-cli';
 
 export default defineRouterConfig({
@@ -218,7 +218,7 @@ See [Generated artifacts](/docs/router/getting-started/generated-artifacts) for 
 
 A modular child declares its parent explicitly:
 
-```ts
+```ts ts2js
 defineRoute({
   id: 'account.profile', 
   parent: 'account',// [!code highlight]
@@ -240,7 +240,7 @@ The child does not need to import its parent. Both declarations only need to agr
 
 A missing parent fails during composition:
 
-```ts
+```ts ts2js
 defineRouteTree({
   routes: [
     defineRoute({
@@ -258,7 +258,7 @@ No route with the ID `account` exists in that collection.
 
 A modular route separates identity, hierarchy, and URL structure:
 
-```ts
+```ts ts2js
 {
   id: 'account.profile',
   parent: 'account',
@@ -272,7 +272,7 @@ A modular route separates identity, hierarchy, and URL structure:
 
 A dotted route ID does not infer hierarchy:
 
-```ts
+```ts ts2js
 {
   id: 'account.profile',
   path: '/account/profile',
@@ -287,7 +287,7 @@ The naming convention helps humans. The `parent` field builds the graph.
 
 Root routes can use absolute paths:
 
-```ts
+```ts ts2js
 defineRoute({
   id: 'account',
   path: '/account',
@@ -296,7 +296,7 @@ defineRoute({
 
 Children use paths relative to their parent:
 
-```ts
+```ts ts2js
 defineRoute({
   id: 'account.profile',
   parent: 'account',
@@ -312,7 +312,7 @@ The composed path is:
 
 Do not repeat the parent path on the child:
 
-```ts
+```ts ts2js
 defineRoute({
   id: 'account.profile',
   parent: 'account',
@@ -328,7 +328,7 @@ Modularity also applies to route-owned URL state.
 
 Common search fields such as pagination should not be copied into every route declaration. Define them once with `defineSearch()`:
 
-```ts title="src/routing/search/pagination.ts"
+```ts ts2js title="src/routing/search/pagination.ts"
 import { defineSearch } from '@cookbook/router';
 
 export const paginationSearch = defineSearch({
@@ -345,7 +345,7 @@ export const paginationSearch = defineSearch({
 
 A feature can define its own search fields separately:
 
-```ts title="src/features/products/product-search.ts"
+```ts ts2js title="src/features/products/product-search.ts"
 import { defineSearch } from '@cookbook/router';
 
 export const productSearch = defineSearch({
@@ -363,7 +363,7 @@ export const productSearch = defineSearch({
 
 Combine the shared and feature-specific contracts with `mergeSearch()`:
 
-```tsx title="src/features/products/products.route.ts"
+```tsx ts2js title="src/features/products/products.route.ts"
 import {
   defineRoute,
   mergeSearch,
@@ -385,7 +385,7 @@ export const productsRoute = defineRoute({
 
 The resulting route search contract contains all fields:
 
-```ts
+```ts ts2js
 {
   q?: string;
   sort: 'newest' | 'price-low' | 'price-high';
@@ -396,7 +396,7 @@ The resulting route search contract contains all fields:
 
 `mergeSearch()` does not silently overwrite fields. Duplicate keys are rejected:
 
-```ts
+```ts ts2js
 mergeSearch(
   defineSearch({
     page: { type: 'int', default: 1 },
@@ -413,7 +413,7 @@ A shared contract should mean one definition, not competing definitions with the
 
 Hash declarations can be shared in the same way.
 
-```ts title="src/routing/hash/article-sections.ts"
+```ts ts2js title="src/routing/hash/article-sections.ts"
 import { defineHash } from '@cookbook/router';
 
 export const articleSectionHash = defineHash({
@@ -429,7 +429,7 @@ export const articleSectionHash = defineHash({
 
 Use the same contract from independent route files:
 
-```tsx title="src/features/articles/article.route.ts"
+```tsx ts2js title="src/features/articles/article.route.ts"
 import { defineRoute } from '@cookbook/router';
 
 import { articleSectionHash } from '../../routing/hash/article-sections';
@@ -443,7 +443,7 @@ export const articleRoute = defineRoute({
 });
 ```
 
-```tsx title="src/admin/articles/article-review.route.ts"
+```tsx ts2js title="src/admin/articles/article-review.route.ts"
 import { defineRoute } from '@cookbook/router';
 
 import { articleSectionHash } from '../../routing/hash/article-sections';
@@ -469,13 +469,13 @@ Shared search and hash modules do not need to match a `routeFiles` glob themselv
 
 The generator follows them when they are imported by a matched route file. Because they affect generated contracts, those imports must use relative or absolute file paths:
 
-```ts
+```ts ts2js
 import { paginationSearch } from '../../routing/search/pagination';
 ```
 
 Do not use a bundler alias for codegen-relevant route metadata:
 
-```ts
+```ts ts2js
 import { paginationSearch } from '@/routing/search/pagination';
 ```
 
@@ -487,7 +487,7 @@ This distinction keeps generation independent from bundler-specific module resol
 
 Use `order` when routes under the same parent require explicit precedence:
 
-```ts
+```ts ts2js
 const createUserRoute = defineRoute({
   id: 'users.create',
   parent: 'users',
@@ -550,7 +550,7 @@ Those checks belong at composition.
 
 Use `defineRoutes()` when a module owns a complete nested tree:
 
-```ts
+```ts ts2js
 import { defineRoutes } from '@cookbook/router';
 
 export const policyRoutes = defineRoutes([
@@ -573,7 +573,7 @@ export const policyRoutes = defineRoutes([
 
 Use `defineRoute()` when a declaration needs independent ownership:
 
-```ts
+```ts ts2js
 export const profileRoute = defineRoute({
   id: 'account.profile',
   parent: 'account',

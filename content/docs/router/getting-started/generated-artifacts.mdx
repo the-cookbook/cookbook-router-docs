@@ -70,7 +70,7 @@ Parsed values and navigation inputs are intentionally separate.
 
 For example, a wildcard is stored in matched router state as path segments:
 
-```ts
+```ts ts2js
 interface RouteParams {
   'files.show': {
     path: readonly string[];
@@ -80,7 +80,7 @@ interface RouteParams {
 
 Navigation accepts either an array or a slash-delimited string:
 
-```ts
+```ts ts2js
 interface RouteParamsInput {
   'files.show': {
     path: string | readonly string[];
@@ -131,7 +131,7 @@ Do not add these files to `compilerOptions.types`. They are source files in the 
 
 Each manifest entry can contain:
 
-```ts
+```ts ts2js
 interface ManifestRoute {
   readonly id: string;
   readonly path?: string;
@@ -172,7 +172,7 @@ It imports the route exports discovered in the configured `routeFiles` and produ
 
 Use it when the project relies on file-based route discovery:
 
-```ts title="src/router.ts"
+```ts ts2js title="src/router.ts"
 import { createRouter } from '@cookbook/router';
 import { routes } from '../.cookbook-router/routes';
 

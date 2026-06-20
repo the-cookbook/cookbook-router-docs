@@ -11,7 +11,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 A breadcrumb is a convention your app owns. The router carries the metadata; your UI decides how to tell the story.
 
-```ts
+```ts ts2js
 defineRoute({
   id: 'users',
   path: '/users',
@@ -23,7 +23,7 @@ defineRoute({
 
 Read ancestor metadata and append breadcrumb values into one trail:
 
-```tsx
+```tsx ts2js
 import { Link, useRouteMeta } from '@cookbook/router-react';
 
 function Breadcrumbs() {
@@ -52,7 +52,7 @@ function Breadcrumbs() {
 
 Use `merge: false` when you want the raw metadata chain instead of one merged object:
 
-```ts
+```ts ts2js
 const metaChain = useRouteMeta({
   includeAncestors: true,
   merge: false,
@@ -67,7 +67,7 @@ Page metadata should do visible work. Use it to set the document title, then mer
 
 `useRouteMeta()` returns local metadata by default.
 
-```tsx
+```tsx ts2js
 function PageTitle() {
   const meta = useRouteMeta();
 
@@ -83,7 +83,7 @@ function PageTitle() {
 
 Use ancestor merging for the app frame and inherited page configuration:
 
-```tsx
+```tsx ts2js
 const meta = useRouteMeta({
   includeAncestors: true,
   merge: {
@@ -99,7 +99,7 @@ const meta = useRouteMeta({
 
 For a simpler leaf-wins merge:
 
-```tsx
+```tsx ts2js
 const meta = useRouteMeta({
   includeAncestors: true,
   merge: 'leaf',

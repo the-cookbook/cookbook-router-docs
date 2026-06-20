@@ -1,0 +1,151 @@
+---
+title: "Rendering adapter"
+description: "Convert opaque route views into renderer output with renderRouteMatch()."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+The core router resolves what should render. A rendering adapter decides how it renders.
+
+`renderRouteMatch()` traverses a matched branch and calls your callbacks for route views, layout views, slots, intercepts, boundaries, and empty states.
+
+## Use opaque route views
+
+Core route views can be anything. A minimal adapter can use string keys and a registry.
+
+```ts ts2js
+import {
+  defineRoutes,
+  renderRouteMatch,
+  type RouteMatch,
+  type RouteViewContext,
+} from '@cookbook/router';
+
+interface Node {
+  readonly kind: string;
+  readonly routeId?: string;
+  readonly children?: readonly Node[];
+}
+
+type ViewKey =
+  | 'app.layout'
+  | 'home.page'
+  | 'not-found.page';
+
+const routes = defineRoutes([
+  {
+    id: 'app',
+    path: '/',
+    layout: {
+      view: 'app.layout',
+    },
+    children: [
+      {
+        id: 'home',
+        index: true,
+        view: 'home.page',
+      },
+    ],
+  },
+] as const);
+```
+
+The router never calls those strings. Your adapter does.
+
+## Convert views into output
+
+```ts ts2js
+const views: Record<
+  ViewKey,
+  (context: RouteViewContext<Node | null>) => Node
+> = {
+  'home.page': (context) => ({
+    kind: 'home',
+    routeId: context.match.id,
+  }),
+  'app.layout': (context) => ({
+    kind: 'app-layout',
+    routeId: context.match.id,
+    children: [
+      context.outlet,
+      ...Object.values(context.slots),
+    ].filter((child): child is Node => child !== null),
+  }),
+  'not-found.page': () => ({
+    kind: 'not-found',
+  }),
+};
+
+export function renderApp(
+  match: RouteMatch | null,
+): Node | null {
+  return renderRouteMatch<ViewKey, Node | null>(match, {
+    fallback: null,
+    renderView(view, context) {
+      return views[view](context);
+    },
+    renderLayout(view, context) {
+      return views[view](context);
+    },
+    renderEmpty(context) {
+      if (context.reason === 'not-found') {
+        return views['not-found.page']({
+          match: context.match ?? {
+            id: 'not-found',
+            route: {} as never,
+            params: {},
+          },
+          outlet: null,
+          slots: {},
+        });
+      }
+
+      return null;
+    },
+  });
+}
+```
+
+This is not a UI recommendation. It is the smallest useful adapter shape: opaque route views in, renderer output out.
+
+## Add boundaries
+
+`renderBoundary()` receives the current rendered content plus loading/error ownership metadata.
+
+```ts ts2js
+function renderWithBoundaries(
+  match: RouteMatch | null,
+): Node | null {
+  return renderRouteMatch<ViewKey, Node | null>(match, {
+    fallback: null,
+    renderView: (view, context) => views[view](context),
+    renderLayout: (view, context) => views[view](context),
+    renderBoundary(content, context) {
+      return {
+        kind: 'boundary',
+        routeId: context.match.id,
+        children: content ? [content] : [],
+      };
+    },
+    renderEmpty: () => null,
+  });
+}
+```
+
+The core router does not install a framework error boundary or Suspense boundary. It gives the adapter the ownership data needed to install one.
+
+## Where this bites
+
+### Do not call arbitrary views blindly
+
+A route view might be a string, component, lazy wrapper, server template, module reference, or native screen descriptor. Only the adapter knows what conversion means.
+
+### Empty states need policy
+
+Without `renderEmpty()`, every empty state returns `fallback`. Page not-found and empty slot are different UI decisions.
+
+### Boundaries are adapter work
+
+`renderRouteMatch()` does not catch framework render errors. It passes fallback ownership to `renderBoundary()` so the adapter can install the right boundary.

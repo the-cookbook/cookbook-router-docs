@@ -32,7 +32,7 @@ Metadata is stored in the core route tree. React hooks read the same data throug
 <Tabs items={['Core router', 'React integration']}>
   <Tab value="Core router">
 
-```ts
+```ts ts2js
 import {
   getActiveRouteMetaChain,
   mergeRouteMetaChain,
@@ -56,7 +56,7 @@ Use core helpers in head managers, analytics pipelines, server renderers, and no
 
   <Tab value="React integration">
 
-```tsx
+```tsx ts2js
 import { useRouteMeta } from '@cookbook/router-react';
 
 function PageTitle() {
@@ -80,7 +80,7 @@ React hooks use the route render context and can read local, active, or target-r
 
 Add a `meta` object to a route:
 
-```ts
+```ts ts2js
 import {
   defineRoutes,
 } from '@cookbook/router';
@@ -114,7 +114,7 @@ export const routes = defineRoutes([
 
 The authored metadata type is:
 
-```ts
+```ts ts2js
 type RouteMeta = Record<string, unknown>;
 ```
 
@@ -141,7 +141,7 @@ Metadata metadata
 
 Those behaviors only belongs to the route where it is declared.
 
-```ts
+```ts ts2js
 {
   id: 'root',
   path: '/',
@@ -162,7 +162,7 @@ Those behaviors only belongs to the route where it is declared.
 
 The `users` route metadata is:
 
-```ts
+```ts ts2js
 {
   section: 'accounts',
 }
@@ -170,7 +170,7 @@ The `users` route metadata is:
 
 It does not automatically become:
 
-```ts
+```ts ts2js
 {
   title: 'Application',
   section: 'accounts',
@@ -185,7 +185,7 @@ This keeps route declarations predictable. A route’s normalized `meta` field a
 
 Use `getRouteMeta()` to read local metadata for a route ID:
 
-```ts
+```ts ts2js
 import { getRouteMeta } from '@cookbook/router';
 
 const meta = getRouteMeta(
@@ -196,7 +196,7 @@ const meta = getRouteMeta(
 
 Given:
 
-```ts
+```ts ts2js
 {
   id: 'users',
   path: '/users',
@@ -209,7 +209,7 @@ Given:
 
 the result is:
 
-```ts
+```ts ts2js
 {
   title: 'Users',
   access: 'private',
@@ -222,7 +222,7 @@ It can read an inactive route because it works from the normalized route tree ra
 
 An unknown route ID returns:
 
-```ts
+```ts ts2js
 {}
 ```
 
@@ -230,7 +230,7 @@ An unknown route ID returns:
 
 Use `getRouteMetaChain()` when metadata from a specific route and its ancestors is needed:
 
-```ts
+```ts ts2js
 import { getRouteMetaChain } from '@cookbook/router';
 
 const chain = getRouteMetaChain(
@@ -252,7 +252,7 @@ users.details
 
 Without `includeAncestors: true`, only the target route is returned:
 
-```ts
+```ts ts2js
 const chain = getRouteMetaChain(
   router.routes,
   'users.details',
@@ -267,7 +267,7 @@ The target route does not need to be active.
 
 An unknown route ID returns:
 
-```ts
+```ts ts2js
 []
 ```
 
@@ -275,7 +275,7 @@ An unknown route ID returns:
 
 Use `getActiveRouteMetaChain()` when metadata must come from the current match:
 
-```ts
+```ts ts2js
 import { getActiveRouteMetaChain } from '@cookbook/router';
 
 const chain = getActiveRouteMetaChain(
@@ -302,7 +302,7 @@ users.details
 
 Without `includeAncestors: true`, only the active leaf entry is returned.
 
-```ts
+```ts ts2js
 const chain = getActiveRouteMetaChain(
   router.state.match,
 );
@@ -310,7 +310,7 @@ const chain = getActiveRouteMetaChain(
 
 When there is no active match, the result is:
 
-```ts
+```ts ts2js
 []
 ```
 
@@ -342,7 +342,7 @@ Use `getActiveRouteMetaChain()` for:
 
 Both helpers return `RouteMetaEntry` objects:
 
-```ts
+```ts ts2js
 interface RouteMetaEntry<
   Route extends string = RouteId,
 > {
@@ -370,7 +370,7 @@ For a static target chain, `params` is `{}` and `match` is absent.
 
 For an active chain, params are the parsed values visible at that branch level:
 
-```ts
+```ts ts2js
 const chain = getActiveRouteMetaChain(
   router.state.match,
   {
@@ -393,7 +393,7 @@ This is useful when breadcrumb labels depend on parsed parameters.
 
 Use `mergeRouteMetaChain()` to turn an ordered chain into one metadata object:
 
-```ts
+```ts ts2js
 import { mergeRouteMetaChain } from '@cookbook/router';
 
 const chain = getActiveRouteMetaChain(
@@ -410,7 +410,7 @@ The chain is processed from root to leaf.
 
 The default merge mode is:
 
-```ts
+```ts ts2js
 'shallow'
 ```
 
@@ -430,7 +430,7 @@ Cookbook Router supports five merge modes:
 
 `leaf` selects the leaf-most defined value **per metadata key**:
 
-```ts
+```ts ts2js
 const meta = mergeRouteMetaChain(
   chain,
   'leaf',
@@ -439,7 +439,7 @@ const meta = mergeRouteMetaChain(
 
 Given:
 
-```ts
+```ts ts2js
 // root
 {
   headerHeight: 16,
@@ -454,7 +454,7 @@ Given:
 
 the result is:
 
-```ts
+```ts ts2js
 {
   headerHeight: 16,
   title: 'Users',
@@ -473,7 +473,7 @@ It means:
 
 When both values for a key are plain objects, they are merged one level:
 
-```ts
+```ts ts2js
 // root
 {
   chrome: {
@@ -492,7 +492,7 @@ When both values for a key are plain objects, they are merged one level:
 
 Result:
 
-```ts
+```ts ts2js
 {
   chrome: {
     sidebar: true,
@@ -507,7 +507,7 @@ For strings, numbers, arrays, dates, class instances, and other non-plain object
 
 `deep` recursively merges plain objects:
 
-```ts
+```ts ts2js
 // root
 {
   seo: {
@@ -536,7 +536,7 @@ For strings, numbers, arrays, dates, class instances, and other non-plain object
 
 Result:
 
-```ts
+```ts ts2js
 {
   seo: {
     robots: {
@@ -557,7 +557,7 @@ Arrays are not deep-merged. A child array replaces an ancestor array.
 
 `append` collects values from root to leaf:
 
-```ts
+```ts ts2js
 const meta = mergeRouteMetaChain(
   chain,
   {
@@ -570,7 +570,7 @@ const meta = mergeRouteMetaChain(
 
 Given:
 
-```ts
+```ts ts2js
 // root
 {
   breadcrumb: {
@@ -597,7 +597,7 @@ Given:
 
 the result contains:
 
-```ts
+```ts ts2js
 {
   breadcrumb: [
     {
@@ -621,7 +621,7 @@ If a value is already an array, its elements are concatenated into the result.
 
 `prepend` collects values in the opposite direction:
 
-```ts
+```ts ts2js
 const meta = mergeRouteMetaChain(
   chain,
   {
@@ -634,7 +634,7 @@ const meta = mergeRouteMetaChain(
 
 Result:
 
-```ts
+```ts ts2js
 {
   breadcrumb: [
     {
@@ -656,7 +656,7 @@ Result:
 
 Different metadata keys often need different policies.
 
-```ts
+```ts ts2js
 const chain = getActiveRouteMetaChain(
   router.state.match,
   {
@@ -680,7 +680,7 @@ const meta = mergeRouteMetaChain(
 
 Given metadata across the branch:
 
-```ts
+```ts ts2js
 // root
 {
   breadcrumb: {
@@ -731,7 +731,7 @@ Given metadata across the branch:
 
 the merged result is:
 
-```ts
+```ts ts2js
 {
   breadcrumb: [
     {
@@ -769,7 +769,7 @@ Per-key rules override the default mode.
 
 `undefined` metadata values are skipped:
 
-```ts
+```ts ts2js
 // parent
 {
   title: 'Users',
@@ -783,7 +783,7 @@ Per-key rules override the default mode.
 
 Result:
 
-```ts
+```ts ts2js
 {
   title: 'Users',
 }
@@ -791,7 +791,7 @@ Result:
 
 `null` is preserved as an explicit value:
 
-```ts
+```ts ts2js
 // parent
 {
   title: 'Users',
@@ -805,7 +805,7 @@ Result:
 
 Result:
 
-```ts
+```ts ts2js
 {
   title: null,
 }
@@ -817,7 +817,7 @@ Use `null` when a child should explicitly clear an inherited value.
 
 The React integration exposes the same metadata model through `useRouteMeta()`:
 
-```tsx
+```tsx ts2js
 import { useRouteMeta } from '@cookbook/router-react';
 ```
 
@@ -825,7 +825,7 @@ import { useRouteMeta } from '@cookbook/router-react';
 
 Call the hook without arguments:
 
-```tsx
+```tsx ts2js
 function UserPage() {
   const meta = useRouteMeta();
 
@@ -843,7 +843,7 @@ Outside a local route render context, the hook falls back to the active leaf rou
 
 Pass a route ID:
 
-```tsx
+```tsx ts2js
 const meta = useRouteMeta('users');
 ```
 
@@ -851,7 +851,7 @@ This reads the target route even when it is not currently active.
 
 An unknown route ID returns:
 
-```ts
+```ts ts2js
 {}
 ```
 
@@ -859,7 +859,7 @@ An unknown route ID returns:
 
 Without a route ID, `includeAncestors: true` reads the complete active branch from root to active leaf:
 
-```tsx
+```tsx ts2js
 const meta = useRouteMeta({
   includeAncestors: true,
 });
@@ -873,7 +873,7 @@ This uses the active router branch even when the hook is called from a parent la
 
 Pass a route ID when the chain should stop at a particular route:
 
-```tsx
+```tsx ts2js
 const meta = useRouteMeta(
   'users.details',
   {
@@ -898,7 +898,7 @@ If it is inactive, the normalized route tree is used.
 
 The hook accepts the same merge input as `mergeRouteMetaChain()`:
 
-```tsx
+```tsx ts2js
 const meta = useRouteMeta({
   includeAncestors: true,
 
@@ -916,7 +916,7 @@ const meta = useRouteMeta({
 
 A string merge mode is also accepted:
 
-```tsx
+```tsx ts2js
 const meta = useRouteMeta({
   includeAncestors: true,
   merge: 'leaf',
@@ -927,7 +927,7 @@ const meta = useRouteMeta({
 
 Pass `merge: false` to receive the ordered metadata objects:
 
-```tsx
+```tsx ts2js
 const chain = useRouteMeta({
   includeAncestors: true,
   merge: false,
@@ -936,7 +936,7 @@ const chain = useRouteMeta({
 
 Result:
 
-```ts
+```ts ts2js
 [
   {
     title: 'Application',
@@ -958,7 +958,7 @@ Use `getActiveRouteMetaChain()` when those details are needed.
 
 For an unknown route ID:
 
-```tsx
+```tsx ts2js
 useRouteMeta(
   'missing',
   {
@@ -969,7 +969,7 @@ useRouteMeta(
 
 the result is:
 
-```ts
+```ts ts2js
 []
 ```
 
@@ -977,7 +977,7 @@ the result is:
 
 Use an unmerged active chain when breadcrumb labels need route IDs or params:
 
-```ts
+```ts ts2js
 const chain = getActiveRouteMetaChain(
   router.state.match,
   {
@@ -1010,7 +1010,7 @@ const breadcrumbs = chain.flatMap(
 
 Use `append` when each route already declares a complete breadcrumb value and only the ordered values are required:
 
-```ts
+```ts ts2js
 const merged = mergeRouteMetaChain(
   chain,
   {
@@ -1025,7 +1025,7 @@ const merged = mergeRouteMetaChain(
 
 Metadata can describe policy:
 
-```ts
+```ts ts2js
 {
   id: 'account',
   path: '/account',
@@ -1039,7 +1039,7 @@ It does not enforce it.
 
 Middleware, lifecycle, rendering, or application code must interpret the value:
 
-```ts
+```ts ts2js
 const requireAuth: Middleware = ({
   route,
   redirect,
@@ -1067,7 +1067,7 @@ The CLI generates route-local metadata contracts in:
 
 Given:
 
-```ts
+```ts ts2js
 meta: {
   access: 'private',
   requiresAuth: true,
@@ -1080,7 +1080,7 @@ meta: {
 
 generation produces a route entry resembling:
 
-```ts
+```ts ts2js
 {
   access?: string;
   requiresAuth?: boolean;
@@ -1101,7 +1101,7 @@ Generated metadata typing is intentionally shallow:
 
 Application code reads one registered route contract with:
 
-```ts
+```ts ts2js
 import type { RegisteredRouteMeta } from '@cookbook/router';
 
 type LoginMeta = RegisteredRouteMeta<'login'>;
@@ -1119,7 +1119,7 @@ The generated metadata contract remains local to each route.
 
 For example:
 
-```ts
+```ts ts2js
 // root metadata
 {
   headerHeight: 16,
@@ -1133,7 +1133,7 @@ For example:
 
 This call returns both values at runtime:
 
-```tsx
+```tsx ts2js
 const meta = useRouteMeta(
   'users.details',
   {
@@ -1145,7 +1145,7 @@ const meta = useRouteMeta(
 
 Runtime result:
 
-```ts
+```ts ts2js
 {
   headerHeight: 16,
   title: 'User details',
@@ -1156,7 +1156,7 @@ However, the registered `users.details` metadata type only describes its local g
 
 When consuming a dynamically merged chain, use the core helper’s `Record<string, unknown>` result and narrow application-owned values:
 
-```ts
+```ts ts2js
 const chain = getRouteMetaChain(
   router.routes,
   'users.details',
@@ -1178,7 +1178,7 @@ const headerHeight =
 
 For a consistent application metadata model, define an application-owned interface and use `satisfies` at declaration sites:
 
-```ts
+```ts ts2js
 interface AppRouteMeta {
   readonly title?: string;
 
@@ -1197,7 +1197,7 @@ interface AppRouteMeta {
 }
 ```
 
-```ts
+```ts ts2js
 meta: {
   title: 'Users',
   access: 'private',
@@ -1210,7 +1210,7 @@ Cookbook Router does not impose one global metadata schema.
 
 For manually authored runtime route trees, metadata values may contain arbitrary application values because the runtime contract is:
 
-```ts
+```ts ts2js
 Record<string, unknown>
 ```
 
@@ -1231,14 +1231,14 @@ Supported metadata should be composed from data values such as:
 
 Avoid runtime function calls or computed application state in CLI-consumed metadata:
 
-```ts
+```ts ts2js
 // Not statically extractable
 meta: createMetadata();
 ```
 
 Prefer:
 
-```ts
+```ts ts2js
 const userMetadata = {
   title: 'Users',
   access: 'private',

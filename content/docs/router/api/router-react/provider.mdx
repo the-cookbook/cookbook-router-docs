@@ -11,7 +11,7 @@ The provider entrypoint is the React rendering layer for Cookbook Router.
 
 It exports:
 
-```ts
+```ts ts2js
 import {
   OutletContext,
   RouteRenderContext,
@@ -32,7 +32,7 @@ Use `RouterProvider` for browser and memory routers. Use `StaticRouterProvider` 
 
 ## `RouterProvider`
 
-```ts
+```ts ts2js
 type RouterScrollBehavior = ScrollBehavior;
 
 interface RouterProviderProps {
@@ -107,7 +107,7 @@ optional: true,
 
 Basic browser setup:
 
-```tsx
+```tsx ts2js
 import { createRouter } from '@cookbook/router';
 import { RouterProvider } from '@cookbook/router-react/provider';
 import { routes } from './routes';
@@ -126,7 +126,7 @@ export function App() {
 
 With global fallbacks:
 
-```tsx
+```tsx ts2js
 import type { RouterErrorFallbackProps } from '@cookbook/router-react/provider';
 import { RouterProvider } from '@cookbook/router-react/provider';
 
@@ -159,7 +159,7 @@ export function App({ router }: { readonly router: Router }) {
 
 With explicit children:
 
-```tsx
+```tsx ts2js
 import { Outlet } from '@cookbook/router-react/outlets';
 import { RouterProvider } from '@cookbook/router-react/provider';
 
@@ -183,7 +183,7 @@ Provider middleware is registered in the same effect that starts the router.
 
 When `autoStart` is left enabled and the router is not started yet, provider middleware participates in the initial navigation.
 
-```tsx
+```tsx ts2js
 <RouterProvider
   router={router}
   middleware={[
@@ -206,7 +206,7 @@ Remove the manual `await router.start()` before rendering `<RouterProvider />`, 
 
 Correct manual-start pattern:
 
-```tsx
+```tsx ts2js
 router.useMiddleware(authMiddleware);
 await router.start();
 
@@ -240,7 +240,7 @@ Interception changes the renderable branch. When the current state is intercepte
 
 Provider scroll restoration is opt-in.
 
-```tsx
+```tsx ts2js
 <RouterProvider
   router={router}
   scrollRestoration
@@ -259,13 +259,13 @@ When `scrollRestoration` is enabled:
 
 `scrollBehavior` is passed to `window.scrollTo()` for both saved-position restoration and top resets.
 
-```ts
+```ts ts2js
 type RouterScrollBehavior = ScrollBehavior;
 ```
 
 Common DOM values are:
 
-```ts
+```ts ts2js
 'auto' | 'instant' | 'smooth'
 ```
 
@@ -273,7 +273,7 @@ Common DOM values are:
 
 Navigation opt-out:
 
-```tsx
+```tsx ts2js
 <Link
   to="documents.details"
   params={{ documentId }}
@@ -285,7 +285,7 @@ Navigation opt-out:
 
 or programmatically:
 
-```ts
+```ts ts2js
 await router.navigate.to('documents.details', {
   params: { documentId },
   preventScrollReset: true,
@@ -296,7 +296,7 @@ During hydration, browsers may have a hash that the server could not serialize. 
 
 ## `StaticRouterProvider`
 
-```ts
+```ts ts2js
 interface StaticRouterProviderProps {
   readonly router: Router;
   readonly children?: ReactNode;
@@ -350,7 +350,7 @@ Static rendering has no React effect phase. This provider never starts the route
 
 Call `await router.start()` before rendering:
 
-```tsx
+```tsx ts2js
 import { renderToString } from 'react-dom/server';
 import { createStaticRouter } from '@cookbook/router';
 import { StaticRouterProvider } from '@cookbook/router-react/provider';
@@ -385,7 +385,7 @@ It intentionally has no `scrollRestoration` or `scrollBehavior` props. Static hi
 
 Request middleware belongs on the static router before startup:
 
-```ts
+```ts ts2js
 const router = createStaticRouter({
   routes,
   request,
@@ -399,7 +399,7 @@ Passing `middleware` to `StaticRouterProvider` is not enough for initial SSR res
 
 ## `useRouterState(router)`
 
-```ts
+```ts ts2js
 function useRouterState(router: Router): RouterState;
 ```
 
@@ -407,7 +407,7 @@ Subscribes to an explicit router with `useSyncExternalStore`.
 
 It uses the same `router.state` getter for client and server snapshots.
 
-```tsx
+```tsx ts2js
 import { useRouterState } from '@cookbook/router-react/provider';
 
 export function NavigationBadge({
@@ -425,7 +425,7 @@ Use it for integration components that cannot rely on `RouterContext`.
 
 Most application components should use narrower hooks:
 
-```ts
+```ts ts2js
 useLocation()
 useMatches()
 useNavigation()
@@ -436,7 +436,7 @@ useRouter()
 
 ## `useRouterContext()`
 
-```ts
+```ts ts2js
 interface RouterContextValue {
   readonly router: Router;
   readonly state: RouterState;
@@ -460,7 +460,7 @@ type: 'RouterState',
 }}
 />
 
-```tsx
+```tsx ts2js
 import { useRouterContext } from '@cookbook/router-react/provider';
 
 export function RouterDebugPanel() {
@@ -486,7 +486,7 @@ This is a low-level integration hook. Application code should prefer the narrowe
 
 ## `renderReactRouteMatch()`
 
-```ts
+```ts ts2js
 interface RenderReactRouteMatchOptions {
   readonly loadingFallback?: ReactNode;
   readonly errorFallback?: ComponentType<RouterErrorFallbackProps>;
@@ -535,7 +535,7 @@ It:
 
 Low-level render example:
 
-```tsx
+```tsx ts2js
 import {
   renderReactRouteMatch,
   type RenderReactRouteMatchOptions,
@@ -555,7 +555,7 @@ const element = renderReactRouteMatch(
 
 With router-state error:
 
-```tsx
+```tsx ts2js
 const element = renderReactRouteMatch(
   router.state.match,
   <h1>Not found</h1>,
@@ -568,7 +568,7 @@ const element = renderReactRouteMatch(
 
 The helper wraps the result in an outer `Suspense` using:
 
-```ts
+```ts ts2js
 options.loadingFallback ?? null
 ```
 
@@ -582,7 +582,7 @@ When `options.error` is rendered through a route-state error fallback, the reset
 
 ## `renderRouteBoundary()`
 
-```ts
+```ts ts2js
 function renderRouteBoundary(
   match: MatchedRoute,
   element: ReactNode,
@@ -604,7 +604,7 @@ Renders one React route boundary around an element.
 
 The value is public. The named fallback interfaces used internally are not exported from `@cookbook/router-react/provider`, so treat the inline shape above as the public callable contract.
 
-```tsx
+```tsx ts2js
 import { renderRouteBoundary } from '@cookbook/router-react/provider';
 
 const element = renderRouteBoundary(
@@ -619,7 +619,7 @@ const element = renderRouteBoundary(
 
 With inherited route fallbacks:
 
-```tsx
+```tsx ts2js
 const element = renderRouteBoundary(
   childMatch,
   <ChildRouteView />,
@@ -654,7 +654,7 @@ This helper is for custom render adapters. Regular applications should not call 
 
 ### `RouteLoadingFallbackProps`
 
-```ts
+```ts ts2js
 interface RouteLoadingFallbackProps {
   readonly route: MatchedRoute;
 }
@@ -671,7 +671,7 @@ type: 'MatchedRoute',
 
 Route and layout loading fallback components receive the match that owns the selected loading view.
 
-```tsx
+```tsx ts2js
 import type { RouteLoadingFallbackProps } from '@cookbook/router-react/provider';
 
 export function RouteLoadingFallback({
@@ -683,7 +683,7 @@ export function RouteLoadingFallback({
 
 ### `RouteErrorFallbackProps`
 
-```ts
+```ts ts2js
 interface RouteErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -710,7 +710,7 @@ type: 'MatchedRoute',
 
 Route and layout error fallback components receive the match that owns the selected error view.
 
-```tsx
+```tsx ts2js
 import type { RouteErrorFallbackProps } from '@cookbook/router-react/provider';
 
 export function RouteErrorFallback({
@@ -730,7 +730,7 @@ export function RouteErrorFallback({
 
 ### `RouterErrorFallbackProps`
 
-```ts
+```ts ts2js
 interface RouterErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -758,7 +758,7 @@ optional: true,
 
 `route` is optional. Startup failures and unmatched router errors may not have an active route.
 
-```tsx
+```tsx ts2js
 import type { RouterErrorFallbackProps } from '@cookbook/router-react/provider';
 
 export function AppErrorFallback({
@@ -785,7 +785,7 @@ Most application code should use hooks and components instead. These contexts ex
 
 ### `RouterContext`
 
-```ts
+```ts ts2js
 interface RouterContextValue {
   readonly router: Router;
   readonly state: RouterState;
@@ -811,7 +811,7 @@ type: 'RouterState',
 
 ### `OutletContext`
 
-```ts
+```ts ts2js
 interface OutletContextValue {
   readonly context?: unknown;
 }
@@ -833,7 +833,7 @@ optional: true,
 
 ### `RouteRenderContext`
 
-```ts
+```ts ts2js
 interface RouteRenderContextValue {
   readonly match: MatchedRoute;
 }
@@ -854,7 +854,7 @@ This context is installed around route views, layout views, slot views, intercep
 
 ### `SlotRenderContext`
 
-```ts
+```ts ts2js
 interface SlotRenderContextValue {
   readonly ownerRouteId: string;
   readonly slots: Readonly<Record<string, ReactNode>>;
@@ -943,7 +943,7 @@ The package root re-exports the same public provider surface. The provider subpa
 
 This is wrong when middleware must affect the initial location:
 
-```tsx
+```tsx ts2js
 await router.start();
 
 root.render(
@@ -958,7 +958,7 @@ The router already resolved the first route.
 
 Use this:
 
-```tsx
+```tsx ts2js
 root.render(
   <RouterProvider
     router={router}
@@ -969,7 +969,7 @@ root.render(
 
 or this:
 
-```tsx
+```tsx ts2js
 router.useMiddleware(authMiddleware);
 await router.start();
 
@@ -987,7 +987,7 @@ The warning is not decorative. Authorization, redirects, rewrites, and cancellat
 
 This is too late for server request resolution:
 
-```tsx
+```tsx ts2js
 const router = createStaticRouter({ routes, request });
 await router.start();
 
@@ -1001,7 +1001,7 @@ renderToString(
 
 Register request middleware before startup:
 
-```ts
+```ts ts2js
 const router = createStaticRouter({
   routes,
   request,
@@ -1017,7 +1017,7 @@ React effects do not run during `renderToString()`.
 
 Route fallback:
 
-```ts
+```ts ts2js
 interface RouteErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -1027,7 +1027,7 @@ interface RouteErrorFallbackProps {
 
 Router fallback:
 
-```ts
+```ts ts2js
 interface RouterErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;

@@ -1,0 +1,149 @@
+---
+title: "Route metadata"
+description: "Read route metadata, active metadata chains, and merged metadata directly from the router."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Metadata is application-owned data attached to routes. The core router stores it on normalized routes and exposes helpers for route-specific, branch-specific, and merged access.
+
+Use metadata for breadcrumbs, titles, access policy tags, analytics labels, layout hints, and document metadata.
+
+## Attach metadata to routes
+
+```ts ts2js
+import {
+  defineRoutes,
+  getActiveRouteMetaChain,
+  getRouteMeta,
+  getRouteMetaChain,
+  mergeRouteMetaChain,
+} from '@cookbook/router';
+
+const routes = defineRoutes([
+  {
+    id: 'app',
+    path: '/',
+    meta: {
+      title: 'Dashboard',
+      breadcrumb: 'Home',
+    },
+    children: [
+      {
+        id: 'reports',
+        path: 'reports',
+        meta: {
+          title: 'Reports',
+          breadcrumb: 'Reports',
+        },
+      },
+    ],
+  },
+] as const);
+```
+
+Metadata does not affect matching by itself. It is data carried with the route model.
+
+## Read one route's metadata
+
+```ts ts2js
+const reportsMeta = getRouteMeta(
+  router.routes,
+  'reports',
+);
+
+reportsMeta.title;
+// 'Reports'
+```
+
+Unknown route IDs return an empty object.
+
+## Read a route metadata chain
+
+```ts ts2js
+const chain = getRouteMetaChain(
+  router.routes,
+  'reports',
+  {
+    includeAncestors: true,
+  },
+);
+
+chain.map((entry) => entry.id);
+// ['app', 'reports']
+```
+
+Each entry includes the route ID, params, metadata, normalized route, and optional matched route.
+
+## Read the active metadata chain
+
+Use the active match when metadata depends on the current location.
+
+```ts ts2js
+const activeChain = getActiveRouteMetaChain(
+  router.state.match,
+  {
+    includeAncestors: true,
+  },
+);
+```
+
+This returns an empty array when there is no match.
+
+## Merge metadata
+
+```ts ts2js
+const metadata = mergeRouteMetaChain(activeChain, {
+  default: 'shallow',
+  keys: {
+    breadcrumb: 'append',
+  },
+});
+```
+
+| Mode | Behavior |
+| --- | --- |
+| `leaf` | Nearest value wins. |
+| `shallow` | Plain objects merge one level. |
+| `deep` | Plain objects merge recursively. |
+| `append` | Values are coerced to arrays and appended root-to-leaf. |
+| `prepend` | Values are coerced to arrays and prepended leaf-to-root. |
+
+## Use metadata in a renderer
+
+```ts ts2js
+function getDocumentTitle() {
+  const chain = getActiveRouteMetaChain(
+    router.state.match,
+    {
+      includeAncestors: true,
+    },
+  );
+
+  const meta = mergeRouteMetaChain(chain, {
+    default: 'shallow',
+  });
+
+  return typeof meta.title === 'string'
+    ? meta.title
+    : 'Application';
+}
+```
+
+The router does not write to `document.title`. That belongs to the host application.
+
+## Where this bites
+
+### Metadata is not control flow
+
+Use middleware for redirects, rewrites, and cancellation. Metadata can describe policy, but it does not enforce policy by itself.
+
+### Route metadata and active metadata are different reads
+
+`getRouteMeta()` reads by route ID. `getActiveRouteMetaChain()` reads from the current match and can include active params.
+
+### Merge policy is explicit
+
+There is no universal merge behavior for titles, breadcrumbs, tags, permissions, and layout hints. Pick per-key merge modes where needed.

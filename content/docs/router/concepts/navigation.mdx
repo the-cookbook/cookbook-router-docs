@@ -17,7 +17,7 @@ The core router owns href generation and transitions. React links and hooks dele
 <Tabs items={['Core router', 'React integration']}>
   <Tab value="Core router">
 
-```ts
+```ts ts2js
 const href = router.href('users.show', {
   params: {
     id: 42,
@@ -40,7 +40,7 @@ Use core APIs in non-React renderers, command handlers, tests, services, and fra
 
   <Tab value="React integration">
 
-```tsx
+```tsx ts2js
 import { Link } from '@cookbook/router-react';
 
 <Link
@@ -65,7 +65,7 @@ React links render real anchors and intercept only unmodified same-origin clicks
 
 Use `router.href()` to generate a URL from a route ID.
 
-```ts
+```ts ts2js
 const href = router.href({
   route: 'users.show',
   params: { id: 42 },
@@ -84,7 +84,7 @@ Generated URL:
 
 The two-argument form is also supported:
 
-```ts
+```ts ts2js
 const href = router.href('users.show', {
   params: { id: 42 },
 });
@@ -92,7 +92,7 @@ const href = router.href('users.show', {
 
 Use `router.resolve()` when you need a parsed `RouterLocation`.
 
-```ts
+```ts ts2js
 const location = router.resolve({
   route: 'users.show',
   params: { id: 42 },
@@ -104,7 +104,7 @@ location.href; // /users/42
 
 ## Programmatic navigation
 
-```ts
+```ts ts2js
 await router.navigate.to({
   route: 'users.show',
   params: { id: 42 },
@@ -128,7 +128,7 @@ router.navigate.go(-2);
 
 `Link` renders a real `<a>` element.
 
-```tsx
+```tsx ts2js
 import { Link } from '@cookbook/router-react';
 
 <Link to="users.show" params={{ id: 42 }} search={{ tab: 'settings' }} hash="profile">
@@ -140,7 +140,7 @@ import { Link } from '@cookbook/router-react';
 
 Use `replace` for replace navigation:
 
-```tsx
+```tsx ts2js
 <Link to="settings" replace>
   Settings
 </Link>
@@ -148,7 +148,7 @@ Use `replace` for replace navigation:
 
 Use `href` for literal anchors that are not route-driven:
 
-```tsx
+```tsx ts2js
 <Link href="https://example.com/docs" target="_blank" rel="noreferrer">
   External docs
 </Link>
@@ -158,7 +158,7 @@ Use `href` for literal anchors that are not route-driven:
 
 Use `router.preload()` to warm a route without committing navigation, writing history, running middleware, or running navigation lifecycle hooks.
 
-```ts
+```ts ts2js
 await router.preload('users.show', {
   params: { id: 42 },
 });
@@ -168,7 +168,7 @@ await router.preloadHref('/users/42');
 
 React links can prefetch their route target on explicit triggers. Prefetch is disabled by default.
 
-```tsx
+```tsx ts2js
 <Link to="users.show" params={{ id: 42 }} prefetch="interaction">
   User 42
 </Link>
@@ -186,7 +186,7 @@ Supported prefetch modes are:
 
 For static/manual lazy views, use `lazyRouteView` so route preload can warm the lazy import without an explicit route-level `preload`.
 
-```tsx
+```tsx ts2js
 const UsersPage = lazyRouteView(() => import('./users-page'));
 
 defineRoute({
@@ -198,7 +198,7 @@ defineRoute({
 
 Route-level `preload` is optional and should be used for application-owned warming such as query caches, images, permissions, or configuration. Generated/file-based route modules and `lazyRouteView` can be preloaded without a declared route-level `preload` callback.
 
-```ts
+```ts ts2js
 defineRoute({
   id: 'users.show',
   path: '/users/{id:int}',
@@ -221,7 +221,7 @@ Loaders, actions, mutations, and revalidation are intentionally outside the rout
 
 `NavLink` computes active state from the current location.
 
-```tsx
+```tsx ts2js
 import { NavLink } from '@cookbook/router-react';
 
 <NavLink to="blog.articles" end>
@@ -235,7 +235,7 @@ target pathname.
 
 Use `end` when the link should only be active for an exact URL match:
 
-```tsx
+```tsx ts2js
 <NavLink to="blog.articles" end>
   Articles
 </NavLink>
@@ -246,7 +246,7 @@ With `end`, the pathname, search string, and hash must all match.
 Use `end={{ search: 'ignore' }}` when search params should not affect active
 state:
 
-```tsx
+```tsx ts2js
 <NavLink to="products" search={{ page: 1 }} end={{ search: 'ignore' }}>
   Products
 </NavLink>
@@ -264,7 +264,7 @@ Active links receive `aria-current="page"`.
 
 Search fields are serialized into the query string.
 
-```ts
+```ts ts2js
 router.href({
   route: 'blog.articles',
   search: { query: 'routing' },
@@ -273,7 +273,7 @@ router.href({
 
 Hash values may be passed with or without `#`.
 
-```ts
+```ts ts2js
 router.href({ route: 'articles.show', params: { slug }, hash: 'comments' });
 router.href({ route: 'articles.show', params: { slug }, hash: '#comments' });
 ```
@@ -286,7 +286,7 @@ Both produce `#comments`.
 
 URL options can be configured globally on the router, per route, or on URL-building call sites. Route-resolution options include `arrayFormat`, `invalidSearch`, `invalidHash`, and `unknownSearch`. URL-building APIs such as `router.href()`, `router.navigate.to()`, `useHref()`, `Link`, and `NavLink` accept build options such as `arrayFormat` and `defaults`.
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   url: { arrayFormat: 'repeat' },
@@ -306,7 +306,7 @@ For URL building, precedence is call-site `url`, then route-level `url`, then ro
 
 Route redirects are declared in route config.
 
-```tsx
+```tsx ts2js
 {
   id: 'entry',
   path: '/',
@@ -318,7 +318,7 @@ Route redirects are declared in route config.
 
 Middleware redirects are returned from middleware.
 
-```ts
+```ts ts2js
 const requireAuth = ({ route, location, redirect }) => {
   if (route.route.meta?.requiresAuth) {
     return redirect(`/blog/login?redirect=${encodeURIComponent(location.href)}`);
@@ -328,7 +328,7 @@ const requireAuth = ({ route, location, redirect }) => {
 
 String redirects are literal hrefs. Absolute hrefs are treated as external browser redirects:
 
-```tsx
+```tsx ts2js
 {
   id: 'external-docs',
   path: '/docs',
@@ -342,14 +342,14 @@ Use route-object redirects for app routes when possible because they compose wit
 
 A basename prefixes generated hrefs and visible browser URLs.
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   basename: '/cookbook',
 });
 ```
 
-```ts
+```ts ts2js
 router.href({ route: 'blog.index' }); // /cookbook/blog
 router.match('/cookbook/blog'); // matches blog.index
 ```
@@ -358,7 +358,7 @@ Configured intercepts compare against app paths after basename stripping, so rou
 
 `router.match()` can also validate full hrefs and preserve parsed search/hash values:
 
-```ts
+```ts ts2js
 const matchedRedirect = router.match('/users/eddie-lake?tab=activity#top');
 
 if (matchedRedirect) {
@@ -374,7 +374,7 @@ if (matchedRedirect) {
 
 Configured interception:
 
-```tsx
+```tsx ts2js
 <Link 
   to="blog.articles.show" 
   params={{ slug }} 
@@ -386,7 +386,7 @@ Configured interception:
 
 Inline interception:
 
-```tsx
+```tsx ts2js
 <Link 
   to="blog.articles.show" 
   params={{ slug }} 
@@ -398,7 +398,7 @@ Inline interception:
 
 Disable configured interception for one navigation when the destination should render as its canonical page, such as an auth redirect:
 
-```ts
+```ts ts2js
 await router.navigate.replace(
   '/blog/articles/hello-world', 
   { intercept: false }
@@ -412,7 +412,7 @@ await router.navigate.to(
 );
 ```
 
-```tsx
+```tsx ts2js
 <Link 
   to="blog.articles.show" 
   params={{ slug }} 
@@ -442,7 +442,7 @@ Unmodified same-origin route clicks are intercepted and routed through `router.n
 
 Use `useNavigation()` to read transition state.
 
-```tsx
+```tsx ts2js
 const navigation = useNavigation();
 
 return navigation === 'pending' ? <Spinner /> : null;

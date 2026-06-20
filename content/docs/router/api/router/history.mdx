@@ -9,7 +9,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 The `@cookbook/router/history` entrypoint exposes the transport layer consumed by the router runtime.
 
-```ts
+```ts ts2js
 import {
   createBrowserHistory,
   createMemoryHistory,
@@ -30,7 +30,7 @@ import type {
 
 The package root re-exports the history values and core history contracts:
 
-```ts
+```ts ts2js
 import {
   createBrowserHistory,
   createMemoryHistory,
@@ -52,7 +52,7 @@ History adapters do not know route IDs, basenames, search descriptors, hash desc
 
 ## `createMemoryHistory(options?)`
 
-```ts
+```ts ts2js
 interface MemoryHistoryOptions {
   readonly initialEntries?: readonly string[];
   readonly initialIndex?: number;
@@ -84,7 +84,7 @@ Creates an in-memory history stack.
 
 Basic memory history:
 
-```ts
+```ts ts2js
 import { createMemoryHistory } from '@cookbook/router/history';
 
 const history = createMemoryHistory({
@@ -100,7 +100,7 @@ history.location.href;
 
 An empty stack becomes root:
 
-```ts
+```ts ts2js
 createMemoryHistory({
   initialEntries: [],
 }).location.href;
@@ -109,7 +109,7 @@ createMemoryHistory({
 
 Out-of-range indices are clamped:
 
-```ts
+```ts ts2js
 createMemoryHistory({
   initialEntries: ['/one', '/two'],
   initialIndex: 99,
@@ -121,7 +121,7 @@ createMemoryHistory({
 
 `push()` appends a new location and discards forward entries.
 
-```ts
+```ts ts2js
 const history = createMemoryHistory({
   initialEntries: ['/one', '/two'],
 });
@@ -137,7 +137,7 @@ The forward `/two` entry was discarded before `/three` was appended.
 
 `replace()` updates the current entry and preserves the current key.
 
-```ts
+```ts ts2js
 const before = history.location.key;
 
 history.replace('/three?tab=1');
@@ -148,7 +148,7 @@ history.location.key === before;
 
 `go(delta)` emits a `pop` event only when the active index changes.
 
-```ts
+```ts ts2js
 const events: string[] = [];
 
 const unsubscribe = history.listen((event) => {
@@ -165,7 +165,7 @@ unsubscribe();
 
 ## `createBrowserHistory(options?)`
 
-```ts
+```ts ts2js
 interface BrowserHistoryOptions {
   readonly window?: Pick<
     Window,
@@ -195,7 +195,7 @@ Creates a DOM-backed history adapter.
 
 Browser setup:
 
-```ts
+```ts ts2js
 import { createBrowserHistory } from '@cookbook/router/history';
 
 const history = createBrowserHistory();
@@ -203,7 +203,7 @@ const history = createBrowserHistory();
 
 Controlled environment:
 
-```ts
+```ts ts2js
 const history = createBrowserHistory({
   window: windowLike,
 });
@@ -219,7 +219,7 @@ Browser history requires a window-like environment. Use createMemoryRouter or cr
 
 Browser history writes this state shape:
 
-```ts
+```ts ts2js
 {
   cookbookRouterKey: location.key,
   state,
@@ -228,7 +228,7 @@ Browser history writes this state shape:
 
 `RouterLocation.state` receives the nested `state` value.
 
-```ts
+```ts ts2js
 history.push('/users/42', {
   from: 'dashboard',
 });
@@ -257,7 +257,7 @@ Programmatic writes emit immediately:
 | `push()`    | `push`         |
 | `replace()` | `replace`      |
 
-```ts
+```ts ts2js
 const unsubscribe = history.listen((event) => {
   console.log(event.action, event.location.href);
 });
@@ -274,7 +274,7 @@ DOM listeners are attached when `createBrowserHistory()` runs and removed when t
 
 Browser history supports external redirects:
 
-```ts
+```ts ts2js
 history.redirectExternal?.(
   'https://example.com',
   'push',
@@ -292,7 +292,7 @@ Memory and static histories do not implement `redirectExternal`.
 
 ## `createStaticHistory(options)`
 
-```ts
+```ts ts2js
 interface StaticHistoryOptions {
   readonly url: string;
 }
@@ -313,7 +313,7 @@ Creates a read-only history adapter for one SSR/static request.
   }}
 />
 
-```ts
+```ts ts2js
 import { createStaticHistory } from '@cookbook/router/history';
 
 const history = createStaticHistory({
@@ -326,7 +326,7 @@ history.location.href;
 
 Static history cannot mutate entries.
 
-```ts
+```ts ts2js
 history.push('/next');
 ```
 
@@ -336,7 +336,7 @@ throws:
 Static history cannot push navigation entries.
 ```
 
-```ts
+```ts ts2js
 history.replace('/next');
 ```
 
@@ -348,7 +348,7 @@ Static history cannot replace navigation entries.
 
 Traversal methods are inert:
 
-```ts
+```ts ts2js
 history.back();
 history.forward();
 history.go(-1);
@@ -358,7 +358,7 @@ They do nothing and do not throw.
 
 `listen()` returns a no-op cleanup function.
 
-```ts
+```ts ts2js
 const cleanup = history.listen(() => {
   throw new Error('Static history does not emit.');
 });
@@ -370,7 +370,7 @@ The higher-level `createStaticRouter()` accepts `string`, `URL`, or `Request`. `
 
 ## `parseHref(href, options?)`
 
-```ts
+```ts ts2js
 function parseHref(
   href: string,
   options?: {
@@ -403,7 +403,7 @@ Parses an app-relative or absolute href into a router-normalized location.
 
 Absolute origins are discarded:
 
-```ts
+```ts ts2js
 parseHref(
   'https://example.test/users/42?q=a#bio',
   {
@@ -417,7 +417,7 @@ parseHref(
 
 returns:
 
-```ts
+```ts ts2js
 {
   pathname: '/users/42',
   search: '?q=a',
@@ -432,21 +432,21 @@ returns:
 
 Empty input becomes root:
 
-```ts
+```ts ts2js
 parseHref('').href;
 // '/'
 ```
 
 Relative input becomes an absolute pathname under the router-local base:
 
-```ts
+```ts ts2js
 parseHref('users/42').href;
 // '/users/42'
 ```
 
 Search-only and hash-only inputs are rooted:
 
-```ts
+```ts ts2js
 parseHref('?q=router').href;
 // '/?q=router'
 
@@ -456,7 +456,7 @@ parseHref('#top').href;
 
 When `state` is `undefined`, the `state` property is omitted:
 
-```ts
+```ts ts2js
 parseHref('/users/42', {
   state: undefined,
 });
@@ -464,7 +464,7 @@ parseHref('/users/42', {
 
 returns:
 
-```ts
+```ts ts2js
 {
   pathname: '/users/42',
   search: '',
@@ -480,7 +480,7 @@ It is history transport parsing. Runtime navigation safety belongs to the router
 
 ## `HistoryAction`
 
-```ts
+```ts ts2js
 type HistoryAction =
   | 'push'
   | 'replace'
@@ -497,7 +497,7 @@ type HistoryAction =
 
 ## `RouterLocation`
 
-```ts
+```ts ts2js
 interface RouterLocation {
   readonly pathname: string;
   readonly search: string;
@@ -540,7 +540,7 @@ interface RouterLocation {
 
 Invariant:
 
-```ts
+```ts ts2js
 location.href === `${location.pathname}${location.search}${location.hash}`;
 ```
 
@@ -548,7 +548,7 @@ location.href === `${location.pathname}${location.search}${location.hash}`;
 
 ## `HistoryEvent`
 
-```ts
+```ts ts2js
 interface HistoryEvent {
   readonly action: HistoryAction;
   readonly location: RouterLocation;
@@ -572,7 +572,7 @@ Events are emitted after the adapter's visible location has changed.
 
 ## `RouterHistory`
 
-```ts
+```ts ts2js
 interface RouterHistory {
   readonly location: RouterLocation;
   readonly mode?: 'browser' | 'memory' | 'static';
@@ -645,7 +645,7 @@ A custom adapter must:
 
 Custom memory-like adapter skeleton:
 
-```ts
+```ts ts2js
 import {
   parseHref,
   type HistoryEvent,
@@ -784,7 +784,7 @@ It does not know:
 
 This is just transport:
 
-```ts
+```ts ts2js
 history.push('/users/42?tab=settings#profile');
 ```
 
@@ -794,7 +794,7 @@ The router decides what that location means.
 
 This returns a transport location:
 
-```ts
+```ts ts2js
 parseHref('https://example.com/users/42').href;
 // '/users/42'
 ```
@@ -807,7 +807,7 @@ Router navigation accepts route IDs or app-internal hrefs. History parsing is lo
 
 This throws:
 
-```ts
+```ts ts2js
 createStaticHistory({
   url: '/',
 }).push('/next');
@@ -815,7 +815,7 @@ createStaticHistory({
 
 Use memory history for tests that need navigation:
 
-```ts
+```ts ts2js
 createMemoryHistory({
   initialEntries: ['/'],
 });

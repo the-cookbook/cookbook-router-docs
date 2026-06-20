@@ -26,7 +26,7 @@ Check:
 
 Use router matching directly in a test:
 
-```ts
+```ts ts2js
 expect(router.match('/blog/articles/my-post')?.route.id).toBe('blog.articles.show');
 ```
 
@@ -34,7 +34,7 @@ expect(router.match('/blog/articles/my-post')?.route.id).toBe('blog.articles.sho
 
 For entry redirects such as:
 
-```tsx
+```tsx ts2js
 {
   id: 'entry',
   path: '/',
@@ -44,7 +44,7 @@ For entry redirects such as:
 
 call `router.start()` before the initial render:
 
-```tsx
+```tsx ts2js
 await router.start();
 createRoot(root).render(<RouterProvider router={router} fallback={<NotFound />} />);
 ```
@@ -59,7 +59,7 @@ pnpm build:packages
 
 The default path cleanup is:
 
-```ts
+```ts ts2js
 pathOptions: {
   prune: 'all',
 }
@@ -67,7 +67,7 @@ pathOptions: {
 
 This canonicalizes matched paths like `/gallery/` to `/gallery`. If it does not happen, check whether the app is using stale built package output or whether you opted out:
 
-```ts
+```ts ts2js
 createRouter({ routes, pathOptions: { prune: false } });
 ```
 
@@ -75,7 +75,7 @@ createRouter({ routes, pathOptions: { prune: false } });
 
 A route such as `/posts/{slug:slug}` only validates after `slug` has been registered.
 
-```ts
+```ts ts2js
 import { createPathConstraint, createRouter, defineRoutes } from '@cookbook/router';
 
 const slug = createPathConstraint({
@@ -105,7 +105,7 @@ For SSR, use the same custom-constraint setup in the route module used by both t
 
 Configure basename once on the router:
 
-```ts
+```ts ts2js
 createRouter({ routes, basename: '/foo' });
 ```
 
@@ -117,7 +117,7 @@ Links should generate `/foo/...`, while route config and intercept patterns rema
 
 For configured intercepts, the source route must declare the slot and destination pattern.
 
-```tsx
+```tsx ts2js
 intercepts: {
   modal: {
     to: ['articles/{slug}'],
@@ -128,13 +128,13 @@ intercepts: {
 
 The active layout tree must also render the target slot:
 
-```tsx
+```tsx ts2js
 <Slot name="modal" />
 ```
 
 If the current route does not own a configured intercept, use call-site interception:
 
-```tsx
+```tsx ts2js
 <Link intercept={{ slot: 'modal', view: ArticleModal }} ... />
 ```
 

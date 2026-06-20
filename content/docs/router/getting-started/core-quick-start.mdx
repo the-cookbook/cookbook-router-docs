@@ -24,7 +24,7 @@ For npm, Yarn, Bun, bundler plugins, and project initialization, see [Installati
 
 Create `src/views.ts`.
 
-```ts
+```ts ts2js
 export interface AppViewContext {
   readonly routeId: string;
   readonly params: Record<string, unknown>;
@@ -94,7 +94,7 @@ export const NotFoundPage: AppView = {
 
 Create `src/routes.ts`.
 
-```ts
+```ts ts2js
 import { defineRoutes } from '@cookbook/router';
 import {
   HomePage,
@@ -157,7 +157,7 @@ Use static descriptors in route files consumed by the CLI. The generator can ins
 
 Create `src/renderer.ts`.
 
-```ts
+```ts ts2js
 import {
   renderRouteMatch,
   type RouteLayoutViewContext,
@@ -226,7 +226,7 @@ export function renderApp(state: RouterState): string {
 
 Create `src/router.ts`.
 
-```ts
+```ts ts2js
 import { createRouter } from '@cookbook/router';
 import { routes } from './routes';
 
@@ -239,7 +239,7 @@ The default router uses browser history when `window` exists and memory history 
 
 For tests, scripts, and deterministic non-DOM work, use `createMemoryRouter()` instead.
 
-```ts
+```ts ts2js
 import { createMemoryRouter } from '@cookbook/router';
 import { routes } from './routes';
 
@@ -253,7 +253,7 @@ export const router = createMemoryRouter({
 
 Create `src/main.ts`.
 
-```ts
+```ts ts2js
 import { router } from './router';
 import { renderApp } from './renderer';
 
@@ -278,7 +278,7 @@ This is a minimal browser shell, not a framework integration. The core router gi
 
 If your runtime does not support top-level `await`, wrap startup in an async function.
 
-```ts
+```ts ts2js
 async function main() {
   await router.start();
   
@@ -292,7 +292,7 @@ void main();
 
 Core navigation does not require a component.
 
-```ts
+```ts ts2js
 await router.navigate.to('users.show', {
   params: {
     id: 42,
@@ -306,7 +306,7 @@ await router.navigate.to('users.show', {
 
 Generate an href without navigating:
 
-```ts
+```ts ts2js
 const href = router.href('users.show', {
   params: {
     id: 42,
@@ -320,13 +320,13 @@ const href = router.href('users.show', {
 
 Match an arbitrary app href without changing history:
 
-```ts
+```ts ts2js
 const match = router.match('/users/42?tab=settings#profile');
 ```
 
 Resolve a route ID into a match without changing history:
 
-```ts
+```ts ts2js
 const resolved = router.resolve('users.show', {
   params: {
     id: 42,
@@ -389,7 +389,7 @@ The generated registration augments `@cookbook/router`. After TypeScript sees it
 
 Create `cookbook-router.config.ts`.
 
-```ts
+```ts ts2js
 import { defineRouterConfig } from '@cookbook/router-cli';
 
 export default defineRouterConfig({
@@ -417,7 +417,7 @@ Use a bundler plugin when you want generation to run during the host build. Use 
 
 This starts and resolves routing state:
 
-```ts
+```ts ts2js
 await router.start();
 ```
 

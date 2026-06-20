@@ -19,7 +19,7 @@ Route definitions are core router data. The `view` field is opaque to `@cookbook
 
 Core examples can use strings, symbols, objects, or renderer-owned handles as route views.
 
-```ts
+```ts ts2js
 import { defineRoutes } from '@cookbook/router';
 
 export const routes = defineRoutes([
@@ -44,7 +44,7 @@ The core router matches and navigates. Your adapter decides how `'home-screen'` 
 
 React examples usually pass components as route views and render them through `RouterProvider`.
 
-```tsx
+```tsx ts2js
 import { defineRoutes } from '@cookbook/router';
 import { RouterProvider } from '@cookbook/router-react';
 
@@ -73,7 +73,7 @@ React is an adapter on top of the same route definitions. It is not a different 
 
 The current public route shape is:
 
-```ts
+```ts ts2js
 interface RouteDefinition {
   readonly id: string;
   readonly path?: string;
@@ -96,7 +96,7 @@ interface RouteDefinition {
 
 Supporting shapes:
 
-```ts
+```ts ts2js
 interface RouteLayoutDefinition {
   readonly view?: RouteView;
   readonly slots?: RouteSlotDefinitions;
@@ -154,7 +154,7 @@ type RouteIntercepts = Readonly<Record<string, RouteInterceptConfig>>;
 
 Child paths are relative by default.
 
-```tsx
+```tsx ts2js
 {
   id: 'users',
   path: '/users',
@@ -176,7 +176,7 @@ Resolved path:
 
 Child paths may include a leading `/`, but they are still composed relative to the parent route. This lets route files use either `terms-of-service` or `/terms-of-service` for the same nested URL segment.
 
-```tsx
+```tsx ts2js
 {
   id: 'policies',
   path: '/policies',
@@ -233,7 +233,7 @@ URLKit infers parsed param types from the full constraint chain, not from the fi
 
 Index routes inherit the parent path.
 
-```tsx
+```tsx ts2js
 {
   id: 'dashboard',
   path: '/dashboard',
@@ -249,7 +249,7 @@ Index routes inherit the parent path.
 
 Invalid:
 
-```tsx
+```tsx ts2js
 {
   id: 'dashboard.overview',
   index: true,// [!code focus]
@@ -264,7 +264,7 @@ Index routes **must not** define `path`.
 
 A route **may** define a layout without a path.
 
-```tsx
+```tsx ts2js
 {
   id: 'app.layout',
   layout: {
@@ -286,7 +286,7 @@ The layout affects rendering but contributes no URL segment. Pathless routes are
 
 Path params use [PathKit](https://github.com/the-cookbook/pathkit) path-pattern syntax and [URLKit](https://github.com/the-cookbook/urlkit) parsed-param semantics. PathKit validates the path pattern and constraint chain. URLKit parses route URL state with `params: 'parsed'`, so runtime matches, `useParams()`, redirects, and generated contracts expose parsed values instead of raw URL strings.
 
-```tsx
+```tsx ts2js
 {
   id: 'organizations.users.show',
   // [!code word:uuid]
@@ -298,7 +298,7 @@ Path params use [PathKit](https://github.com/the-cookbook/pathkit) path-pattern 
 
 Generated params and runtime match state use the same parsed URLKit values:
 
-```ts
+```ts ts2js
 interface OrganizationUserParams {
   organizationId: string;
   userId: number;
@@ -327,7 +327,7 @@ Param inference uses the full PathKit constraint chain:
 
 Optional params generate optional properties and are absent when the segment is not present:
 
-```tsx
+```tsx ts2js
 {
   id: 'products.optional',
   // [!code word:\?]
@@ -338,7 +338,7 @@ Optional params generate optional properties and are absent when the segment is 
 
 Generated params:
 
-```ts
+```ts ts2js
 interface ProductParams {
   id?: number;
 };
@@ -356,7 +356,7 @@ See [Path routes and constraints](/docs/router/concepts/path-routes-and-constrai
 
 Search contracts are generated from [URLKit](https://github.com/the-cookbook/urlkit)-backed Router static `search` descriptors. Keep descriptors static in route files consumed by the CLI; do not use URLKit runtime builders there unless static extraction explicitly supports them.
 
-```tsx
+```tsx ts2js
 {
   id: 'articles.index',
   path: '/articles',
@@ -375,7 +375,7 @@ Search contracts are generated from [URLKit](https://github.com/the-cookbook/url
 
 Generated fields and runtime state follow URLKit parsing semantics:
 
-```ts
+```ts ts2js
 interface ArticlesSearch {
   query?: string;
   page: number;
@@ -389,7 +389,7 @@ When `unknownSearch: 'preserve'` is active, declared search remains typed and un
 
 Hash values become a string union:
 
-```tsx
+```tsx ts2js
 {
   id: 'articles.show',
   path: '/articles/{slug}',
@@ -400,7 +400,7 @@ Hash values become a string union:
 
 Metadata values are generated from the runtime `typeof` of the declared value and marked optional.
 
-```tsx
+```tsx ts2js
 meta: {
   title: 'Article',
   requiresAuth: true,
@@ -409,7 +409,7 @@ meta: {
 
 Generates a shape similar to:
 
-```ts
+```ts ts2js
 {
   title?: string;
   requiresAuth?: boolean;
@@ -420,7 +420,7 @@ Generates a shape similar to:
 
 A route can redirect to another route without rendering a view. Redirect routes must be addressable with either `path` or `index: true`. Use an index redirect when a parent route should redirect from its own URL.
 
-```tsx
+```tsx ts2js
 {
   id: 'entry',
   path: '/',
@@ -438,7 +438,7 @@ A route can redirect to another route without rendering a view. Redirect routes 
 
 Redirect with params, search, and hash:
 
-```tsx
+```tsx ts2js
 {
   id: 'legacy-user',
   path: '/u/{id:int}',
@@ -453,7 +453,7 @@ Redirect with params, search, and hash:
 
 Literal string redirects are also supported.
 
-```tsx
+```tsx ts2js
 {
   id: 'legacy-home',
   path: '/home',
@@ -463,7 +463,7 @@ Literal string redirects are also supported.
 
 Absolute string redirects leave the app in browser history.
 
-```tsx
+```tsx ts2js
 {
   id: 'external-docs',
   path: '/docs',
@@ -477,7 +477,7 @@ Use route-object redirects for internal targets when possible. They keep basenam
 
 A layout view wraps the active route child branch. It **must** render `<Outlet />` to show children.
 
-```tsx
+```tsx ts2js
 import { Outlet } from '@cookbook/router-react';
 
 export function DashboardLayout() {
@@ -493,7 +493,7 @@ export function DashboardLayout() {
 
 Direct route child views can read outlet context with `useOutletContext()`.
 
-```tsx
+```tsx ts2js
 const context = useOutletContext<{ source: string }>();
 ```
 
@@ -503,7 +503,7 @@ Outlet context is direct-child scoped. It does not automatically leak through ev
 
 Slots render named layout regions.
 
-```tsx
+```tsx ts2js
 {
   id: 'dashboard',
   path: '/dashboard',
@@ -528,7 +528,7 @@ Slots render named layout regions.
 
 Render slots in the layout:
 
-```tsx
+```tsx ts2js
 import { Outlet, Slot } from '@cookbook/router-react';
 
 export function DashboardLayout() {
@@ -558,7 +558,7 @@ Slot rules:
 
 When a slot route shares a URL with primary content, define both routes:
 
-```tsx
+```tsx ts2js
 children: [
   {
     id: 'dashboard.activity',
@@ -589,7 +589,7 @@ Interception lets a source route preserve its current UI while rendering a desti
 
 Configured intercepts are declared on the source route.
 
-```tsx
+```tsx ts2js
 {
   id: 'gallery',
   path: '/gallery',
@@ -613,7 +613,7 @@ Configured intercepts are declared on the source route.
 
 The canonical destination must exist as a normal route:
 
-```tsx
+```tsx ts2js
 {
   id: 'gallery.photo',
   path: '/gallery/photo/{slug:regex([a-z0-9-]+)}',
@@ -623,7 +623,7 @@ The canonical destination must exist as a normal route:
 
 Link with configured interception:
 
-```tsx
+```tsx ts2js
 <Link to="gallery.photo" params={{ slug }}>
   Preview in modal
 </Link>
@@ -631,7 +631,7 @@ Link with configured interception:
 
 An inline interception is also supported. It **does not** require a route level `intercepts` declaration:
 
-```tsx
+```tsx ts2js
 <Link 
   to="gallery.photo" 
   params={{ slug }} 
@@ -644,7 +644,7 @@ An inline interception is also supported. It **does not** require a route level 
 
 Pass `intercept={false}` to **bypass** a configured interception for one navigation and render the destination as a normal full page:
 
-```tsx
+```tsx ts2js
 <Link 
   to="gallery.photo" 
   params={{ slug }} 
@@ -655,7 +655,7 @@ Pass `intercept={false}` to **bypass** a configured interception for one navigat
 </Link>
 ```
 
-```ts
+```ts ts2js
 await router.navigate.replace('/gallery/photo/a-snowy-landscape', { intercept: false });
 ```
 
@@ -672,13 +672,13 @@ Behavior:
 
 Provider fallback handles the simplest not-found case:
 
-```tsx
+```tsx ts2js
 <RouterProvider router={router} fallback={<NotFoundPage />} />
 ```
 
 Use `RouterProvider fallback` for global 404 UI. For section-specific 404 UI, define an explicit catch-all child route inside that section so the section layout stays active.
 
-```tsx
+```tsx ts2js
 {
   id: 'admin',
   path: '/admin',
@@ -697,7 +697,7 @@ Route-level `loading` views are used by `@cookbook/router-react` as React Suspen
 
 Route-level `error` views are used by `@cookbook/router-react` as React error-boundary fallbacks. The nearest matched route with an `error` view owns errors thrown by its route subtree. The fallback receives `error`, `reset`, and `route` props.
 
-```tsx
+```tsx ts2js
 function ArticleLoading() {
   return <ArticleSkeleton />;
 }
@@ -728,7 +728,7 @@ function ArticleErrorFallback(props: RouteErrorFallbackProps) {
 
 Routes can own middleware and lifecycle hooks.
 
-```tsx
+```tsx ts2js
 {
   id: 'admin',
   path: '/admin',
@@ -750,7 +750,7 @@ Global middleware and lifecycle hooks are configured on the router. Route-level 
 
 ## Router configuration
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   basename: '/app',
@@ -765,7 +765,7 @@ const router = createRouter({
 
 `basename` is a visible URL prefix.
 
-```ts
+```ts ts2js
 createRouter({ routes, basename: '/foo' });
 ```
 
@@ -778,7 +778,7 @@ createRouter({ routes, basename: '/foo' });
 
 Redirects are bounded to prevent loops. Use `maxRedirectDepth`; `maxRedirectionDepth` is accepted as an alias.
 
-```ts
+```ts ts2js
 createRouter({ routes, maxRedirectDepth: 20 });
 ```
 
@@ -788,7 +788,7 @@ Custom path constraints let route params use reusable validation rules beyond th
 
 `defineRoutes()` validates route patterns immediately, so any custom constraint referenced by a route path must already be registered. Cookbook Router forwards registered constraints to URLKit before descriptor validation, matching, parsing, and href building. For all built-in constraints, custom constraint APIs, and common mistakes, see [Path routes and constraints](/docs/router/concepts/path-routes-and-constraints).
 
-```ts
+```ts ts2js
 import { createPathConstraint, createRouter, defineRoutes } from '@cookbook/router';
 
 const slug = createPathConstraint({
@@ -822,7 +822,7 @@ Path options are forwarded to PathKit wrappers and router canonicalization. URL 
 
 Default:
 
-```ts
+```ts ts2js
 pathOptions: {
   prune: 'all',
 }

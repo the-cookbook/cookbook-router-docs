@@ -1,0 +1,124 @@
+---
+title: "Middleware pipeline"
+description: "Apply access checks, redirects, rewrites, and cancellation in the core transition pipeline."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Middleware runs before a navigation commits. It can allow, redirect, rewrite, cancel, or return a `Response`.
+
+Use middleware when the decision belongs to the transition, not to view rendering.
+
+## Register middleware when creating the router
+
+```ts ts2js
+import {
+  createRouter,
+  defineRoutes,
+  type Middleware,
+} from '@cookbook/router';
+
+const routes = defineRoutes([
+  {
+    id: 'home',
+    path: '/',
+    view: 'home',
+  },
+  {
+    id: 'admin',
+    path: '/admin',
+    meta: {
+      requiresAuth: true,
+    },
+    view: 'admin',
+  },
+] as const);
+
+const requireAuth: Middleware = (context) => {
+  if (
+    context.route.route.meta?.requiresAuth === true &&
+    !session.isSignedIn()
+  ) {
+    return context.redirect('/login');
+  }
+};
+
+const router = createRouter({
+  routes,
+  middleware: [requireAuth],
+});
+
+await router.start();
+```
+
+The transition does not commit to `/admin` when the middleware redirects to `/login`.
+
+## Add runtime middleware
+
+Use `router.useMiddleware()` when middleware is owned by runtime setup rather than router creation.
+
+```ts ts2js
+const removeAuditMiddleware = router.useMiddleware([
+  (context) => {
+    analytics.track('route_attempt', {
+      href: context.location.href,
+      routeId: context.route.id,
+    });
+  },
+]);
+
+removeAuditMiddleware();
+```
+
+The cleanup removes the registered middleware.
+
+## Redirect, rewrite, and cancel
+
+```ts ts2js
+const canonicalize: Middleware = (context) => {
+  if (context.location.pathname === '/docs/latest') {
+    return context.rewrite('/docs/current');
+  }
+};
+
+const blockCheckout: Middleware = (context) => {
+  if (
+    context.route.id === 'checkout' &&
+    cart.isEmpty()
+  ) {
+    return context.cancel();
+  }
+};
+```
+
+A redirect changes the destination and writes the redirected URL. A rewrite resolves another route without committing the original URL. Cancellation keeps the previous committed state.
+
+## Return a `Response`
+
+```ts ts2js
+const requireApiSession: Middleware = () => {
+  if (!session.isSignedIn()) {
+    return new Response('Unauthorized', {
+      status: 401,
+    });
+  }
+};
+```
+
+The host decides how to map response-like middleware results to transport.
+
+## Where this bites
+
+### Middleware is not component rendering
+
+Do not wait until a view renders to enforce a route transition policy. The route may already be committed by then.
+
+### Provider middleware after startup is late
+
+When a framework adapter registers middleware after the router starts, it only affects future navigations. Core setup can register middleware before `router.start()`.
+
+### Rewrite targets must be internal
+
+Middleware cannot rewrite to an external URL. Use redirect semantics for external destinations, and make sure the active history implementation supports external redirects.

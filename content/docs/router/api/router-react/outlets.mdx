@@ -13,7 +13,7 @@ React does not discover child routes, match slot routes, or decide interception.
 
 The outlets subpath exports:
 
-```ts
+```ts ts2js
 import {
   Outlet,
   Slot,
@@ -29,7 +29,7 @@ import type {
 
 `lazyRouteView()` is grouped on this page because it is used by route views, but it is exported from the package root:
 
-```ts
+```ts ts2js
 import {
   lazyRouteView,
   type LazyRouteViewComponent,
@@ -38,7 +38,7 @@ import {
 
 ## `Outlet`
 
-```ts
+```ts ts2js
 interface OutletProps<T = unknown> {
   readonly context?: T;
   readonly children?: ReactNode;
@@ -68,7 +68,7 @@ optional: true,
 
 Basic layout outlet:
 
-```tsx
+```tsx ts2js
 import { Outlet } from '@cookbook/router-react/outlets';
 
 export function AccountLayout() {
@@ -83,7 +83,7 @@ export function AccountLayout() {
 
 Descendant routes read that context with `useOutletContext()`:
 
-```tsx
+```tsx ts2js
 import { useOutletContext } from '@cookbook/router-react/hooks';
 
 interface AccountContext {
@@ -113,7 +113,7 @@ export function BillingPage() {
 
 Then it renders nothing when the selected output is:
 
-```ts
+```ts ts2js
 null
 undefined
 false
@@ -121,7 +121,7 @@ false
 
 This distinction matters:
 
-```tsx
+```tsx ts2js
 <Outlet>
   <p>Custom outlet content</p>
 </Outlet>
@@ -129,13 +129,13 @@ This distinction matters:
 
 Custom children replace the router-provided outlet.
 
-```tsx
+```tsx ts2js
 <Outlet>{false}</Outlet>
 ```
 
 `false` replaces the router-provided outlet and renders nothing.
 
-```tsx
+```tsx ts2js
 <Outlet>{null}</Outlet>
 ```
 
@@ -145,7 +145,7 @@ Leaf routes can render `<Outlet />`; it resolves to `null` instead of recursivel
 
 ## `Slot`
 
-```ts
+```ts ts2js
 interface SlotErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -189,7 +189,7 @@ optional: true,
 
 Layout with named slots:
 
-```tsx
+```tsx ts2js
 import {
   Outlet,
   Slot,
@@ -217,7 +217,7 @@ export function DashboardLayout() {
 
 Slot content reads the nearest outlet context:
 
-```tsx
+```tsx ts2js
 import { useOutletContext } from '@cookbook/router-react/hooks';
 
 interface SidebarContext {
@@ -252,7 +252,7 @@ It does not search the whole route tree for a matching name. Same-name nested sl
 
 Intercepted navigation can also provide context:
 
-```tsx
+```tsx ts2js
 <Link
   to="documents.details"
   params={{ documentId }}
@@ -283,7 +283,7 @@ Slot error ownership is presence-based.
 
 Inline fallback:
 
-```tsx
+```tsx ts2js
 import { Slot } from '@cookbook/router-react/outlets';
 
 export function DashboardLayout() {
@@ -306,7 +306,7 @@ export function DashboardLayout() {
 
 Component fallback:
 
-```tsx
+```tsx ts2js
 import type {
   SlotErrorFallbackProps,
 } from '@cookbook/router-react/outlets';
@@ -337,13 +337,13 @@ export function DashboardLayout() {
 
 Render nothing on slot failure:
 
-```tsx
+```tsx ts2js
 <Slot name="modal" errorFallback={null} />
 ```
 
 Omit the prop to let errors bubble:
 
-```tsx
+```tsx ts2js
 <Slot name="modal" />
 ```
 
@@ -356,7 +356,7 @@ Slot error isolation intentionally beats route-owned slot error rendering. When 
 
 ## `SlotErrorFallbackProps`
 
-```ts
+```ts ts2js
 interface SlotErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -380,7 +380,7 @@ type: '() => void',
 
 Route boundary fallback:
 
-```ts
+```ts ts2js
 interface RouteErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -390,7 +390,7 @@ interface RouteErrorFallbackProps {
 
 Slot boundary fallback:
 
-```ts
+```ts ts2js
 interface SlotErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -401,7 +401,7 @@ If the fallback needs route data, read it from route hooks while the route conte
 
 ## `lazyRouteView()`
 
-```ts
+```ts ts2js
 interface LazyRouteViewComponent<
   Component extends ComponentType<any> =
     ComponentType<any>,
@@ -442,7 +442,7 @@ type: "() => Promise<{ readonly default: Component }>",
 
 Use it for lazy route views:
 
-```tsx
+```tsx ts2js
 import { defineRoute } from '@cookbook/router';
 import { lazyRouteView } from '@cookbook/router-react';
 
@@ -459,7 +459,7 @@ export const settingsRoute = defineRoute({
 
 For named exports:
 
-```tsx
+```tsx ts2js
 import { defineRoute } from '@cookbook/router';
 import { lazyRouteView } from '@cookbook/router-react';
 
@@ -480,7 +480,7 @@ Do not add `modulePreload: SettingsPage.preload` just because the method exists.
 
 Wrong:
 
-```tsx
+```tsx ts2js
 export const settingsRoute = defineRoute({
   id: 'settings',
   path: '/settings',
@@ -491,7 +491,7 @@ export const settingsRoute = defineRoute({
 
 Right:
 
-```tsx
+```tsx ts2js
 export const settingsRoute = defineRoute({
   id: 'settings',
   path: '/settings',
@@ -501,7 +501,7 @@ export const settingsRoute = defineRoute({
 
 Route preloading runs view preload hooks for matched layout and route views.
 
-```tsx
+```tsx ts2js
 <Link to="settings" prefetch="interaction">
   Settings
 </Link>
@@ -522,7 +522,7 @@ These share the same promise:
 
 The loader is called once for the lifetime of the returned lazy component.
 
-```tsx
+```tsx ts2js
 const SettingsPage = lazyRouteView(() =>
   import('./settings-page'),
 );
@@ -539,7 +539,7 @@ If that promise rejects, the rejected promise is also retained. Create a new laz
 
 `preload` is attached with:
 
-```ts
+```ts ts2js
 Object.defineProperty(Component, 'preload', {
   enumerable: false,
   configurable: false,
@@ -555,7 +555,7 @@ That means:
 
 The module must resolve to:
 
-```ts
+```ts ts2js
 {
   readonly default: Component;
 }
@@ -567,7 +567,7 @@ That is the same shape expected by `React.lazy()`.
 
 The public context values are exported from the provider surface, not the outlets subpath:
 
-```ts
+```ts ts2js
 import {
   OutletContext,
   RouteRenderContext,
@@ -579,7 +579,7 @@ They are also re-exported by the package root.
 
 These contexts exist for adapters and design-system integrations. Application routes should prefer:
 
-```ts
+```ts ts2js
 Outlet
 Slot
 useOutletContext()
@@ -622,13 +622,13 @@ There is no public `@cookbook/router-react/lazy` subpath.
 
 This does not suppress the router-provided outlet:
 
-```tsx
+```tsx ts2js
 <Outlet>{null}</Outlet>
 ```
 
 `null` is treated as absent children. Use `false` when you intentionally want to suppress outlet output:
 
-```tsx
+```tsx ts2js
 <Outlet>{false}</Outlet>
 ```
 
@@ -644,7 +644,7 @@ They solve different problems.
 
 This isolates errors and renders nothing:
 
-```tsx
+```tsx ts2js
 <Slot name="modal" errorFallback={undefined} />
 ```
 
@@ -652,7 +652,7 @@ The prop is present. Presence enables slot-local isolation.
 
 Omit the prop when errors should bubble:
 
-```tsx
+```tsx ts2js
 <Slot name="modal" />
 ```
 
@@ -660,13 +660,13 @@ Omit the prop when errors should bubble:
 
 This import is wrong:
 
-```ts
+```ts ts2js
 import { lazyRouteView } from '@cookbook/router-react/outlets';
 ```
 
 Use the package root:
 
-```ts
+```ts ts2js
 import { lazyRouteView } from '@cookbook/router-react';
 ```
 

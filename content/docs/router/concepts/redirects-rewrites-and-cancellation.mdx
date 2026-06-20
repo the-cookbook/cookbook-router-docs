@@ -22,7 +22,7 @@ Redirects, rewrites, blockers, middleware cancellation, and lifecycle cancellati
 <Tabs items={['Core router', 'React integration']}>
   <Tab value="Core router">
 
-```ts
+```ts ts2js
 const result = await router.navigate.to(
   'dashboard',
 );
@@ -40,7 +40,7 @@ Use the returned state to inspect whether the transition committed, blocked, red
 
   <Tab value="React integration">
 
-```tsx
+```tsx ts2js
 import {
   Link,
   useNavigation,
@@ -117,7 +117,7 @@ Static route redirects happen before blockers, lifecycle hooks, and middleware f
 
 Use the route `redirect` property when reaching one route should always resolve another target.
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'main',
@@ -145,7 +145,7 @@ Opening `/` resolves `overview`. The redirect route is never committed as the ac
 
 Object-form redirects generate an internal href from a route ID:
 
-```ts
+```ts ts2js
 {
   id: 'legacy-profile',
   path: '/profile',
@@ -164,7 +164,7 @@ Object-form redirects generate an internal href from a route ID:
 
 The object can provide:
 
-```ts
+```ts ts2js
 interface RouteRedirectTarget {
   readonly route: string;
   readonly params?: Record<string, unknown>;
@@ -179,7 +179,7 @@ Use object form for internal targets when the redirect can be expressed with fix
 
 A string redirect is treated as a literal href:
 
-```ts
+```ts ts2js
 {
   id: 'legacy-dashboard',
   path: '/dashboard-old',
@@ -189,7 +189,7 @@ A string redirect is treated as a literal href:
 
 Absolute URLs are external redirects:
 
-```ts
+```ts ts2js
 {
   id: 'external-docs',
   path: '/documentation',
@@ -218,7 +218,7 @@ Use middleware when the destination depends on session state, parsed params, sea
 
 Middleware redirects are for decisions made while a transition is running.
 
-```ts
+```ts ts2js
 const requireAuth = ({
   route,
   location,
@@ -240,7 +240,7 @@ const requireAuth = ({
 
 Register it globally:
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   middleware: [requireAuth],
@@ -249,7 +249,7 @@ const router = createRouter({
 
 or on a route:
 
-```ts
+```ts ts2js
 {
   id: 'account',
   path: '/account',
@@ -266,7 +266,7 @@ Middleware `redirect(to)` requires a non-empty string target.
 
 Middleware can derive a destination from parsed URL state:
 
-```ts
+```ts ts2js
 const redirectLegacyUser = ({
   params,
   redirect,
@@ -283,7 +283,7 @@ const redirectLegacyUser = ({
 };
 ```
 
-```ts
+```ts ts2js
 {
   id: 'legacy-user',
   path: '/u/{id:int}',
@@ -305,7 +305,7 @@ The redirect target goes through matching, blockers, lifecycle hooks, middleware
 
 A rewrite resolves another **internal** location without writing that target to history.
 
-```ts
+```ts ts2js
 const requireAuth = ({
   route,
   location,
@@ -388,13 +388,13 @@ For that reason, a rewrite should not be described simply as “keeping the requ
 
 A rewrite target must be internal:
 
-```ts
+```ts ts2js
 rewrite('/login');
 ```
 
 This produces an error state:
 
-```ts
+```ts ts2js
 rewrite('https://example.com');
 ```
 
@@ -410,7 +410,7 @@ There are three cancellation layers.
 
 Use `router.block()` for runtime guards such as unsaved work:
 
-```ts
+```ts ts2js
 const unblock = router.block(() => {
   if (!formIsDirty()) {
     return;
@@ -427,7 +427,7 @@ A blocker returns:
 * `false` to block.
 * `true` or `void` to allow.
 
-```ts
+```ts ts2js
 const unblock = router.block(() => false);
 
 // Later
@@ -442,7 +442,7 @@ Throwing from a blocker places the router in the error state for the attempted l
 
 The React integration registers a router blocker and a browser `beforeunload` listener:
 
-```tsx
+```tsx ts2js
 import {
   useBlocker,
 } from '@cookbook/router-react';
@@ -467,7 +467,7 @@ Browser unload confirmation is controlled by the browser. Custom unload text is 
 
 Before-navigation lifecycle hooks cancel by returning `false`:
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'editor',
@@ -485,7 +485,7 @@ const routes = defineRoutes([
 
 Cancellation-capable lifecycle hooks are:
 
-```ts
+```ts ts2js
 interface GlobalLifecycle {
   readonly beforeNavigate?: (
     context: RouteLifecycleContext,
@@ -517,7 +517,7 @@ Use middleware when the result must redirect or rewrite. Return `false` when lif
 
 Middleware can cancel explicitly:
 
-```ts
+```ts ts2js
 const requirePermission = ({
   cancel,
 }: MiddlewareContext) => {
@@ -529,7 +529,7 @@ const requirePermission = ({
 
 Returning `false` has the same result:
 
-```ts
+```ts ts2js
 const requirePermission = () => {
   if (!permissions.canOpenReports()) {
     return false; // [!code highlight]
@@ -545,7 +545,7 @@ Global middleware runs before route-level middleware. Route-level middleware fol
 
 Cancellation from a blocker, lifecycle hook, or middleware produces:
 
-```ts
+```ts ts2js
 router.state.navigation === 'blocked';
 ```
 
@@ -559,7 +559,7 @@ Cancellation does not produce an error fallback.
 
 Middleware may return a `Response`:
 
-```ts
+```ts ts2js
 const requireAuthorization = () => {
   return new Response('Forbidden', {
     status: 403,
@@ -569,7 +569,7 @@ const requireAuthorization = () => {
 
 The current router runtime treats the `Response` as navigation error state:
 
-```ts
+```ts ts2js
 router.state.navigation === 'error';
 router.state.error instanceof Response;
 ```
@@ -584,7 +584,7 @@ The router does not automatically:
 
 A redirecting response does not replace `redirect()`:
 
-```ts
+```ts ts2js
 // Does not perform router redirection
 return new Response(null, {
   status: 302,
@@ -602,7 +602,7 @@ SSR or platform integrations that need HTTP response handling must inspect route
 
 Throwing from a blocker, lifecycle hook, or middleware enters the navigation error path.
 
-```ts
+```ts ts2js
 const requireConfiguration = () => {
   if (!configuration.isLoaded()) {
     throw new Error(
@@ -626,7 +626,7 @@ Every redirect and rewrite starts another internal transition.
 
 The router protects against loops with:
 
-```ts
+```ts ts2js
 createRouter({
   routes,
   maxRedirectDepth: 10,
@@ -651,7 +651,7 @@ Navigation exceeded the maximum redirect count.
 
 The deprecated alias remains accepted:
 
-```ts
+```ts ts2js
 createRouter({
   routes,
   maxRedirectionDepth: 10,
@@ -669,7 +669,7 @@ Prefer `maxRedirectDepth` in new code.
 * A URL has permanently moved inside the application.
 * The target can be expressed without runtime context.
 
-```ts
+```ts ts2js
 {
   id: 'settings.index',
   index: true,
@@ -686,7 +686,7 @@ Prefer `maxRedirectDepth` in new code.
 * The visible browser URL should become the redirect target.
 * The navigation may leave the application.
 
-```ts
+```ts ts2js
 return redirect('/login');
 ```
 
@@ -697,7 +697,7 @@ return redirect('/login');
 * Router state and browser history are intentionally allowed to differ.
 * The target must remain internal.
 
-```ts
+```ts ts2js
 return rewrite('/login');
 ```
 
@@ -707,7 +707,7 @@ return rewrite('/login');
 * The guard must apply across route transitions.
 * React should also protect browser unload.
 
-```ts
+```ts ts2js
 router.block(() => !formIsDirty());
 ```
 

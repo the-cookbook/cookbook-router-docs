@@ -23,7 +23,7 @@ Serialization belongs to the core router. React hydration consumes the same seri
 
 Server:
 
-```ts
+```ts ts2js
 const router = createStaticRouter({
   routes,
   request,
@@ -36,7 +36,7 @@ const hydrationJson = stringifyRouterState(router);
 
 Client:
 
-```ts
+```ts ts2js
 const hydrationData = deserializeRouterState(
   window.__COOKBOOK_ROUTER__,
 );
@@ -55,7 +55,7 @@ This works for any renderer that can use the core router state.
 
 Server rendering uses the started static router.
 
-```tsx
+```tsx ts2js
 const html = renderToString(
   <StaticRouterProvider
     router={router}
@@ -66,7 +66,7 @@ const html = renderToString(
 
 Client hydration creates the browser router with the same serialized state.
 
-```tsx
+```tsx ts2js
 hydrateRoot(
   root,
   <RouterProvider router={router} />,
@@ -113,7 +113,7 @@ The server and client must use compatible routes and router configuration so the
 
 Create a static router for the current request and resolve it before rendering:
 
-```tsx
+```tsx ts2js
 import { renderToString } from 'react-dom/server';
 
 import {
@@ -170,7 +170,7 @@ export async function renderRequest(
 
 Read and validate the embedded value before creating the browser router:
 
-```tsx
+```tsx ts2js
 import { hydrateRoot } from 'react-dom/client';
 
 import {
@@ -219,7 +219,7 @@ hydrateRoot(
 
 **Do not** call:
 
-```ts
+```ts ts2js
 await router.start();
 ```
 
@@ -233,7 +233,7 @@ The hydrated state must be available for the first client render so React sees t
 
 The hydration payload is intentionally small:
 
-```ts
+```ts ts2js
 interface SerializedRouterState {
   readonly location: RouterLocation;
 
@@ -243,7 +243,7 @@ interface SerializedRouterState {
 
 The navigation value can be:
 
-```ts
+```ts ts2js
 type RouterNavigationState =
   | 'idle'
   | 'pending'
@@ -258,7 +258,7 @@ A normal SSR response should usually serialize a completed, successful transitio
 
 The location contains:
 
-```ts
+```ts ts2js
 interface RouterLocation {
   readonly pathname: string;
   readonly search: string;
@@ -271,7 +271,7 @@ interface RouterLocation {
 
 For example:
 
-```ts
+```ts ts2js
 {
   location: {
     pathname: '/users/42',
@@ -359,13 +359,13 @@ Cookbook Router exposes four related operations.
 
 The runtime method returns the current minimal snapshot:
 
-```ts
+```ts ts2js
 const state = router.serialize();
 ```
 
 Its implementation is equivalent to:
 
-```ts
+```ts ts2js
 {
   location: router.state.location,
   navigation: router.state.navigation,
@@ -380,7 +380,7 @@ Do not insert this directly into HTML with raw `JSON.stringify()`.
 
 Use `serializeRouterState()` when a validated object is needed:
 
-```ts
+```ts ts2js
 import { serializeRouterState } from '@cookbook/router';
 
 const hydrationData = serializeRouterState(router);
@@ -401,7 +401,7 @@ It does not return a JSON string.
 
 Use `stringifyRouterState()` when embedding hydration state in HTML:
 
-```ts
+```ts ts2js
 import { stringifyRouterState } from '@cookbook/router';
 
 const json = stringifyRouterState(router);
@@ -443,19 +443,19 @@ This prevents serialized data from closing the surrounding script element.
 
 Use `deserializeRouterState()` at the receiving boundary:
 
-```ts
+```ts ts2js
 const hydrationData = deserializeRouterState(window.__COOKBOOK_ROUTER__);
 ```
 
 It accepts either:
 
-```ts
+```ts ts2js
 SerializedRouterState
 ```
 
 or:
 
-```ts
+```ts ts2js
 string
 ```
 
@@ -522,7 +522,7 @@ It cannot contain a null character.
 
 The following must be equal:
 
-```ts
+```ts ts2js
 location.href ===
   `${location.pathname}${location.search}${location.hash}`;
 ```
@@ -541,7 +541,7 @@ The navigation value must be one of the supported router navigation states.
 
 Unknown values are rejected:
 
-```ts
+```ts ts2js
 {
   navigation: 'complete',
 }
@@ -575,7 +575,7 @@ Functions, symbols, and bigint values are not preserved. Object instances lose t
 
 Use plain JSON-like data:
 
-```ts
+```ts ts2js
 {
   source: 'gallery',
   position: 3,
@@ -600,7 +600,7 @@ JSON number behavior also applies. Values such as `NaN` and `Infinity` do not su
 
 This is not the correct HTML embedding path:
 
-```ts
+```ts ts2js
 JSON.stringify(
   router.serialize(),
 );
@@ -624,7 +624,7 @@ Raw JSON embedded in an inline script can terminate the original script element.
 
 Use:
 
-```ts
+```ts ts2js
 stringifyRouterState(router);
 ```
 
@@ -671,7 +671,7 @@ Instead, the router:
 * Recomputes its match from that serialized location
 * Stores a hydration mismatch error in `router.state.error`
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   hydrationData,
@@ -737,7 +737,7 @@ This lets typed hash parsing run after the initial hydration boundary.
 
 This is unsafe for SSR hydration:
 
-```tsx
+```tsx ts2js
 const router = createRouter({
   routes,
   hydrationData,
@@ -755,7 +755,7 @@ When the browser has a client-only hash, `router.start()` resolves that hash bef
 
 Use:
 
-```tsx
+```tsx ts2js
 const router = createRouter({
   routes,
   hydrationData,
@@ -782,7 +782,7 @@ Passing `hydrationData` initializes:
 
 It does not set:
 
-```ts
+```ts ts2js
 router.started;
 ```
 
@@ -792,7 +792,7 @@ The client router still needs a startup transition.
 
 By default, `RouterProvider` starts it after mounting:
 
-```tsx
+```tsx ts2js
 <RouterProvider router={router} />
 ```
 
@@ -814,7 +814,7 @@ Code shared between server and client should tolerate running once in each envir
 
 Middleware passed to `RouterProvider` is registered before the provider starts the router:
 
-```tsx
+```tsx ts2js
 <RouterProvider
   router={router}
   middleware={[
@@ -831,7 +831,7 @@ Do not manually start the router before mounting the provider when provider midd
 
 `SerializedRouterState` includes the navigation value but not:
 
-```ts
+```ts ts2js
 router.state.error;
 ```
 
@@ -839,7 +839,7 @@ This means a server exception, returned `Response`, lifecycle error, or middlewa
 
 For example, a server router can contain:
 
-```ts
+```ts ts2js
 {
   navigation: 'error',
   error: serverError,
@@ -848,7 +848,7 @@ For example, a server router can contain:
 
 but serialization only carries:
 
-```ts
+```ts ts2js
 {
   navigation: 'error',
   location,
@@ -894,7 +894,7 @@ SSR integrations must deliberately map routing outcomes:
 
 `createMemoryRouter()` uses the hydration location as its initial history entry:
 
-```ts
+```ts ts2js
 const clientRouter = createMemoryRouter({
     routes,
     hydrationData,
@@ -909,7 +909,7 @@ When `hydrationData` is provided:
 
 This is useful for SSR-style tests:
 
-```ts
+```ts ts2js
 const serverRouter = createMemoryRouter({
     routes,
     initialEntries: [
@@ -955,7 +955,7 @@ Router hydration only reconstructs route state.
 
 Application data needs a separate mechanism:
 
-```tsx
+```tsx ts2js
 <script>
   window.__QUERY_STATE__ = ...;
 </script>

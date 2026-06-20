@@ -30,7 +30,7 @@ Interception has two layers: core state and adapter rendering.
 
 The core router records the destination match and the intercepted rendering state.
 
-```ts
+```ts ts2js
 const state = await router.navigate.to({
   route: 'photos.show',
   params: {
@@ -57,7 +57,7 @@ A custom renderer can inspect `match.intercepted` and `match.slots` to decide ho
 
 React renders the intercepted target through a source-owned `<Slot />`.
 
-```tsx
+```tsx ts2js
 import { Link } from '@cookbook/router-react';
 
 <Link
@@ -112,7 +112,7 @@ Interception is therefore not a rewrite:
 
 Declare a modal slot in the source layout:
 
-```tsx title="src/gallery/gallery-layout.tsx"
+```tsx ts2js title="src/gallery/gallery-layout.tsx"
 import {
   Outlet,
   Slot,
@@ -140,7 +140,7 @@ export function GalleryLayout() {
 
 Configure the source route to intercept the photo destination:
 
-```tsx title="src/routes.tsx"
+```tsx ts2js title="src/routes.tsx"
 import { defineRoutes } from '@cookbook/router';
 
 export const routes = defineRoutes([
@@ -181,7 +181,7 @@ export const routes = defineRoutes([
 
 Navigate normally from the gallery:
 
-```tsx title="src/gallery/gallery-page.tsx"
+```tsx ts2js title="src/gallery/gallery-page.tsx"
 import { Link } from '@cookbook/router-react';
 
 export function GalleryPage() {
@@ -242,7 +242,7 @@ The destination still owns:
 
 The alternate view rendered inside the source slot:
 
-```tsx
+```tsx ts2js
 function PhotoModal() {
   const params = useParams('photos.show');
 
@@ -262,7 +262,7 @@ The intercept view receives the rendered destination branch as its outlet.
 
 Use `<Outlet />` when the modal or drawer should wrap the canonical destination UI:
 
-```tsx
+```tsx ts2js
 import {
   Outlet,
   useRouter,
@@ -287,7 +287,7 @@ In this example, `<Outlet />` renders the resolved `photos.show` destination bra
 
 The intercept view can also ignore the outlet and render purpose-built modal UI:
 
-```tsx
+```tsx ts2js
 import {
   useParams,
   useRouter,
@@ -322,7 +322,7 @@ Use a custom intercept view when the modal experience should differ from the ful
 
 Configured intercepts belong to the source route:
 
-```tsx
+```tsx ts2js
 {
   id: 'gallery',
   path: '/gallery',
@@ -345,7 +345,7 @@ Configured intercepts belong to the source route:
 
 The configuration is keyed by slot name.
 
-```ts
+```ts ts2js
 interface RouteInterceptConfig {
   readonly to:
     | string
@@ -357,7 +357,7 @@ interface RouteInterceptConfig {
 
 One intercept can handle multiple destinations:
 
-```tsx
+```tsx ts2js
 intercepts: {
   modal: {
     to: [
@@ -384,7 +384,7 @@ The slot may be declared:
 
 For example:
 
-```tsx
+```tsx ts2js
 {
   id: 'app',
   path: '/',
@@ -416,7 +416,7 @@ For example:
 
 The layout must also render the slot:
 
-```tsx
+```tsx ts2js
 function AppLayout() {
   return (
     <>
@@ -435,7 +435,7 @@ A declared but unrendered slot produces no visible intercept UI.
 
 Configured intercepts are automatic during client navigation.
 
-```tsx
+```tsx ts2js
 <Link
   route="photos.show"
   params={{ photoId: 42 }}
@@ -454,7 +454,7 @@ When more than one configured slot can intercept the same destination, specify t
 
 A string `intercept` value selects an existing configured intercept:
 
-```tsx
+```tsx ts2js
 <Link
   route="photos.show"
   params={{ photoId: 42 }}
@@ -468,7 +468,7 @@ The string does not create a new intercept view.
 
 This only works when the active source branch already declares a matching configuration:
 
-```tsx
+```tsx ts2js
 intercepts: {
   modal: {
     to: 'photos.show',
@@ -479,7 +479,7 @@ intercepts: {
 
 This does not provide a view by itself:
 
-```tsx
+```tsx ts2js
 <Link
   route="photos.show"
   params={{ photoId: 42 }}
@@ -501,7 +501,7 @@ Use the string form to:
 
 Use object form when one navigation needs a custom view that is not declared in route configuration:
 
-```tsx
+```tsx ts2js
 <Link
   route="photos.show"
   params={{ photoId: 42 }}
@@ -516,7 +516,7 @@ Use object form when one navigation needs a custom view that is not declared in 
 
 Object form requires:
 
-```ts
+```ts ts2js
 interface CallSiteInterceptInput {
   readonly slot: string;
   readonly view: RouteView;
@@ -529,7 +529,7 @@ A call-site object does not require a configured `intercepts` entry for that des
 
 The same option is available programmatically:
 
-```ts
+```ts ts2js
 await router.navigate.to(
   'photos.show',
   {
@@ -549,7 +549,7 @@ await router.navigate.to(
 
 Pass `false` when one navigation should open the canonical destination:
 
-```tsx
+```tsx ts2js
 <Link
   route="photos.show"
   params={{ photoId: 42 }}
@@ -561,7 +561,7 @@ Pass `false` when one navigation should open the canonical destination:
 
 This is useful inside an active modal:
 
-```tsx
+```tsx ts2js
 function PhotoModal() {
   const params = useParams('photos.show');
 
@@ -595,7 +595,7 @@ This prevents the destination from becoming trapped inside the current modal.
 
 Use:
 
-```tsx
+```tsx ts2js
 intercept={false}
 ```
 
@@ -603,7 +603,7 @@ when canonical navigation should be explicit.
 
 Use:
 
-```tsx
+```tsx ts2js
 intercept="modal"
 ```
 
@@ -613,7 +613,7 @@ when another configured modal interception is deliberately required.
 
 An intercepted navigation commits the destination URL:
 
-```ts
+```ts ts2js
 await router.navigate.to(
   'photos.show',
   {
@@ -626,7 +626,7 @@ await router.navigate.to(
 
 The resulting state resembles:
 
-```ts
+```ts ts2js
 router.state.location.href;
 // '/photos/42'
 
@@ -653,7 +653,7 @@ The core router state describes the destination.
 
 This means global state hooks still observe the destination:
 
-```tsx
+```tsx ts2js
 const location = useLocation();
 // /photos/42
 
@@ -663,7 +663,7 @@ const matches = useMatches();
 
 Inside the intercept view, local route hooks also read the destination:
 
-```tsx
+```tsx ts2js
 const params = useParams('photos.show');
 
 const search = useSearchParams('photos.show');
@@ -704,7 +704,7 @@ History entry 2: /photos/42 + intercept state
 
 Going back closes the intercepted UI:
 
-```ts
+```ts ts2js
 router.navigate.back();
 ```
 
@@ -727,7 +727,7 @@ This gives modal navigation normal browser behavior:
 
 A replaced intercept does not preserve the source as a separate history entry:
 
-```tsx
+```tsx ts2js
 <Link
   route="photos.show"
   params={{ photoId: 42 }}
@@ -774,7 +774,7 @@ This preserves progressive URL behavior: the link always points to a real page.
 
 Pass navigation-specific data through `context`:
 
-```tsx
+```tsx ts2js
 <Link
   route="photos.show"
   params={{ photoId: 42 }}
@@ -789,7 +789,7 @@ Pass navigation-specific data through `context`:
 
 Read it from the intercept view:
 
-```tsx
+```tsx ts2js
 interface PhotoInterceptContext {
   readonly source: string;
   readonly position: number;
@@ -816,7 +816,7 @@ Intercept context is stored in browser history state so Back and Forward can res
 
 Use structured-clone-safe data:
 
-```tsx
+```tsx ts2js
 context={{
   source: 'gallery',
   photoId: 42,
@@ -859,7 +859,7 @@ An intercept view uses the destination route’s render context and route bounda
 
 A destination route can provide:
 
-```tsx
+```tsx ts2js
 {
   id: 'photos.show',
   path: '/photos/{photoId:int}',
@@ -871,7 +871,7 @@ A destination route can provide:
 
 The source slot can also isolate render errors:
 
-```tsx
+```tsx ts2js
 <Slot
   name="modal"
   errorFallback={PhotoModalError}
@@ -882,7 +882,7 @@ When a slot-local error fallback is provided, it owns render errors for the inte
 
 Pass `null` to catch the failure and render nothing:
 
-```tsx
+```tsx ts2js
 <Slot
   name="modal"
   errorFallback={null}
@@ -895,7 +895,7 @@ See [Loading and errors](/docs/router/concepts/loading-and-errors) for fallback 
 
 Normal route preloading warms the canonical destination branch:
 
-```tsx
+```tsx ts2js
 <Link
   route="photos.show"
   params={{ photoId: 42 }}
@@ -909,7 +909,7 @@ Link prefetch does not automatically preload a configured or inline intercept vi
 
 Warm a lazy intercept view explicitly when necessary:
 
-```tsx
+```tsx ts2js
 const PhotoModal = lazyRouteView(() => import('./photo-modal'));
 
 export const galleryRoute = defineRoute({
@@ -947,7 +947,7 @@ Cookbook Router rejects:
 
 Valid:
 
-```tsx
+```tsx ts2js
 intercepts: {
   modal: {
     to: 'photos.show',
@@ -958,7 +958,7 @@ intercepts: {
 
 Invalid:
 
-```tsx
+```tsx ts2js
 intercepts: {
   modal: {
     to: 'missing.route',
@@ -971,7 +971,7 @@ Call-site intercepts are validated at navigation time.
 
 An object call-site intercept without a view throws:
 
-```tsx
+```tsx ts2js
 intercept={{
   slot: 'modal',
 }}
@@ -988,7 +988,7 @@ A call-site request for an unavailable slot throws in development. Production fa
 * Back and Forward should restore the same configured view
 * The interaction is part of the route architecture
 
-```tsx
+```tsx ts2js
 intercepts: {
   modal: {
     to: 'photos.show',
@@ -1002,7 +1002,7 @@ intercepts: {
 * Multiple configured slots can handle the destination
 * One navigation must explicitly select a configured slot
 
-```tsx
+```tsx ts2js
 intercept="modal"
 ```
 
@@ -1012,7 +1012,7 @@ intercept="modal"
 * The route configuration should not own the alternate view
 * The destination should use a different slot for one interaction
 
-```tsx
+```tsx ts2js
 intercept={{
   slot: 'drawer',
   view: CompactPreview,
@@ -1025,7 +1025,7 @@ intercept={{
 * A link inside a modal should leave interception
 * One interaction must bypass automatic source configuration
 
-```tsx
+```tsx ts2js
 intercept={false}
 ```
 

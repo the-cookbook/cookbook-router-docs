@@ -9,7 +9,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 ## Server
 
-```ts
+```ts ts2js
 import { createStaticRouter, stringifyRouterState } from '@cookbook/router';
 
 const router = createStaticRouter({ routes, url: request.url });
@@ -22,7 +22,7 @@ Escape/embed the JSON using the security rules of your server framework. Seriali
 
 ## Client
 
-```ts
+```ts ts2js
 import { createRouter, deserializeRouterState } from '@cookbook/router';
 
 const hydrationData = deserializeRouterState(window.__ROUTER_STATE__);

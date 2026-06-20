@@ -23,7 +23,7 @@ Static routing is core. React is one rendering adapter.
 
 A core renderer can produce any output type from the started static router.
 
-```ts
+```ts ts2js
 import {
   createStaticRouter,
   renderRouteMatch,
@@ -56,7 +56,7 @@ The renderer decides what `RouteView` means. The static router only resolves the
 
 React SSR renders the already-started static router with `StaticRouterProvider`.
 
-```tsx
+```tsx ts2js
 const appHtml = renderToString(
   <StaticRouterProvider
     router={router}
@@ -103,7 +103,7 @@ A static router is mutable router state. Sharing one across requests leaks reque
 
 ## Server render
 
-```tsx title="src/server.tsx"
+```tsx ts2js title="src/server.tsx"
 import { renderToString } from 'react-dom/server';
 import {
   createStaticRouter,
@@ -194,7 +194,7 @@ Cookbook Router static rendering requires a started router. Call `await router.s
 
 `createStaticRouter()` accepts a relative string, an HTTP or HTTPS `URL`, or a `Request`.
 
-```ts
+```ts ts2js
 createStaticRouter({
   routes,
   url: '/articles/typed-routing?preview=true',
@@ -260,7 +260,7 @@ Internal redirects can still resolve another router location during `start()` be
 
 Request middleware and lifecycle hooks must be attached before `router.start()`.
 
-```ts
+```ts ts2js
 const router = createStaticRouter({
   routes,
   request,
@@ -285,7 +285,7 @@ await router.start();
 
 They can also be registered through `router.useMiddleware()` before startup:
 
-```ts
+```ts ts2js
 const unregister = router.useMiddleware([requestMiddleware]);
 
 try {
@@ -303,7 +303,7 @@ Middleware may return a `Response`.
 
 The router stores that `Response` in `state.error`; it does not send it for you.
 
-```ts
+```ts ts2js
 const router = createStaticRouter({
   routes,
   request,
@@ -350,7 +350,7 @@ Your server adapter must turn initial-request redirects into HTTP redirects befo
 
 One possible adapter policy is to compare the requested pathname/search with the resolved pathname/search and emit a redirect when they differ:
 
-```ts
+```ts ts2js
 const requestUrl = new URL(request.url);
 const state = await router.start();
 
@@ -399,7 +399,7 @@ See [Redirects, rewrites, and cancellation](/docs/router/concepts/redirects-rewr
 
 Cookbook Router exposes three helpers around the minimal hydration snapshot:
 
-```ts
+```ts ts2js
 import {
   deserializeRouterState,
   serializeRouterState,
@@ -428,7 +428,7 @@ It does not contain the route tree, matched branch, middleware, lifecycle hooks,
 
 Use it instead of:
 
-```ts
+```ts ts2js
 JSON.stringify(router.serialize());
 ```
 
@@ -440,7 +440,7 @@ For the complete serialized shape and validation behavior, see [Serialization an
 
 The raw script assignment in the server example evaluates the JSON expression and stores an object on `window`.
 
-```tsx title="src/main.tsx"
+```tsx ts2js title="src/main.tsx"
 import { hydrateRoot } from 'react-dom/client';
 import {
   createRouter,
@@ -490,7 +490,7 @@ hydrateRoot(
 
 Do not call:
 
-```ts
+```ts ts2js
 await router.start();
 ```
 
@@ -512,7 +512,7 @@ Use compatible values for:
 
 Static and browser router creation use different property names for the last item:
 
-```ts
+```ts ts2js
 const staticRouter = createStaticRouter({
     routes,
     request,

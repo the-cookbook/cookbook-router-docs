@@ -9,7 +9,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 The `@cookbook/router/rendering` entrypoint is the renderer-neutral branch traversal API.
 
-```ts
+```ts ts2js
 import { renderRouteMatch } from '@cookbook/router/rendering';
 
 import type {
@@ -68,7 +68,7 @@ Do not deep-import them from `dist/` or `src/`.
 
 ## `renderRouteMatch()`
 
-```ts
+```ts ts2js
 function renderRouteMatch<
   View = RouteView,
   Output = unknown,
@@ -80,7 +80,7 @@ function renderRouteMatch<
 
 Traverses a resolved route match and returns renderer output.
 
-```ts
+```ts ts2js
 interface RenderRouteMatchOptions<
   View = RouteView,
   Output = unknown,
@@ -176,7 +176,7 @@ interface RenderRouteMatchOptions<
 
 A missing match is an empty state:
 
-```ts
+```ts ts2js
 renderRouteMatch(null, {
   fallback: 'not-found',
   renderView: (view) => String(view),
@@ -186,7 +186,7 @@ renderRouteMatch(null, {
 
 With `renderEmpty`, the adapter owns the empty-state output:
 
-```ts
+```ts ts2js
 renderRouteMatch(null, {
   fallback: 'fallback',
   renderView: (view) => String(view),
@@ -199,7 +199,7 @@ renderRouteMatch(null, {
 
 ## Minimal adapter example
 
-```ts
+```ts ts2js
 import { renderRouteMatch } from '@cookbook/router/rendering';
 import type { RouteView } from '@cookbook/router/route-config';
 
@@ -285,7 +285,7 @@ For each branch entry, traversal does this:
 
 Route without a `view`:
 
-```ts
+```ts ts2js
 {
   id: 'group',
   path: 'group',
@@ -320,7 +320,7 @@ Loading views are surfaced through `renderBoundary()` metadata.
 
 ## Shared view context
 
-```ts
+```ts ts2js
 interface RouteViewContext<Output = unknown> {
   readonly match: MatchedRoute;
   readonly outlet: Output;
@@ -359,7 +359,7 @@ Do not mutate `match`, `outlet`, or `slots`.
 
 ## Layout context
 
-```ts
+```ts ts2js
 interface RouteLayoutViewContext<Output = unknown>
   extends RouteViewContext<Output> {
   readonly ownerRouteId: string;
@@ -377,7 +377,7 @@ interface RouteLayoutViewContext<Output = unknown>
 
 `renderLayout()` receives the layout shell view after the route content has been boundary-wrapped.
 
-```ts
+```ts ts2js
 renderLayout(view, context) {
   return renderLayoutShell(view, {
     route: context.match,
@@ -392,7 +392,7 @@ When `renderLayout` is absent, traversal uses `renderView()` with the layout vie
 
 ## Boundary and fallback contracts
 
-```ts
+```ts ts2js
 interface ResolvedRouteFallback<
   View = RouteView,
 > {
@@ -449,7 +449,7 @@ interface RouteBoundaryViewContext<
 
 `renderBoundary()` is where an adapter installs Suspense-like and error-boundary behavior.
 
-```ts
+```ts ts2js
 renderBoundary(content, context) {
   return createBoundary({
     content,
@@ -480,7 +480,7 @@ When `renderBoundary` is omitted, traversal returns content without adapter boun
 
 ## Loading context
 
-```ts
+```ts ts2js
 interface RouteLoadingViewContext<Output = unknown>
   extends RouteViewContext<Output> {
   readonly source: 'route' | 'layout';
@@ -502,7 +502,7 @@ Current traversal does not invoke `renderLoading()` directly.
 
 Instead, it passes loading fallback metadata to `renderBoundary()`:
 
-```ts
+```ts ts2js
 renderBoundary(content, context) {
   const loading = context.loading;
 
@@ -517,7 +517,7 @@ Do not build an adapter that depends on direct `renderLoading()` invocation with
 
 ## Error context
 
-```ts
+```ts ts2js
 interface RouteErrorViewContext<Output = unknown>
   extends RouteViewContext<Output> {
   readonly error: unknown;
@@ -542,7 +542,7 @@ interface RouteErrorViewContext<Output = unknown>
 
 When a selected route/layout error fallback exists, traversal converts it with `renderError()` or `renderView()`.
 
-```ts
+```ts ts2js
 renderError(view, context) {
   return renderErrorFallback(view, {
     error: context.error,
@@ -554,7 +554,7 @@ renderError(view, context) {
 
 When `options.error` exists and no error fallback exists, traversal renders an empty route state:
 
-```ts
+```ts ts2js
 {
   reason: 'empty-route',
   match,
@@ -567,7 +567,7 @@ Thrown framework render errors are not caught by core traversal. They belong to 
 
 ## Slot context
 
-```ts
+```ts ts2js
 interface RouteSlotViewContext<Output = unknown>
   extends RouteViewContext<Output> {
   readonly ownerRouteId: string;
@@ -610,7 +610,7 @@ Slot behavior is driven by `ResolvedSlot.status`.
 
 Configured slot fallback example:
 
-```ts
+```ts ts2js
 {
   id: 'dashboard',
   path: '/dashboard',
@@ -650,7 +650,7 @@ That gives adapters and hooks a stable route context for fallback slot content.
 
 ## Intercept context
 
-```ts
+```ts ts2js
 interface RouteInterceptViewContext<Output = unknown>
   extends RouteViewContext<Output> {
   readonly ownerRouteId: string;
@@ -693,7 +693,7 @@ Traversal:
 5. converts the intercept shell through `renderIntercept()` or `renderView()`;
 6. wraps the intercept shell in its own boundary.
 
-```ts
+```ts ts2js
 renderIntercept(view, context) {
   return renderModalShell(view, {
     ownerRouteId: context.ownerRouteId,
@@ -709,7 +709,7 @@ Direct visits to an intercepted target are not intercepted by this traversal. In
 
 ## Empty context
 
-```ts
+```ts ts2js
 interface RouteEmptyViewContext {
   readonly reason:
     | 'empty-branch'
@@ -755,7 +755,7 @@ When `renderEmpty` is absent, every empty state returns `options.fallback`.
 
 That is often wrong for UI adapters. A page-level not-found might be a visible fallback, while an empty slot should usually be `null`.
 
-```ts
+```ts ts2js
 renderEmpty(context) {
   if (
     context.reason === 'not-found' &&
@@ -772,7 +772,7 @@ renderEmpty(context) {
 
 `options.error` renders a router-state error at the active leaf.
 
-```ts
+```ts ts2js
 const output = renderRouteMatch(match, {
   error: navigationError,
   fallback: empty(),
@@ -788,7 +788,7 @@ const output = renderRouteMatch(match, {
 
 Route-local error fallback:
 
-```ts
+```ts ts2js
 {
   id: 'home',
   path: '/',
@@ -799,7 +799,7 @@ Route-local error fallback:
 
 Layout-level inherited error fallback:
 
-```ts
+```ts ts2js
 {
   id: 'root',
   path: '/',
@@ -829,7 +829,7 @@ When no error fallback exists, traversal renders `empty-route`.
 
 It resolves ownership and passes metadata to `renderBoundary()`.
 
-```ts
+```ts ts2js
 renderBoundary(content, context) {
   if (context.loading) {
     return installAsyncBoundary(content, {
@@ -845,7 +845,7 @@ renderBoundary(content, context) {
 
 Route-local loading fallback:
 
-```ts
+```ts ts2js
 {
   id: 'users.details',
   path: '/users/{id:int}',
@@ -856,7 +856,7 @@ Route-local loading fallback:
 
 Layout-level inherited loading fallback:
 
-```ts
+```ts ts2js
 {
   id: 'dashboard',
   path: '/dashboard',
@@ -878,7 +878,7 @@ A route-level loading fallback is selected for that route’s own leaf view. A l
 
 ## Slot and intercept example
 
-```ts
+```ts ts2js
 const output = renderRouteMatch(match, {
   fallback: empty(),
 
@@ -949,7 +949,7 @@ It traverses an already-resolved match and delegates conversion.
 
 This will not run in the current traversal:
 
-```ts
+```ts ts2js
 renderRouteMatch(match, {
   fallback,
   renderView,
@@ -965,7 +965,7 @@ Use `renderBoundary()` and read `context.loading`.
 
 This renders a router-state error at the active leaf:
 
-```ts
+```ts ts2js
 renderRouteMatch(match, {
   error,
   fallback,
@@ -986,7 +986,7 @@ For UI adapters, that usually paints the page not-found UI inside a slot.
 
 Use `renderEmpty()`:
 
-```ts
+```ts ts2js
 renderEmpty(context) {
   if (context.slot) {
     return nullOutput();
@@ -998,7 +998,7 @@ renderEmpty(context) {
 
 ### The boundary argument is not the same as `context.outlet`
 
-```ts
+```ts ts2js
 renderBoundary(content, context) {
   // content: current rendered route/intercept/slot content
   // context.outlet: child outlet carried in context
@@ -1011,7 +1011,7 @@ Adapters that wrap the wrong one install boundaries around the wrong part of the
 
 This is wrong in core-level adapter code:
 
-```ts
+```ts ts2js
 view(context);
 ```
 

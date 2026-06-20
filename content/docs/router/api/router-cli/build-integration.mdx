@@ -9,7 +9,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 `@cookbook/router-cli` exposes shared build integration primitives used by bundler plugins.
 
-```ts
+```ts ts2js
 import {
   applyRouterCompilerBuildHooks,
   createRouterBuildRunner,
@@ -39,7 +39,7 @@ They do not define a universal plugin protocol. Each bundler still owns its own 
 
 ## Shared plugin options
 
-```ts
+```ts ts2js
 interface CookbookRouterBuilderPluginOptions {
   readonly cwd?: string;
   readonly configFile?: string;
@@ -88,7 +88,7 @@ Vite has its own plugin option shape. It derives `cwd` from the resolved Vite ro
 
 ## `createRouterBuildRunner(options?)`
 
-```ts
+```ts ts2js
 interface RouterBuildRunnerResult
   extends CommandResult {
   readonly watchPaths: readonly string[];
@@ -135,7 +135,7 @@ Creates a one-method build runner.
 
 It returns:
 
-```ts
+```ts ts2js
 {
   ok: false,
   files: [],
@@ -147,7 +147,7 @@ It returns:
 
 If an unexpected exception is thrown, the result includes the normalized original error:
 
-```ts
+```ts ts2js
 {
   ok: false,
   files: [],
@@ -162,7 +162,7 @@ Watch paths and output directory are still returned after failure. That lets a b
 
 ## `resolveRouterBuildWatchState(options?)`
 
-```ts
+```ts ts2js
 interface RouterBuildWatchState {
   readonly watchPaths: readonly string[];
   readonly outDir: string;
@@ -177,7 +177,7 @@ Resolves watch inputs without forcing route files to exist.
 
 It first calls effective route option resolution with:
 
-```ts
+```ts ts2js
 allowEmptyRouteFiles: true
 ```
 
@@ -200,7 +200,7 @@ The fallback does not inspect the filesystem.
 
 It exists so broken or missing input can recover after a file is created or fixed.
 
-```ts
+```ts ts2js
 const state =
   await resolveRouterBuildWatchState({
     cwd: 'apps/site',
@@ -218,7 +218,7 @@ state.watchPaths;
 
 ## `toRouterBuildCliOptions(options?)`
 
-```ts
+```ts ts2js
 function toRouterBuildCliOptions(
   options?: RouterBuildRunnerOptions,
 ): CliRouteOptions;
@@ -233,7 +233,7 @@ Behavior:
 * `undefined` fields are not added;
 * `cwd`, `configFile`, `outDir`, and `fs` are forwarded when supplied.
 
-```ts
+```ts ts2js
 toRouterBuildCliOptions({
   configFile: 'router.config.ts',
   routeFiles: 'src/**/*.route.tsx',
@@ -244,7 +244,7 @@ toRouterBuildCliOptions({
 
 returns:
 
-```ts
+```ts ts2js
 {
   configFile: 'router.config.ts',
   routeFiles: ['src/**/*.route.tsx'],
@@ -255,7 +255,7 @@ returns:
 
 ## `normalizeBuilderRouteFiles(routeFiles)`
 
-```ts
+```ts ts2js
 function normalizeBuilderRouteFiles(
   routeFiles:
     | string
@@ -276,7 +276,7 @@ The function does not validate whether files exist.
 
 ## `getFallbackWatchPaths(options?)`
 
-```ts
+```ts ts2js
 function getFallbackWatchPaths(
   options?: RouterBuildRunnerOptions,
 ): readonly string[];
@@ -292,7 +292,7 @@ When explicit `routeFiles` are supplied, it also includes watch paths derived fr
 
 Results are deduplicated.
 
-```ts
+```ts ts2js
 getFallbackWatchPaths({
   cwd: 'apps/site',
   routeFiles: 'src/**/*.route.tsx',
@@ -315,7 +315,7 @@ apps/site/src
 
 ### `resolveUniqueBuildPaths(root, paths)`
 
-```ts
+```ts ts2js
 function resolveUniqueBuildPaths(
   root: string,
   paths: readonly string[],
@@ -328,7 +328,7 @@ Order is first occurrence.
 
 ### `resolveBuildPath(root, path)`
 
-```ts
+```ts ts2js
 function resolveBuildPath(
   root: string,
   path: string,
@@ -347,7 +347,7 @@ This matters when a build tool passes paths already scoped to its project root.
 
 ### `normalizeBuildPath(path)`
 
-```ts
+```ts ts2js
 function normalizeBuildPath(
   path: string,
 ): string;
@@ -357,7 +357,7 @@ Normalizes path separators for comparisons.
 
 It replaces backslashes with forward slashes.
 
-```ts
+```ts ts2js
 normalizeBuildPath('a\\b\\c');
 // 'a/b/c'
 ```
@@ -366,7 +366,7 @@ It does not resolve the path.
 
 ## `formatRouterBuildErrors(errors)`
 
-```ts
+```ts ts2js
 function formatRouterBuildErrors(
   errors: readonly string[],
 ): string;
@@ -382,7 +382,7 @@ Each line is prefixed:
 
 Example:
 
-```ts
+```ts ts2js
 formatRouterBuildErrors([
   'first',
   'second',
@@ -400,7 +400,7 @@ An empty array returns an empty string.
 
 ## `applyRouterCompilerBuildHooks(compiler, options?)`
 
-```ts
+```ts ts2js
 interface RouterCompilerBuildHooksOptions
   extends RouterBuildRunnerOptions {
   readonly pluginName?: string;
@@ -436,7 +436,7 @@ This is the shared implementation used by:
 
 The compiler must provide promise hooks:
 
-```ts
+```ts ts2js
 interface RouterCompilerHook<
   Arguments extends readonly unknown[],
 > {
@@ -449,7 +449,7 @@ interface RouterCompilerHook<
 
 Compiler hooks:
 
-```ts
+```ts ts2js
 interface RouterCompilerHooks<Compiler, Compilation> {
   readonly beforeRun: RouterCompilerHook<[Compiler]>;
   readonly watchRun: RouterCompilerHook<[Compiler]>;
@@ -459,7 +459,7 @@ interface RouterCompilerHooks<Compiler, Compilation> {
 
 Compiler options:
 
-```ts
+```ts ts2js
 interface RouterCompilerOptions {
   context?: string;
   watchOptions?: {
@@ -470,7 +470,7 @@ interface RouterCompilerOptions {
 
 Compiler-like shape:
 
-```ts
+```ts ts2js
 interface RouterCompilerLike<Compiler, Compilation> {
   readonly context?: string;
   readonly options: RouterCompilerOptions;
@@ -488,7 +488,7 @@ interface RouterCompilerLike<Compiler, Compilation> {
 
 Compilation-like shape:
 
-```ts
+```ts ts2js
 interface RouterCompilationLike {
   readonly fileDependencies?: {
     add(path: string): unknown;
@@ -565,37 +565,37 @@ This prevents the output directory from creating rebuild loops.
 
 When no ignored option exists:
 
-```ts
+```ts ts2js
 watchOptions.ignored = [outDir];
 ```
 
 When ignored is an array, `outDir` is appended unless it is already present.
 
-```ts
+```ts ts2js
 ['node_modules']
 ```
 
 becomes:
 
-```ts
+```ts ts2js
 ['node_modules', outDir]
 ```
 
 When ignored is a string or regexp, it becomes an array:
 
-```ts
+```ts ts2js
 ignored
 ```
 
 becomes:
 
-```ts
+```ts ts2js
 [ignored, outDir]
 ```
 
 When ignored is a function, it is wrapped:
 
-```ts
+```ts ts2js
 watchOptions.ignored = (path) =>
   isInsideOutputDirectory(path, outDir) ||
   ignored(path);
@@ -609,7 +609,7 @@ Build hook errors are formatted with `formatRouterBuildErrors()`.
 
 If the compiler provides:
 
-```ts
+```ts ts2js
 getInfrastructureLogger(pluginName).error
 ```
 
@@ -617,13 +617,13 @@ the plugin logs there.
 
 Otherwise it writes to stderr:
 
-```ts
+```ts ts2js
 process.stderr.write(`${message}\n`);
 ```
 
 In `beforeRun`, failures are also thrown as a plain `Error` with unprefixed joined messages:
 
-```ts
+```ts ts2js
 throw new Error(result.errors.join('\n'));
 ```
 
@@ -649,7 +649,7 @@ It:
 
 Vite option shape:
 
-```ts
+```ts ts2js
 interface CookbookRouterVitePluginOptions {
   readonly configFile?: string;
   readonly routeFiles?: string | readonly string[];
@@ -665,7 +665,7 @@ interface CookbookRouterVitePluginOptions {
 
 Plugin class:
 
-```ts
+```ts ts2js
 class CookbookRouterPlugin {
   constructor(
     options?: CookbookRouterPluginOptions,
@@ -687,7 +687,7 @@ CookbookRouterPlugin
 
 Plugin class:
 
-```ts
+```ts ts2js
 class CookbookRouterRspackPlugin {
   constructor(
     options?: CookbookRouterRspackPluginOptions,
@@ -713,7 +713,7 @@ It runs in `buildStart`.
 
 For every returned watch path, it calls:
 
-```ts
+```ts ts2js
 this.addWatchFile(path);
 ```
 

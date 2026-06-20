@@ -11,7 +11,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 A login redirect should remember the user’s destination, not make them start over. Model the return URL as typed search state.
 
-```ts
+```ts ts2js
 export const loginRoute = defineRoute({
   id: 'login',
   path: '/login',
@@ -26,7 +26,7 @@ export const loginRoute = defineRoute({
 
 Redirect unauthenticated users with the current href:
 
-```ts
+```ts ts2js
 const authMiddleware: Middleware = ({ route, location, redirect }) => {
   if (route.route.meta?.access === 'public' || session.isAuthenticated()) {
     return;
@@ -38,7 +38,7 @@ const authMiddleware: Middleware = ({ route, location, redirect }) => {
 
 After login, replace the current entry with the requested destination. Pass `intercept: false` so the return trip lands on the canonical page, not inside a contextual intercept that happened to be active.
 
-```tsx
+```tsx ts2js
 import { useNavigate, useSearchParams } from '@cookbook/router-react';
 
 function LoginForm() {

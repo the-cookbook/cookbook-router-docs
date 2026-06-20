@@ -1,0 +1,124 @@
+---
+title: "Static request handling"
+description: "Resolve one request with createStaticRouter(), render the match, and serialize hydration-safe state."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+A static router resolves one URL with a read-only history adapter. Use it for server rendering, static request handling, tests, and non-DOM render passes.
+
+The router resolves the route. Your host maps the result to HTML, JSON, a response object, or another transport.
+
+## Resolve one request
+
+```ts ts2js
+import {
+  createRouter,
+  createStaticRouter,
+  deserializeRouterState,
+  defineRoutes,
+  renderRouteMatch,
+  stringifyRouterState,
+} from '@cookbook/router';
+
+const routes = defineRoutes([
+  {
+    id: 'home',
+    path: '/',
+    view: 'home',
+  },
+  {
+    id: 'not-found',
+    path: '/not-found',
+    view: 'not-found',
+  },
+] as const);
+
+export async function handleRequest(request: Request) {
+  const router = createStaticRouter({
+    routes,
+    request,
+  });
+
+  try {
+    await router.start();
+
+    const body = renderRouteMatch<string, string>(
+      router.state.match,
+      {
+        fallback: 'Not found',
+        renderView(view) {
+          return renderViewToHtml(view);
+        },
+        renderEmpty(context) {
+          return context.reason === 'not-found'
+            ? 'Not found'
+            : '';
+        },
+      },
+    );
+
+    const hydrationData = stringifyRouterState(router);
+
+    return new Response(renderDocument(body, hydrationData), {
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+      },
+    });
+  } finally {
+    router.dispose();
+  }
+}
+```
+
+Create one static router per request. Dispose it after rendering.
+
+## Use `url` for non-Request hosts
+
+```ts ts2js
+const router = createStaticRouter({
+  routes,
+  url: '/users/42?tab=activity',
+});
+
+await router.start();
+```
+
+`createStaticRouter()` accepts a `Request`, `URL`, or string URL. The lower-level static history adapter receives the resolved string.
+
+## Serialize state for hydration
+
+```ts ts2js
+const serialized = stringifyRouterState(router);
+```
+
+The serialized state contains only hydration-safe router state. It does not serialize thrown errors, `Response` objects, route views, route functions, middleware, or userland cache data.
+
+Client hydration should create a browser router with matching hydration data and the same route tree.
+
+```ts ts2js
+const hydrationData = deserializeRouterState(serialized);
+
+const clientRouter = createRouter({
+  routes,
+  hydrationData,
+});
+```
+
+The client pathname and search must match the serialized server state. Hash fragments can differ because fragments do not reach the server.
+
+## Where this bites
+
+### Static history is read-only
+
+Static history cannot push or replace entries. Redirect and rewrite intent must be mapped by the request handler or host environment.
+
+### One router per request
+
+Do not reuse a static router across requests. Middleware, blockers, subscribers, errors, and preloads are runtime state.
+
+### Serialization is not app data hydration
+
+Router hydration state is not query cache state, server component data, or application data. Serialize those through their own systems.

@@ -9,7 +9,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 ## Declare leaves near the feature
 
-```ts title="features/users/users.route.ts"
+```ts ts2js title="features/users/users.route.ts"
 import { defineRoute } from '@cookbook/router';
 
 export const usersRoute = defineRoute({
@@ -26,7 +26,7 @@ export const userDetailsRoute = defineRoute({
 
 ## Compose once
 
-```ts title="routes.ts"
+```ts ts2js title="routes.ts"
 import { defineRouteTree } from '@cookbook/router';
 import { usersRoute, userDetailsRoute } from './features/users/users.route';
 
@@ -40,7 +40,7 @@ export const routes = defineRouteTree([
 
 ## Let the CLI discover files
 
-```ts title="cookbook-router.config.ts"
+```ts ts2js title="cookbook-router.config.ts"
 import { defineRouterConfig } from '@cookbook/router-cli';
 
 export default defineRouterConfig({

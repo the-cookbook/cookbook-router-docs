@@ -11,13 +11,13 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 Two links can point to the same truth and still create different experiences. Use link-level interception when only selected links should show a canonical destination through contextual UI.
 
-```tsx
+```tsx ts2js
 <Link to="documents.details" params={{ documentId: document.id }}>
   {document.title}
 </Link>
 ```
 
-```tsx
+```tsx ts2js
 <Link
   to="documents.details"
   params={{ documentId: document.id }}
@@ -37,7 +37,7 @@ Both links target the same canonical route. The second link asks the router to r
 
 Sometimes the full page is the point. Use `intercept={false}` when a route should render canonically even if the active route has a configured intercept for the target.
 
-```tsx
+```tsx ts2js
 <Link to="create" intercept={false}>
   Open full create page
 </Link>
@@ -45,7 +45,7 @@ Sometimes the full page is the point. Use `intercept={false}` when a route shoul
 
 The same opt-out is available for programmatic navigation:
 
-```ts
+```ts ts2js
 await router.navigate.replace('/create', { intercept: false });
 ```
 

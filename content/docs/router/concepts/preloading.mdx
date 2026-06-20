@@ -21,7 +21,7 @@ Preloading is a core runtime capability. React link prefetch is a convenience on
 <Tabs items={['Core router', 'React integration']}>
   <Tab value="Core router">
 
-```ts
+```ts ts2js
 await router.preload('users.show', {
   params: {
     id: 42,
@@ -37,7 +37,7 @@ The router matches the target and runs preload work. It does not commit navigati
 
   <Tab value="React integration">
 
-```tsx
+```tsx ts2js
 import { Link } from '@cookbook/router-react';
 
 <Link
@@ -87,7 +87,7 @@ The router exposes two preload methods.
 
 Use `router.preload()` when the destination is known by route ID:
 
-```ts
+```ts ts2js
 await router.preload('users.details', {
   params: {
     id: 42,
@@ -102,7 +102,7 @@ Generated contracts provide typed params, search, and hash input for the selecte
 
 The object form is also supported:
 
-```ts
+```ts ts2js
 await router.preload({
   route: 'users.details',
   params: {
@@ -117,7 +117,7 @@ The router generates the href, matches it, and preloads the resulting branch.
 
 Use `router.preloadHref()` when an internal href already exists:
 
-```ts
+```ts ts2js
 await router.preloadHref(
   '/users/42?tab=activity#profile',
 );
@@ -161,7 +161,7 @@ Pathless ancestors and index routes participate when they belong to the accepted
 
 When generated `.cookbook-router/routes.ts` composes or wraps discovered route exports, it can attach an internal module preloader:
 
-```ts
+```ts ts2js
 modulePreload: () =>
   import('../routes/users.route')
     .then(() => undefined)
@@ -169,7 +169,7 @@ modulePreload: () =>
 
 This lets:
 
-```ts
+```ts ts2js
 router.preload(...)
 router.preloadHref(...)
 ```
@@ -188,7 +188,7 @@ The core router is renderer-neutral. It treats a route or layout view as preload
 
 The React integration provides `lazyRouteView()` for this purpose:
 
-```tsx
+```tsx ts2js
 import { defineRoute } from '@cookbook/router';
 import {
   lazyRouteView,
@@ -218,7 +218,7 @@ export const usersRoute = defineRoute({
 
 The route can therefore be warmed before rendering:
 
-```ts
+```ts ts2js
 await router.preload('users');
 ```
 
@@ -226,7 +226,7 @@ await router.preload('users');
 
 Layout views use the same mechanism:
 
-```tsx
+```tsx ts2js
 const DashboardLayout = lazyRouteView(() =>
   import('./dashboard-layout').then(
     ({ DashboardLayout }) => ({
@@ -269,7 +269,7 @@ Use the route-level `preload` hook for resources owned by the application:
 * Localization data
 * Other application-specific resources
 
-```ts
+```ts ts2js
 export const userRoute = defineRoute({
   id: 'users.details',
   path: '/users/{id:int}',
@@ -309,7 +309,7 @@ A completed router preload is not itself a data cache. A later preload can run t
 
 The route-level callback receives:
 
-```ts
+```ts ts2js
 interface RoutePreloadContext {
   readonly route: MatchedRoute;
   readonly match: RouteMatch;
@@ -337,7 +337,7 @@ The call to `router.preload()` is typed from generated contracts. The authored r
 
 `Link` and `NavLink` can start preloading from browser intent:
 
-```tsx
+```tsx ts2js
 <Link
   to="users.details"
   params={{ id: 42 }}
@@ -361,7 +361,7 @@ Prefetch is disabled by default.
 
 `mount` should be reserved for destinations that are both valuable and likely to be visited:
 
-```tsx
+```tsx ts2js
 <Link
   to="checkout"
   prefetch="mount"
@@ -376,7 +376,7 @@ Mount prefetch runs again when the link’s target href changes.
 
 Prefetch also works for an explicit internal href:
 
-```tsx
+```tsx ts2js
 <Link
   href="/users/42"
   prefetch="hover"
@@ -389,7 +389,7 @@ The link calls `router.preloadHref()` for that target.
 
 External and disabled links are not prefetched:
 
-```tsx
+```tsx ts2js
 <Link
   href="https://example.com"
   prefetch="interaction"
@@ -414,7 +414,7 @@ The actual navigation remains responsible for rendering loading and error bounda
 
 Use programmatic preloading when the caller needs to observe failure:
 
-```ts
+```ts ts2js
 try {
   await router.preload('users.details', {
     params: {
@@ -434,7 +434,7 @@ Concurrent calls share work when all of these are the same:
 * The per-call URL options
 * No caller-owned `AbortSignal` is supplied
 
-```ts
+```ts ts2js
 const first =
   router.preloadHref('/users/42');
 
@@ -461,7 +461,7 @@ The router does not impose one cache policy on all of them.
 
 Both programmatic methods accept an `AbortSignal`:
 
-```ts
+```ts ts2js
 const controller =
   new AbortController();
 
@@ -490,7 +490,7 @@ Cancellation is cooperative. Generated module preloaders and view preloaders do 
 
 Calls with an `AbortSignal` are not deduplicated:
 
-```ts
+```ts ts2js
 const first =
   new AbortController();
 
@@ -538,7 +538,7 @@ for entries in the main matched branch.
 
 A lazy slot, intercept, loading, or error view can be warmed explicitly from a route-level hook:
 
-```tsx
+```tsx ts2js
 const Header = lazyRouteView(
   () => import('./header'),
 );
@@ -572,14 +572,14 @@ Only add that work when the destination is likely to need those views. Preloadin
 
 Use `lazyRouteView()` for route and layout component imports:
 
-```tsx
+```tsx ts2js
 const Page =
   lazyRouteView(() => import('./page'));
 ```
 
 Use generated route modules for file-based route integration:
 
-```ts
+```ts ts2js
 import {
   routes,
 } from '../.cookbook-router/routes';
@@ -587,14 +587,14 @@ import {
 
 Use route-level `preload` for application-owned resources:
 
-```ts
+```ts ts2js
 preload: ({ signal }) =>
   applicationCache.warm({ signal });
 ```
 
 Use link prefetch for user intent:
 
-```tsx
+```tsx ts2js
 <Link
   to="users"
   prefetch="interaction"
@@ -605,7 +605,7 @@ Use link prefetch for user intent:
 
 Use explicit programmatic preloading when application logic knows a destination is likely:
 
-```ts
+```ts ts2js
 await router.preload('users');
 ```
 

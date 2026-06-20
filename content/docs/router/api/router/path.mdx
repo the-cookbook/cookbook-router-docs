@@ -11,7 +11,7 @@ The `@cookbook/router/path` entrypoint exposes Router path analysis, slash-pruni
 
 Cookbook Router delegates route-pattern grammar, path compilation, and param matching to URLKit. The Router package exposes only the stable path API needed by route declarations, router creation, tests, diagnostics, and generated integrations.
 
-```ts
+```ts ts2js
 import {
   analyzePathPattern,
   createPathConstraint,
@@ -36,7 +36,7 @@ import type {
 
 The package root re-exports the common path constraint helpers and router path option types:
 
-```ts
+```ts ts2js
 import {
   createPathConstraint,
   getPathConstraint,
@@ -59,7 +59,7 @@ For route-authoring syntax and examples, see [Path routes and constraints](/docs
 
 ## `PathPruneOption`
 
-```ts
+```ts ts2js
 type PathPruneOption =
   | 'all'
   | 'duplication'
@@ -78,7 +78,7 @@ Controls slash normalization.
 
 ## `RouterPathOptions`
 
-```ts
+```ts ts2js
 interface RouterPathOptions {
   readonly prune?: PathPruneOption;
 }
@@ -97,7 +97,7 @@ interface RouterPathOptions {
 
 `RouterPathOptions` can be supplied while defining routes:
 
-```ts
+```ts ts2js
 import { defineRoutes } from '@cookbook/router/route-config';
 
 export const routes = defineRoutes(
@@ -117,7 +117,7 @@ export const routes = defineRoutes(
 
 It can also be supplied while creating a router:
 
-```ts
+```ts ts2js
 import { createRouter } from '@cookbook/router/runtime';
 
 export const router = createRouter({
@@ -132,7 +132,7 @@ Route-declaration options apply while paths are validated and normalized. Router
 
 ## `DEFAULT_PATH_OPTIONS`
 
-```ts
+```ts ts2js
 const DEFAULT_PATH_OPTIONS: {
   readonly prune: 'all';
 };
@@ -140,7 +140,7 @@ const DEFAULT_PATH_OPTIONS: {
 
 Default router path options.
 
-```ts
+```ts ts2js
 DEFAULT_PATH_OPTIONS.prune;
 // 'all'
 ```
@@ -149,7 +149,7 @@ This is exported from `@cookbook/router/path`, not from the package root.
 
 ## `normalizePathOptions(options?)`
 
-```ts
+```ts ts2js
 function normalizePathOptions(
   options?: RouterPathOptions,
 ): Required<RouterPathOptions>;
@@ -157,7 +157,7 @@ function normalizePathOptions(
 
 Fills omitted path options with Router defaults.
 
-```ts
+```ts ts2js
 import { normalizePathOptions } from '@cookbook/router/path';
 
 normalizePathOptions();
@@ -171,7 +171,7 @@ Use this in diagnostics, adapters, and tests that need to show the effective pat
 
 ## `prunePathname(pathname, options?)`
 
-```ts
+```ts ts2js
 function prunePathname(
   pathname: string,
   options?: RouterPathOptions,
@@ -180,7 +180,7 @@ function prunePathname(
 
 Applies slash pruning to a pathname.
 
-```ts
+```ts ts2js
 import { prunePathname } from '@cookbook/router/path';
 
 prunePathname('/users//42/');
@@ -204,14 +204,14 @@ prunePathname('/users//42/', {
 
 Empty input normalizes to root:
 
-```ts
+```ts ts2js
 prunePathname('');
 // '/'
 ```
 
 The root path stays stable:
 
-```ts
+```ts ts2js
 prunePathname('/');
 // '/'
 ```
@@ -220,7 +220,7 @@ This helper only prunes slashes. It does not parse route patterns, validate para
 
 ## `RouterPathMatchOptions`
 
-```ts
+```ts ts2js
 interface RouterPathMatchOptions {
   readonly trailing?: boolean;
   readonly strict?: boolean;
@@ -270,7 +270,7 @@ These options configure serialized pathname matching through `RouterUrlOptions.p
 
 Router-level matching policy:
 
-```ts
+```ts ts2js
 import { createRouter } from '@cookbook/router/runtime';
 
 const router = createRouter({
@@ -286,7 +286,7 @@ const router = createRouter({
 
 Per-call matching policy:
 
-```ts
+```ts ts2js
 const match = router.match('/Files/README', {
   url: {
     pathMatch: {
@@ -300,7 +300,7 @@ const match = router.match('/Files/README', {
 
 ## `analyzePathPattern(pattern)`
 
-```ts
+```ts ts2js
 interface AnalyzedPathPattern {
   readonly params: readonly RouteParamDefinition[];
   readonly score: number;
@@ -333,7 +333,7 @@ Analyzes a PathKit route pattern and returns Router metadata used by normalizati
 
 Root pattern:
 
-```ts
+```ts ts2js
 analyzePathPattern('/');
 // {
 //   params: [],
@@ -344,7 +344,7 @@ analyzePathPattern('/');
 
 Literal segments:
 
-```ts
+```ts ts2js
 analyzePathPattern('/users/settings');
 // {
 //   params: [],
@@ -355,7 +355,7 @@ analyzePathPattern('/users/settings');
 
 Params, constraints, and wildcards:
 
-```ts
+```ts ts2js
 analyzePathPattern(
   '/files/{type:list(image|video)}/{*path?}',
 );
@@ -363,7 +363,7 @@ analyzePathPattern(
 
 Result shape:
 
-```ts
+```ts ts2js
 {
   score: 9,
   depth: 3,
@@ -397,7 +397,7 @@ The returned analysis object, `params` array, param entries, constraint arrays, 
 
 ## Constraint contracts
 
-```ts
+```ts ts2js
 type RouterPathConstraint = ConstraintValidation;
 
 type RouterPathConstraints = Readonly<
@@ -409,7 +409,7 @@ type RouterPathConstraints = Readonly<
 
 A custom constraint normally provides:
 
-```ts
+```ts ts2js
 interface ConstraintValidation {
   readonly parse: (
     paramName: string,
@@ -450,19 +450,19 @@ The regex return value is source text, not a JavaScript regex literal.
 
 Correct:
 
-```ts
+```ts ts2js
 return '[a-z0-9-]+';
 ```
 
 Wrong:
 
-```ts
+```ts ts2js
 return '/[a-z0-9-]+/';
 ```
 
 ## `createPathConstraint(definition)`
 
-```ts
+```ts ts2js
 function createPathConstraint(
   definition: ConstraintValidation,
 ): RouterPathConstraint;
@@ -470,7 +470,7 @@ function createPathConstraint(
 
 Creates a URLKit-compatible path constraint.
 
-```ts
+```ts ts2js
 import {
   createPathConstraint,
 } from '@cookbook/router/path';
@@ -501,7 +501,7 @@ export const slug = createPathConstraint({
 
 Use the constraint in route options:
 
-```ts
+```ts ts2js
 import { defineRoutes } from '@cookbook/router/route-config';
 
 export const routes = defineRoutes(
@@ -523,7 +523,7 @@ Custom constraints remain `string` in generated contracts unless combined with a
 
 ## `registerPathConstraints(constraints?)`
 
-```ts
+```ts ts2js
 function registerPathConstraints(
   constraints?: RouterPathConstraints,
 ): void;
@@ -531,7 +531,7 @@ function registerPathConstraints(
 
 Registers custom constraints with URLKit’s process-level path registry.
 
-```ts
+```ts ts2js
 import { registerPathConstraints } from '@cookbook/router/path';
 
 registerPathConstraints({
@@ -557,7 +557,7 @@ Path constraint name must be a non-empty string.
 
 Preferred route-authoring pattern:
 
-```ts
+```ts ts2js
 export const routes = defineRoutes(
   [
     {
@@ -577,7 +577,7 @@ export const routes = defineRoutes(
 
 Use router-level `pathConstraints` only when the router receives raw route arrays that were not already validated by `defineRoutes()` or `defineRouteTree()`:
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes: [
     {
@@ -593,7 +593,7 @@ const router = createRouter({
 
 ## `hasPathConstraint(name)`
 
-```ts
+```ts ts2js
 function hasPathConstraint(
   name: string,
 ): boolean;
@@ -601,7 +601,7 @@ function hasPathConstraint(
 
 Reports whether URLKit’s process-level path registry currently contains the name.
 
-```ts
+```ts ts2js
 hasPathConstraint('slug');
 // true
 ```
@@ -610,7 +610,7 @@ Use it for diagnostics and test setup. It does not prove that every environment 
 
 ## `getPathConstraint(name)`
 
-```ts
+```ts ts2js
 function getPathConstraint(
   name: string,
 ): RouterPathConstraint | undefined;
@@ -618,7 +618,7 @@ function getPathConstraint(
 
 Returns the registered constraint object when available.
 
-```ts
+```ts ts2js
 const constraint = getPathConstraint('slug');
 
 if (!constraint) {
@@ -630,7 +630,7 @@ Treat the returned object as registry state, not as route-local configuration.
 
 ## `unregisterPathConstraint(name)`
 
-```ts
+```ts ts2js
 function unregisterPathConstraint(
   name: string,
 ): void;
@@ -638,7 +638,7 @@ function unregisterPathConstraint(
 
 Removes one constraint from URLKit’s process-level registry.
 
-```ts
+```ts ts2js
 unregisterPathConstraint('slug');
 ```
 
@@ -648,13 +648,13 @@ The wrapper also clears Router’s active constraint reference, so a later `regi
 
 ## `resetPathConstraints()`
 
-```ts
+```ts ts2js
 function resetPathConstraints(): void;
 ```
 
 Clears Router’s active constraint reference and resets URLKit’s process-level path constraint registry.
 
-```ts
+```ts ts2js
 import { resetPathConstraints } from '@cookbook/router/path';
 
 afterEach(() => {
@@ -685,7 +685,7 @@ Use it in tests that register custom constraints. Do not call it in application 
 
 A numeric built-in anywhere in the constraint chain makes the resolved Router param a number.
 
-```ts
+```ts ts2js
 {
   id: 'products.page',
   path: '/products/{page:int}',
@@ -694,7 +694,7 @@ A numeric built-in anywhere in the constraint chain makes the resolved Router pa
 
 The resolved param is:
 
-```ts
+```ts ts2js
 {
   page: number;
 }
@@ -702,7 +702,7 @@ The resolved param is:
 
 Arbitrary custom constraints remain `string` in generated contracts unless they are combined with a numeric built-in.
 
-```ts
+```ts ts2js
 {
   id: 'posts.show',
   path: '/posts/{slug:slug}',
@@ -711,7 +711,7 @@ Arbitrary custom constraints remain `string` in generated contracts unless they 
 
 The resolved param is:
 
-```ts
+```ts ts2js
 {
   slug: string;
 }
@@ -719,7 +719,7 @@ The resolved param is:
 
 Wildcard params resolve to arrays:
 
-```ts
+```ts ts2js
 {
   id: 'files',
   path: '/files/{*path}',
@@ -728,7 +728,7 @@ Wildcard params resolve to arrays:
 
 The resolved param is:
 
-```ts
+```ts ts2js
 {
   path: readonly string[];
 }
@@ -752,7 +752,7 @@ A generated contract can describe `{slug:slug}`, but it cannot carry the JavaScr
 
 Keep constraint definitions in one module and import them wherever route loading happens.
 
-```ts
+```ts ts2js
 // path-constraints.ts
 import { createPathConstraint } from '@cookbook/router/path';
 
@@ -776,7 +776,7 @@ export const pathConstraints = {
 
 Use that same object in route loading:
 
-```ts
+```ts ts2js
 defineRoutes(routes, {
   pathConstraints,
 });
@@ -849,7 +849,7 @@ resetPathConstraints
 
 This is valid:
 
-```ts
+```ts ts2js
 import {
   createPathConstraint,
   prunePathname,
@@ -862,7 +862,7 @@ The old “root-only” wording is wrong for the current package.
 
 This validates immediately:
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'posts.show',
@@ -875,7 +875,7 @@ Registering `slug` later cannot make that earlier validation succeed.
 
 Pass constraints into `defineRoutes()` or `defineRouteTree()`:
 
-```ts
+```ts ts2js
 const routes = defineRoutes(routeDefinitions, {
   pathConstraints: {
     slug,
@@ -887,13 +887,13 @@ const routes = defineRoutes(routeDefinitions, {
 
 This is fine in a single test:
 
-```ts
+```ts ts2js
 registerPathConstraints({ slug });
 ```
 
 It is risky across a large test suite unless you reset:
 
-```ts
+```ts ts2js
 afterEach(() => {
   resetPathConstraints();
 });
@@ -903,7 +903,7 @@ afterEach(() => {
 
 Correct:
 
-```ts
+```ts ts2js
 toRegExp() {
   return '[a-z0-9-]+';
 }
@@ -911,7 +911,7 @@ toRegExp() {
 
 Wrong:
 
-```ts
+```ts ts2js
 toRegExp() {
   return '/[a-z0-9-]+/';
 }
@@ -923,7 +923,7 @@ PathKit expects source text.
 
 This only normalizes slashes:
 
-```ts
+```ts ts2js
 prunePathname('/users//42/');
 ```
 

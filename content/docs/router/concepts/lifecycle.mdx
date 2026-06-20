@@ -29,7 +29,7 @@ Lifecycle is a core transition feature. React components can observe committed s
 <Tabs items={['Core router', 'React integration']}>
   <Tab value="Core router">
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   lifecycle: {
@@ -50,7 +50,7 @@ Use lifecycle hooks when policy or instrumentation belongs to the transition pip
 
   <Tab value="React integration">
 
-```tsx
+```tsx ts2js
 import {
   useNavigation,
   useRouterState,
@@ -94,7 +94,7 @@ All hooks may be asynchronous. Cookbook Router awaits each hook before moving to
 
 Declare route-owned lifecycle behavior through `lifecycle`:
 
-```tsx
+```tsx ts2js
 import type {
   RouteLifecycle,
 } from '@cookbook/router';
@@ -139,7 +139,7 @@ const dashboardLifecycle: RouteLifecycle = {
 
 Attach it to a route:
 
-```tsx
+```tsx ts2js
 {
   id: 'dashboard',
   path: '/dashboard',
@@ -159,7 +159,7 @@ Attach it to a route:
 
 Register router-wide lifecycle behavior when it applies to every transition:
 
-```ts
+```ts ts2js
 import {
   createRouter,
 } from '@cookbook/router';
@@ -285,7 +285,7 @@ Lifecycle hooks do not compare the source and destination branches to determine 
 
 Given:
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'settings',
@@ -342,7 +342,7 @@ When behavior depends on whether a route truly left the active branch, compare `
 
 Every lifecycle hook receives:
 
-```ts
+```ts ts2js
 interface RouteLifecycleContext {
   readonly from: RouteMatch | null;
   readonly to: RouteMatch | null;
@@ -368,7 +368,7 @@ interface RouteLifecycleContext {
 
 `from` is the router match active when the transition began:
 
-```ts
+```ts ts2js
 beforeNavigate: ({
   from,
 }) => {
@@ -388,7 +388,7 @@ It contains:
 
 Read source URL state through `from`:
 
-```ts
+```ts ts2js
 beforeLeave: ({
   from,
 }) => {
@@ -410,7 +410,7 @@ beforeLeave: ({
 
 `to` is the accepted destination match:
 
-```ts
+```ts ts2js
 beforeEnter: ({
   to,
 }) => {
@@ -428,7 +428,7 @@ Before-navigation lifecycle hooks are skipped for an unmatched destination. Afte
 
 Use a wildcard route when unknown locations should participate in normal route lifecycle:
 
-```tsx
+```tsx ts2js
 {
   id: 'not-found',
   path: '/{*path}',
@@ -449,7 +449,7 @@ Use a wildcard route when unknown locations should participate in normal route l
 
 `location` is the destination location being resolved:
 
-```ts
+```ts ts2js
 beforeNavigate: ({
   location,
 }) => {
@@ -467,7 +467,7 @@ For a rewrite transition, lifecycle for the rewritten attempt receives the rewri
 
 The top-level context fields:
 
-```ts
+```ts ts2js
 context.params
 context.search
 context.unknownSearch
@@ -478,7 +478,7 @@ describe the destination match in `context.to`.
 
 They do not describe the source route, even inside `beforeLeave`.
 
-```ts
+```ts ts2js
 beforeLeave: ({
   from,
   params,
@@ -495,7 +495,7 @@ Path constraints, search descriptors, defaults, unknown-search policy, and hash 
 
 The lifecycle context remains broadly typed. Narrow values before using them with application services:
 
-```ts
+```ts ts2js
 beforeEnter: ({
   params,
 }) => {
@@ -523,7 +523,7 @@ Return `false` from:
 
 to block the transition.
 
-```ts
+```ts ts2js
 beforeLeave: () => {
   if (!editor.isDirty()) {
     return;
@@ -546,7 +546,7 @@ When a lifecycle hook blocks:
 
 Use a blocker instead when the rule is application-wide or should integrate with browser unload protection:
 
-```ts
+```ts ts2js
 const unblock = router.block(
   () => !editor.isDirty(),
 );
@@ -564,7 +564,7 @@ Lifecycle cancellation is appropriate when the rule belongs specifically to ente
 
 Use them for effects that should only happen after commit:
 
-```ts
+```ts ts2js
 afterEnter: ({
   location,
 }) => {
@@ -574,7 +574,7 @@ afterEnter: ({
 }
 ```
 
-```ts
+```ts ts2js
 afterNavigate: ({
   from,
   to,
@@ -588,7 +588,7 @@ afterNavigate: ({
 
 If an after hook throws, the destination remains committed. The router moves into error state at that destination.
 
-```ts
+```ts ts2js
 lifecycle: {
   afterNavigate() {
     throw new Error(
@@ -600,7 +600,7 @@ lifecycle: {
 
 After this failure:
 
-```ts
+```ts ts2js
 router.state.location;
 // The committed destination
 
@@ -617,7 +617,7 @@ Do not put effects in an after hook when their failure should roll back navigati
 
 Route lifecycle currently provides:
 
-```ts
+```ts ts2js
 beforeEnter
 afterEnter
 beforeLeave
@@ -626,7 +626,7 @@ onError
 
 It does not provide:
 
-```ts
+```ts ts2js
 afterLeave
 ```
 
@@ -638,7 +638,7 @@ Avoid irreversible cleanup in `beforeLeave`.
 
 Prefer component or integration cleanup for resources tied to rendered UI:
 
-```tsx
+```tsx ts2js
 useEffect(() => {
   const subscription =
     openDashboardSubscription();
@@ -651,7 +651,7 @@ useEffect(() => {
 
 For post-commit transition cleanup, use global `afterNavigate` and compare the branches:
 
-```ts
+```ts ts2js
 function branchContains(
   match: RouteMatch | null,
   routeId: string,
@@ -689,7 +689,7 @@ This runs after a successful commit and calculates whether the route actually le
 
 `router.refresh()` resolves the current history location again:
 
-```ts
+```ts ts2js
 await router.refresh();
 ```
 
@@ -718,7 +718,7 @@ Hooks should tolerate repeated execution.
 
 Static redirects resolve before blockers and lifecycle:
 
-```ts
+```ts ts2js
 {
   id: 'legacy',
   path: '/legacy',
@@ -763,7 +763,7 @@ Use middleware when the transition must choose another destination. Lifecycle ho
 
 Lifecycle exposes two error hooks:
 
-```ts
+```ts ts2js
 interface RouteLifecycle {
   readonly onError?: (
     error: unknown,
@@ -790,7 +790,7 @@ global onNavigationError
 
 All destination route handlers receive the same error and lifecycle context.
 
-```ts
+```ts ts2js
 {
   id: 'dashboard',
   path: '/dashboard',
@@ -873,7 +873,7 @@ Lifecycle observes and gates transitions. It should not become a substitute for 
 
 Current route validation does not allow lifecycle on a pathless group route:
 
-```ts
+```ts ts2js
 {
   id: 'authenticated',
   lifecycle: {

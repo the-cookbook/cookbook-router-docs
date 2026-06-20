@@ -19,7 +19,7 @@ Path patterns and constraints belong to the core route tree. React links use the
 <Tabs items={['Core router', 'React integration']}>
   <Tab value="Core router">
 
-```ts
+```ts ts2js
 const href = router.href('users.show', {
   params: {
     id: 42,
@@ -36,7 +36,7 @@ If `id` does not satisfy the route path constraint, href generation fails before
 
   <Tab value="React integration">
 
-```tsx
+```tsx ts2js
 import {
   Link,
 } from '@cookbook/router-react';
@@ -64,7 +64,7 @@ The link builds its href through the same core route path and constraint rules.
 
 A route path is a [PathKit](https://github.com/the-cookbook/pathkit) pattern:
 
-```tsx
+```tsx ts2js
 export const routes = defineRoutes([
   { id: 'home', path: '/', view: HomePage },
   { id: 'users.show', path: '/users/{id:int}', view: UserPage },
@@ -95,7 +95,7 @@ Rules:
 
 Child route paths are composed with their parent path.
 
-```tsx
+```tsx ts2js
 {
   id: 'users',
   path: '/users',
@@ -117,7 +117,7 @@ The resolved path is:
 
 A child path may start with `/`, but it is still composed relative to the parent route:
 
-```tsx
+```tsx ts2js
 {
   id: 'settings',
   path: '/settings',
@@ -147,7 +147,7 @@ A child path may start with `/`, but it is still composed relative to the parent
 
 Unconstrained params capture one path segment and are parsed as `strings`.
 
-```tsx
+```tsx ts2js
 {
   id: 'articles.show',
   path: '/articles/{slug}',
@@ -155,13 +155,13 @@ Unconstrained params capture one path segment and are parsed as `strings`.
 }
 ```
 
-```tsx
+```tsx ts2js
 <Link to="articles.show" params={{ slug: 'typed-routing' }} />
 ```
 
 The generated and runtime param type is:
 
-```ts
+```ts ts2js
 {
   slug: string;
 }
@@ -208,7 +208,7 @@ It matches:
 
 and captures:
 
-```ts
+```ts ts2js
 {
   path: ['images', 'logo.svg'];
 }
@@ -216,7 +216,7 @@ and captures:
 
 Router state exposes wildcard params as `readonly string[]` path segments. When building hrefs, wildcard params can be provided as a slash-delimited string or an array of primitive path segments:
 
-```ts
+```ts ts2js
 router.href('files.show', {
   params: { path: ['images', 'logo.svg'] },
 });
@@ -253,7 +253,7 @@ URLKit infers parsed param types from the full constraint chain. If `int`, `deci
 
 Use `decimal` for finite decimal path values.
 
-```tsx
+```tsx ts2js
 {
   id: 'products.by-price',
   path: '/products/by-price/{price:decimal}',
@@ -282,7 +282,7 @@ Runtime and generated params expose `price` as `number`.
 
 Use `int` for unsigned integer path values.
 
-```tsx
+```tsx ts2js
 {
   id: 'users.show',
   path: '/users/{id:int}',
@@ -312,7 +312,7 @@ Runtime and generated params expose `id` as `number`.
 
 Use `uuid` for canonical hyphenated UUID values.
 
-```tsx
+```tsx ts2js
 {
   id: 'users.show',
   path: '/users/{id:uuid}',
@@ -363,7 +363,7 @@ Use `max(value)` for inclusive numeric maximum validation.
 
 Use `range(min,max)` for inclusive numeric ranges.
 
-```tsx
+```tsx ts2js
 {
   id: 'pages.show',
   path: '/pages/{page:range(1,100)}',
@@ -413,7 +413,7 @@ This validates character length, not numeric value. Runtime and generated params
 
 Use `list(item1|item2|item3)` for small exact string unions in path segments.
 
-```tsx
+```tsx ts2js
 {
   id: 'search.view',
   path: '/search/{view:list(grid|list|details)}',
@@ -438,7 +438,7 @@ Invalid:
 
 Runtime and generated params expose `view` as `string`. If the same value would be better represented as optional UI state, prefer an enum search field instead:
 
-```ts
+```ts ts2js
 search: {
   view: { type: 'enum', values: ['grid', 'list', 'details'], default: 'grid' },
 }
@@ -448,7 +448,7 @@ search: {
 
 Use `regex(pattern)` when a path segment must match a regular expression.
 
-```tsx
+```tsx ts2js
 {
   id: 'posts.show',
   path: '/posts/{slug:regex([a-z0-9-]+)}',
@@ -526,7 +526,7 @@ Router state, React hooks, middleware, lifecycle hooks, and generated contracts 
 | `{slug:slug}`              | `string`               | Custom constraints expose `string` unless combined with a numeric built-in constraint. |
 | `{*path}`                  | `readonly string[]`    | Captured wildcard path segments in parsed router state.                                |
 
-```tsx
+```tsx ts2js
 function UserPage() {
   const params = useParams('users.show');
 
@@ -545,7 +545,7 @@ Custom constraints are process-level registrations. Register the same custom con
 
 `createPathConstraint()` creates a PathKit-compatible constraint.
 
-```ts
+```ts ts2js
 import { createPathConstraint } from '@cookbook/router';
 
 const slug = createPathConstraint({
@@ -585,7 +585,7 @@ The methods are:
 
 When declaring routes with `defineRoutes()`, register custom constraints with `defineRoutes(..., { pathConstraints })`. `defineRoutes()` validates routes immediately, so custom constraint names must be registered there; otherwise, validation fails with an unknown constraint type error.
 
-```tsx
+```tsx ts2js
 import { createPathConstraint, createRouter, defineRoutes } from '@cookbook/router';
 
 const slug = createPathConstraint({
@@ -620,7 +620,7 @@ export const router = createRouter({ routes });
 
 `createRouter({ pathConstraints })` is also supported for **raw** route arrays that were not declared with `defineRoutes()`:
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes: [{ id: 'posts.show', path: '/posts/{slug:slug}', view: PostPage }],
   pathConstraints: { slug },
@@ -633,11 +633,11 @@ Advanced integrations can call `registerPathConstraints({ slug })` directly, but
 
 Custom constraints validate values at runtime, but generated contracts expose custom-constrained params as `string` unless the same constraint chain also includes a numeric built-in constraint.
 
-```tsx
+```tsx ts2js
 <Link to="posts.show" params={{ slug: 'hello-world' }} />
 ```
 
-```ts
+```ts ts2js
 useParams('posts.show').slug;
 // string
 ```
@@ -656,7 +656,7 @@ If you need a numeric path param, prefer built-in numeric constraints:
 
 Router path options are forwarded to PathKit validation, matching, href compilation, and canonicalization.
 
-```ts
+```ts ts2js
 createRouter({
   routes,
   pathOptions: {
@@ -676,7 +676,7 @@ Supported `prune` values:
 
 The default is:
 
-```ts
+```ts ts2js
 {
   prune: 'all';
 }
@@ -686,7 +686,7 @@ The default is:
 
 Path constraints are enforced during matching and href generation.
 
-```ts
+```ts ts2js
 router.match('/users/42')?.params;
 // { id: 42 } for /users/{id:int}
 
@@ -738,14 +738,14 @@ for an unconstrained string segment.
 
 This fails because `defineRoutes()` validates immediately:
 
-```ts
+```ts ts2js
 const routes = defineRoutes([{ id: 'post', path: '/posts/{slug:slug}' }] as const);
 registerPathConstraints({ slug });
 ```
 
 Register through the second `defineRoutes()` argument instead:
 
-```ts
+```ts ts2js
 const routes = defineRoutes([{ id: 'post', path: '/posts/{slug:slug}' }] as const, {
   pathConstraints: { slug },
 });
@@ -755,7 +755,7 @@ const routes = defineRoutes([{ id: 'post', path: '/posts/{slug:slug}' }] as cons
 
 The CLI extracts static route definitions. Put custom constraints in the second `defineRoutes()` argument so validation and generation can see them.
 
-```ts
+```ts ts2js
 export const routes = defineRoutes([{ id: 'post', path: '/posts/{slug:slug}' }] as const, {
   pathConstraints: { slug },
 });

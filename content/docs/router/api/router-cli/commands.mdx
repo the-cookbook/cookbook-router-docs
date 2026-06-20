@@ -18,7 +18,7 @@ cookbook-router
 
 Programmatic entrypoint:
 
-```ts
+```ts ts2js
 import {
   createCliProgram,
   generateCommand,
@@ -143,7 +143,7 @@ JSON mode writes the `CommandResult` object to stdout.
 
 ## `CommandResult`
 
-```ts
+```ts ts2js
 interface CommandResult {
   readonly ok: boolean;
   readonly files: readonly string[];
@@ -182,7 +182,7 @@ Do not use `files.length`.
 
 ## Shared programmatic route options
 
-```ts
+```ts ts2js
 interface CliRouteOptions extends CliOutputOptions {
   readonly routes?: readonly RouteDefinition[];
   readonly routeFiles?: readonly string[];
@@ -248,7 +248,7 @@ interface CliRouteOptions extends CliOutputOptions {
 
 `CliOutputOptions` is:
 
-```ts
+```ts ts2js
 interface CliOutputOptions {
   readonly outDir?: string;
   readonly fs?: CliFileSystem;
@@ -272,7 +272,7 @@ interface CliOutputOptions {
 
 ## `initCommand(options?)`
 
-```ts
+```ts ts2js
 interface InitOptions {
   readonly cwd?: string;
   readonly fs?: CliFileSystem;
@@ -418,7 +418,7 @@ The CLI `init` command exposes only the shared flags.
 
 ## `generateCommand(options)`
 
-```ts
+```ts ts2js
 interface GenerateOptions extends CliRouteOptions {}
 
 function generateCommand(
@@ -448,7 +448,7 @@ routes.ts
 
 Successful result without `routes.ts`:
 
-```ts
+```ts ts2js
 {
   ok: true,
   files: [
@@ -467,7 +467,7 @@ Successful result without `routes.ts`:
 
 Successful result with `routes.ts`:
 
-```ts
+```ts ts2js
 {
   ok: true,
   files: [
@@ -494,7 +494,7 @@ Filesystem failures can still happen during the write phase.
 
 ## `manifestCommand(options)`
 
-```ts
+```ts ts2js
 interface ManifestOptions extends CliRouteOptions {}
 
 function manifestCommand(
@@ -517,7 +517,7 @@ It:
 
 Successful result:
 
-```ts
+```ts ts2js
 {
   ok: true,
   files: [
@@ -532,7 +532,7 @@ Successful result:
 
 When the manifest content is already identical:
 
-```ts
+```ts ts2js
 {
   ok: true,
   files: [
@@ -545,7 +545,7 @@ When the manifest content is already identical:
 
 ## `validateCommand(options)`
 
-```ts
+```ts ts2js
 interface ValidateOptions extends CliRouteOptions {}
 
 function validateCommand(
@@ -565,7 +565,7 @@ It:
 
 Successful result:
 
-```ts
+```ts ts2js
 {
   ok: true,
   files: [],
@@ -575,7 +575,7 @@ Successful result:
 
 Failure result:
 
-```ts
+```ts ts2js
 {
   ok: false,
   files: [],
@@ -587,7 +587,7 @@ Failure result:
 
 ## `watchCommand(options)`
 
-```ts
+```ts ts2js
 interface WatchCommandOptions extends WatchOptions {}
 
 interface WatchOptions extends CliRouteOptions {
@@ -670,7 +670,7 @@ The watch handle does not expose intermediate promises. Observe later runs throu
 
 ## `resolveRoutes(options)`
 
-```ts
+```ts ts2js
 function resolveRoutes(
   options: CliRouteOptions,
 ): Promise<readonly RouteDefinition[]>;
@@ -698,7 +698,7 @@ Use `resolveRouteInput()` when route options, source exports, or route-source me
 
 ## `createCliProgram(options?)`
 
-```ts
+```ts ts2js
 function createCliProgram(
   options?: {
     readonly stdout?: (message: string) => void;
@@ -743,7 +743,7 @@ Treat the inline option shape as the public command API.
 
 ## `runCli(argv, runnerOptions?)`
 
-```ts
+```ts ts2js
 interface CliRunnerOptions {
   readonly stdout?: (message: string) => void;
   readonly stderr?: (message: string) => void;
@@ -784,7 +784,7 @@ Runs the CLI command dispatcher and returns a process-style exit code.
 
 No arguments prints help and returns `0`.
 
-```ts
+```ts ts2js
 await runCli([]);
 // 0
 ```
@@ -797,7 +797,7 @@ Command failures produce exit code `1` through `setExitCode`.
 
 ## `shouldRunCli(moduleUrl?, argv?)`
 
-```ts
+```ts ts2js
 function shouldRunCli(
   moduleUrl?: string,
   argv?: readonly string[],
@@ -819,7 +819,7 @@ Missing `argv[1]` returns `false`.
 
 ## `CliFileSystem`
 
-```ts
+```ts ts2js
 interface CliFileSystem {
   readFile(path: string): Promise<string>;
   writeFile(
@@ -944,7 +944,7 @@ cbr generate --watch
 
 or programmatic watch mode:
 
-```ts
+```ts ts2js
 watchCommand({
   routeFiles: ['src/**/*.route.tsx'],
 });
@@ -960,7 +960,7 @@ Do not assume the first callback is caused by a file change.
 
 This is wrong:
 
-```ts
+```ts ts2js
 if (result.changedFiles.length) {
   // ...
 }
@@ -968,7 +968,7 @@ if (result.changedFiles.length) {
 
 Use:
 
-```ts
+```ts ts2js
 if (result.changedFiles?.length) {
   // ...
 }
@@ -980,7 +980,7 @@ if (result.changedFiles?.length) {
 
 This is wrong:
 
-```ts
+```ts ts2js
 if (result.files.length) {
   // command succeeded
 }
@@ -988,7 +988,7 @@ if (result.files.length) {
 
 Use:
 
-```ts
+```ts ts2js
 if (result.ok) {
   // command succeeded
 }
@@ -1002,7 +1002,7 @@ if (result.ok) {
 
 If generation then fails, the result can be:
 
-```ts
+```ts ts2js
 {
   ok: false,
   files: [

@@ -42,7 +42,7 @@ bun add -d @cookbook/router-vite-plugin
 
 ## Configure
 
-```ts title="vite.config.ts"
+```ts ts2js title="vite.config.ts"
 import { defineConfig } from 'vite';
 import { cookbookRouterVitePlugin } from '@cookbook/router-vite-plugin';
 
@@ -55,7 +55,7 @@ There is no default export in the current package. Import the named factory.
 
 ## Signature
 
-```ts
+```ts ts2js
 interface CookbookRouterVitePluginOptions {
   readonly configFile?: string;
   readonly routeFiles?: string | readonly string[];

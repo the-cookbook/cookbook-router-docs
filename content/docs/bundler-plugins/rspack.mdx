@@ -40,7 +40,7 @@ bun add -d @cookbook/router-rspack-plugin
   </Tab>
 </Tabs>
 
-```ts title="rspack.config.ts"
+```ts ts2js title="rspack.config.ts"
 import { CookbookRouterRspackPlugin } from '@cookbook/router-rspack-plugin';
 
 export default {
@@ -50,7 +50,7 @@ export default {
 
 ## Exports
 
-```ts
+```ts ts2js
 class CookbookRouterRspackPlugin implements RspackPluginInstance {
   constructor(options?: CookbookRouterRspackPluginOptions);
   apply(compiler: Compiler): void;

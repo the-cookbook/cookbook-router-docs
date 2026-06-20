@@ -40,7 +40,7 @@ bun add -d @cookbook/router-esbuild-plugin
   </Tab>
 </Tabs>
 
-```ts title="build.ts"
+```ts ts2js title="build.ts"
 import { build } from 'esbuild';
 import { cookbookRouterEsbuildPlugin } from '@cookbook/router-esbuild-plugin';
 
@@ -51,7 +51,7 @@ await build({
 });
 ```
 
-```ts
+```ts ts2js
 function cookbookRouterEsbuildPlugin(
   options?: CookbookRouterEsbuildPluginOptions,
 ): Plugin;
@@ -118,7 +118,7 @@ An explicit `routeFiles` or `outDir` is not merged with the config value. It rep
 
 The plugin registers one `onStart` callback. Success returns no result. Failure returns:
 
-```ts
+```ts ts2js
 {
   errors: [{ text: formatRouterBuildErrors(result.errors) }]
 }

@@ -11,7 +11,7 @@ The `@cookbook/router/route-config` entrypoint owns authored route shapes, modul
 
 It is the route authoring surface. It is not the runtime navigation API.
 
-```ts
+```ts ts2js
 import {
   defineRoute,
   defineRouteTree,
@@ -46,7 +46,7 @@ import type {
 
 Descriptor helpers such as `defineSearch()`, `mergeSearch()`, and `defineHash()` are related to route configuration, but they are root exports:
 
-```ts
+```ts ts2js
 import {
   defineHash,
   defineSearch,
@@ -58,7 +58,7 @@ Do not import them from `@cookbook/router/route-config`.
 
 ## `defineRoute(route)`
 
-```ts
+```ts ts2js
 function defineRoute<
   const Route extends RouteDeclaration,
 >(route: Route): Route;
@@ -68,7 +68,7 @@ Preserves literal fields in one modular route declaration.
 
 It does not validate the graph, attach the route to a parent, sort siblings, or strip composition-only fields. It returns the object you passed in.
 
-```ts
+```ts ts2js
 import { defineRoute } from '@cookbook/router/route-config';
 
 export const usersRoute = defineRoute({
@@ -90,7 +90,7 @@ Use it for split route modules that are composed later with `defineRouteTree()` 
 
 ## `defineRouteTree(options)`
 
-```ts
+```ts ts2js
 interface DefineRouteTreeOptions {
   readonly routes: readonly RouteDeclaration[];
   readonly pathOptions?: RouterPathOptions;
@@ -123,7 +123,7 @@ It:
 * strips `parent` and `order` from returned runtime routes;
 * stores `pathOptions` and `pathConstraints` on the returned array for router creation and generation.
 
-```ts
+```ts ts2js
 import {
   defineRoute,
   defineRouteTree,
@@ -164,7 +164,7 @@ export const routes = defineRouteTree({
 
 With custom constraints:
 
-```ts
+```ts ts2js
 import { createPathConstraint } from '@cookbook/router/path';
 import { defineRouteTree } from '@cookbook/router/route-config';
 
@@ -225,7 +225,7 @@ optional: true,
 3. path specificity, descending;
 4. declaration order.
 
-```ts
+```ts ts2js
 const routes = defineRouteTree({
   routes: [
     defineRoute({
@@ -265,7 +265,7 @@ Order wins first. Index priority is not magic enough to beat an explicit lower `
 
 ## `defineRoutes(routes, options?)`
 
-```ts
+```ts ts2js
 interface DefineRoutesOptions {
   readonly pathOptions?: RouterPathOptions;
   readonly pathConstraints?: RouterPathConstraints;
@@ -283,7 +283,7 @@ Validates one already-nested route tree immediately and preserves its literal ty
 
 It also registers custom path constraints before validation and stores route options on the returned array with a non-enumerable shared symbol.
 
-```ts
+```ts ts2js
 import { defineRoutes } from '@cookbook/router/route-config';
 
 export const routes = defineRoutes([
@@ -311,7 +311,7 @@ export const routes = defineRoutes([
 
 With path options:
 
-```ts
+```ts ts2js
 export const routes = defineRoutes(
   [
     {
@@ -350,7 +350,7 @@ These helpers preserve literal static URL descriptors for inference and CLI extr
 
 They are exported from `@cookbook/router`, not `@cookbook/router/route-config`.
 
-```ts
+```ts ts2js
 function defineSearch<
   const Search extends RouteSearchSchema,
 >(search: Search): Search;
@@ -366,7 +366,7 @@ function defineHash<
 >(hash: Hash): Hash;
 ```
 
-```ts
+```ts ts2js
 import {
   defineHash,
   defineSearch,
@@ -421,7 +421,7 @@ Silent overrides would make generated contracts lie.
 
 ## `RouteDeclaration`
 
-```ts
+```ts ts2js
 interface RouteDeclaration
   extends Omit<RouteDefinition, 'children'> {
   readonly parent?: string;
@@ -458,7 +458,7 @@ Inline children may omit `parent`. If they declare it, it must match the contain
 
 ## `RouteDefinition`
 
-```ts
+```ts ts2js
 interface RouteDefinition {
   readonly id: string;
   readonly path?: string;
@@ -583,7 +583,7 @@ A route must define either `path` or `index`, except for a pathless layout/group
 
 Valid pathless group:
 
-```ts
+```ts ts2js
 {
   id: 'dashboard.group',
   layout: {},
@@ -598,7 +598,7 @@ Valid pathless group:
 
 Invalid pathless renderable route:
 
-```ts
+```ts ts2js
 {
   id: 'entry.redirect',
   redirect: { route: 'overview' },
@@ -609,7 +609,7 @@ That route must define `path` or `index`.
 
 Index route rules:
 
-```ts
+```ts ts2js
 {
   id: 'dashboard.index',
   index: true,
@@ -620,7 +620,7 @@ Index routes cannot define `path` or `children`.
 
 Static nested route definitions may use leading-slash child paths. They are still joined under the parent during validation and normalization:
 
-```ts
+```ts ts2js
 defineRoutes([
   {
     id: 'policies',
@@ -647,7 +647,7 @@ Modular parent-attached declarations are stricter. A declaration with `parent` m
 
 ### `RouteLayoutDefinition`
 
-```ts
+```ts ts2js
 interface RouteLayoutDefinition {
   readonly view?: RouteView;
   readonly loading?: RouteView;
@@ -685,7 +685,7 @@ optional: true,
 
 This is valid:
 
-```ts
+```ts ts2js
 {
   id: 'root',
   path: '/',
@@ -702,7 +702,7 @@ This is valid:
 
 This is invalid:
 
-```ts
+```ts ts2js
 {
   id: 'standalone',
   path: '/standalone',
@@ -720,7 +720,7 @@ There is no active layout shell to own those layout fallbacks.
 
 ### `RouteSlotDefinitions`
 
-```ts
+```ts ts2js
 type RouteSlotDefinitions =
   Readonly<Record<string, RouteSlotDefinition>>;
 
@@ -740,7 +740,7 @@ Slot values mean:
 
 Invalid slot values:
 
-```ts
+```ts ts2js
 false
 null
 undefined
@@ -748,7 +748,7 @@ undefined
 
 ### `RouteSlotConfig`
 
-```ts
+```ts ts2js
 interface RouteSlotConfig {
   readonly view?: RouteView;
   readonly routes?: readonly RouteDefinition[];
@@ -780,7 +780,7 @@ Slot IDs are no longer supported. The slot key is the identity.
 
 Invalid legacy keys:
 
-```ts
+```ts ts2js
 layout: {
   slots: {
     sidebar: {
@@ -803,7 +803,7 @@ meta
 
 ### `RouteInterceptConfig`
 
-```ts
+```ts ts2js
 type RouteInterceptTarget =
   | string
   | readonly string[];
@@ -832,7 +832,7 @@ type: 'RouteView',
 
 `intercepts` are keyed by slot name.
 
-```ts
+```ts ts2js
 {
   id: 'overview',
   path: 'overview',
@@ -866,7 +866,7 @@ Direct visits still render the canonical target route. Intercepts are navigation
 
 ### `RouteRedirect`
 
-```ts
+```ts ts2js
 type RouteRedirect =
   | string
   | {
@@ -908,7 +908,7 @@ optional: true,
 
 Redirect routes cannot define children.
 
-```ts
+```ts ts2js
 {
   id: 'entry',
   path: '/',
@@ -920,7 +920,7 @@ Redirect routes cannot define children.
 
 Invalid:
 
-```ts
+```ts ts2js
 {
   id: 'entry',
   path: '/',
@@ -936,14 +936,14 @@ Invalid:
 
 ## Static search descriptors
 
-```ts
+```ts ts2js
 type RouteSearchSchema =
   Readonly<Record<string, StaticSearchField>>;
 ```
 
 `search` uses URLKit-backed static descriptors. Route definitions must stay analyzable by the CLI, so use plain data instead of URLKit runtime builders.
 
-```ts
+```ts ts2js
 search: {
   query: {
     type: 'string',
@@ -1009,7 +1009,7 @@ Descriptor properties:
 
 Invalid in route definitions:
 
-```ts
+```ts ts2js
 search: {
   query: 'string',
 }
@@ -1017,7 +1017,7 @@ search: {
 
 Invalid runtime builder form:
 
-```ts
+```ts ts2js
 search: {
   page: int().default(1),
 }
@@ -1025,7 +1025,7 @@ search: {
 
 Invalid runtime date codec:
 
-```ts
+```ts ts2js
 search: {
   from: {
     type: 'date',
@@ -1047,13 +1047,13 @@ Unsupported date format tokens are reported through URLKit with router route con
 
 ## Static hash descriptors
 
-```ts
+```ts ts2js
 type RouteHashSchema = StaticHashDescriptor;
 ```
 
 Hash descriptors are object descriptors. Do not use array shorthand.
 
-```ts
+```ts ts2js
 hash: {
   type: 'enum',
   values: ['comments', 'share'],
@@ -1072,7 +1072,7 @@ Hash values are bare values without a leading `#`.
 
 Valid:
 
-```ts
+```ts ts2js
 hash: {
   type: 'enum',
   values: ['comments', 'share'],
@@ -1081,7 +1081,7 @@ hash: {
 
 Invalid:
 
-```ts
+```ts ts2js
 hash: {
   type: 'enum',
   values: ['#comments', '#share'],
@@ -1103,7 +1103,7 @@ Descriptor rules:
 
 ### `RoutePreload`
 
-```ts
+```ts ts2js
 type RoutePreload =
   (context: RoutePreloadContext) =>
     void | Promise<void>;
@@ -1118,7 +1118,7 @@ type RouteModulePreload =
 
 ### `RoutePreloadContext`
 
-```ts
+```ts ts2js
 interface RoutePreloadContext<Route extends string = string> {
   readonly route: MatchedRoute;
   readonly match: RouteMatch<Route>;
@@ -1169,7 +1169,7 @@ type: 'AbortSignal',
 }}
 />
 
-```ts
+```ts ts2js
 {
   id: 'users.details',
   path: '/users/{slug:slug}',
@@ -1190,7 +1190,7 @@ Preload does not commit navigation.
 
 ### `MiddlewareContext`
 
-```ts
+```ts ts2js
 interface MiddlewareContext {
   readonly route: MatchedRoute;
   readonly location: RouterLocation;
@@ -1248,7 +1248,7 @@ type: '() => MiddlewareResult',
 
 ### `MiddlewareResult`
 
-```ts
+```ts ts2js
 type MiddlewareResult =
   | void
   | false
@@ -1275,7 +1275,7 @@ type MiddlewareResult =
 | `{ type: 'rewrite' }`  | Resolve another href without exposing the intermediate href.                             |
 | `{ type: 'cancel' }`   | Cancel navigation.                                                                       |
 
-```ts
+```ts ts2js
 const authMiddleware: Middleware = ({
   route,
   location,
@@ -1297,7 +1297,7 @@ const authMiddleware: Middleware = ({
 
 ### `RouteLifecycleContext`
 
-```ts
+```ts ts2js
 interface RouteLifecycleContext {
   readonly from: RouteMatch | null;
   readonly to: RouteMatch | null;
@@ -1345,7 +1345,7 @@ type: 'ParsedRouteHash | unknown',
 
 ### `RouteLifecycle`
 
-```ts
+```ts ts2js
 interface RouteLifecycle {
   readonly beforeEnter?: (
     context: RouteLifecycleContext,
@@ -1390,7 +1390,7 @@ optional: true,
 
 ### `GlobalLifecycle`
 
-```ts
+```ts ts2js
 interface GlobalLifecycle {
   readonly beforeNavigate?: (
     context: RouteLifecycleContext,
@@ -1411,7 +1411,7 @@ interface GlobalLifecycle {
 
 ### `MatchedRoute`
 
-```ts
+```ts ts2js
 interface MatchedRoute {
   readonly id: string;
   readonly route: NormalizedRoute;
@@ -1438,7 +1438,7 @@ type: 'Record<string, unknown>',
 
 ### `RouteMatch<Route>`
 
-```ts
+```ts ts2js
 interface RouteMatch<Route extends string = string> {
   readonly id: Route;
   readonly pathname: string;
@@ -1513,7 +1513,7 @@ optional: true,
 
 ### `NormalizedRoute`
 
-```ts
+```ts ts2js
 interface NormalizedRoute {
   readonly id: string;
   readonly localPath?: string;
@@ -1542,7 +1542,7 @@ interface NormalizedRoute {
 
 ### `ResolvedSlot`
 
-```ts
+```ts ts2js
 type ResolvedSlotStatus =
   | 'matched'
   | 'fallback'
@@ -1616,7 +1616,7 @@ optional: true,
 
 ## Validation and normalization
 
-```ts
+```ts ts2js
 function validateRoutes(
   routes: readonly RouteDefinition[],
   pathOptions?: RouterPathOptions,
@@ -1639,7 +1639,7 @@ function validateResolvedRouteTree(
 
 `validateResolvedRouteTree()` validates first, then returns normalized routes.
 
-```ts
+```ts ts2js
 import {
   normalizeRoutes,
   validateResolvedRouteTree,
@@ -1656,7 +1656,7 @@ const validatedAndNormalized =
 
 Custom constraints are not accepted by these functions. Register them before calling, or use `defineRoutes()` / `defineRouteTree()` with `pathConstraints`.
 
-```ts
+```ts ts2js
 import {
   registerPathConstraints,
 } from '@cookbook/router/path';
@@ -1748,7 +1748,7 @@ Those are available from the package root.
 
 This compiles and returns the same object:
 
-```ts
+```ts ts2js
 defineRoute({
   id: 'users.details',
   parent: 'missing',
@@ -1764,7 +1764,7 @@ Static nested route definitions can use a leading slash child path and still joi
 
 Modular declarations with `parent` cannot:
 
-```ts
+```ts ts2js
 defineRoute({
   id: 'users.details',
   parent: 'users',
@@ -1778,7 +1778,7 @@ defineRoute({
 
 This is wrong:
 
-```ts
+```ts ts2js
 {
   id: 'standalone',
   path: '/standalone',
@@ -1796,7 +1796,7 @@ There is no layout view in scope. Use `route.loading` / `route.error`, or declar
 
 Route config slot fallback:
 
-```ts
+```ts ts2js
 layout: {
   slots: {
     modal: {
@@ -1808,7 +1808,7 @@ layout: {
 
 React slot error isolation:
 
-```tsx
+```tsx ts2js
 <Slot name="modal" errorFallback={ModalError} />
 ```
 
@@ -1818,7 +1818,7 @@ One supplies route content. The other catches render failures. Mixing them up se
 
 This is wrong:
 
-```ts
+```ts ts2js
 validateRoutes(routes, {
   pathConstraints: { slug },
 });

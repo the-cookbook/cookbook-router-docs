@@ -9,7 +9,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 The `@cookbook/router/runtime` entrypoint creates router instances and exposes runtime helpers for metadata and hydration state.
 
-```ts
+```ts ts2js
 import {
   createMemoryRouter,
   createRouter,
@@ -30,7 +30,7 @@ Use the runtime API when you need an actual router: browser navigation, memory t
 
 ## `createRouter(options)`
 
-```ts
+```ts ts2js
 interface CreateRouterOptions {
   readonly routes: readonly RouteDefinition[];
   readonly basename?: string;
@@ -54,7 +54,7 @@ Creates a browser-capable router runtime.
 
 Without an explicit `history`, it uses browser history when `window` exists and memory history otherwise.
 
-```ts
+```ts ts2js
 import { createRouter } from '@cookbook/router/runtime';
 import { routes } from './routes';
 
@@ -65,7 +65,7 @@ export const router = createRouter({
 
 With runtime options:
 
-```ts
+```ts ts2js
 import { createRouter } from '@cookbook/router/runtime';
 
 export const router = createRouter({
@@ -154,7 +154,7 @@ export const router = createRouter({
 
 Invalid value:
 
-```ts
+```ts ts2js
 createRouter({
   routes,
   maxRedirectDepth: -1,
@@ -171,7 +171,7 @@ When both redirect-depth options are supplied, `maxRedirectDepth` wins.
 
 ## `createMemoryRouter(options)`
 
-```ts
+```ts ts2js
 interface CreateMemoryRouterOptions
   extends Omit<CreateRouterOptions, 'history'>,
     MemoryHistoryOptions {}
@@ -190,7 +190,7 @@ Creates a router backed by memory history.
 
 Use it for tests, stories, examples, and non-browser flows.
 
-```ts
+```ts ts2js
 import { createMemoryRouter } from '@cookbook/router/runtime';
 
 const router = createMemoryRouter({
@@ -219,7 +219,7 @@ const router = createMemoryRouter({
 
 `hydrationData` wins over `initialEntries` and `initialIndex`.
 
-```ts
+```ts ts2js
 const serverState = staticRouter.serialize();
 
 const router = createMemoryRouter({
@@ -233,7 +233,7 @@ The memory history starts at `serverState.location.href`.
 
 ## `createStaticRouter(options)`
 
-```ts
+```ts ts2js
 type StaticRouterUrl =
   | string
   | URL
@@ -255,7 +255,7 @@ Creates a router backed by static history.
 
 Use it for SSR and static request resolution.
 
-```ts
+```ts ts2js
 import {
   createStaticRouter,
 } from '@cookbook/router/runtime';
@@ -307,7 +307,7 @@ createStaticRouter requires either url or request.
 
 Static URLs are normalized to `pathname + search + hash`.
 
-```ts
+```ts ts2js
 const router = createStaticRouter({
   routes,
   url: new URL(
@@ -321,7 +321,7 @@ router.state.location.href;
 
 Unsafe protocols are rejected before static history is created.
 
-```ts
+```ts ts2js
 createStaticRouter({
   routes,
   url: 'javascript:alert(1)',
@@ -338,7 +338,7 @@ Static router URL must use http, https, or a relative path, but received protoco
 
 ## `Router`
 
-```ts
+```ts ts2js
 interface Router {
   readonly routes: readonly NormalizedRoute[];
   readonly rankedRoutes: readonly RankedRoute[];
@@ -514,7 +514,7 @@ The router has an initial state immediately after creation. It can already conta
 
 ## `RouterState`
 
-```ts
+```ts ts2js
 interface RouterState {
   readonly location: RouterLocation;
   readonly match: RouteMatch | null;
@@ -564,7 +564,7 @@ type RouterNavigationState =
 
 ### `HrefOptions<Route>`
 
-```ts
+```ts ts2js
 interface HrefOptions<Route extends string>
   extends RouteUrlOptions<Route> {
   readonly url?: RouterUrlBuildOptions;
@@ -618,7 +618,7 @@ interface HrefOptions<Route extends string>
 
 ### `NavigateOptions<Route>`
 
-```ts
+```ts ts2js
 interface NavigateOptions<Route extends string>
   extends HrefOptions<Route> {
   readonly route: Route;
@@ -636,7 +636,7 @@ interface NavigateOptions<Route extends string>
 
 Object form groups route ID and route URL state.
 
-```ts
+```ts ts2js
 router.navigate.to({
   route: 'users.details',
   params: {
@@ -650,7 +650,7 @@ router.navigate.to({
 
 ### `PreloadOptions<Route>`
 
-```ts
+```ts ts2js
 interface PreloadOptions<Route extends string>
   extends HrefOptions<Route> {
   readonly signal?: AbortSignal;
@@ -669,7 +669,7 @@ interface PreloadOptions<Route extends string>
 
 ### `MatchOptions`
 
-```ts
+```ts ts2js
 interface MatchOptions {
   readonly url?: RouterUrlOptions;
 }
@@ -687,7 +687,7 @@ interface MatchOptions {
 
 ### `PreloadHrefOptions`
 
-```ts
+```ts ts2js
 interface PreloadHrefOptions
   extends MatchOptions {
   readonly signal?: AbortSignal;
@@ -711,14 +711,14 @@ interface PreloadHrefOptions
 
 ## `router.href()`
 
-```ts
+```ts ts2js
 router.href(routeId, options?)
 router.href(options)
 ```
 
 Builds a URL for a route ID without changing state.
 
-```ts
+```ts ts2js
 const href = router.href('users.details', {
   params: {
     id: 42,
@@ -732,7 +732,7 @@ const href = router.href('users.details', {
 
 Object form:
 
-```ts
+```ts ts2js
 const href = router.href({
   route: 'users.details',
   params: {
@@ -755,14 +755,14 @@ Unknown route IDs throw the unknown-route diagnostic.
 
 ## `router.resolve()`
 
-```ts
+```ts ts2js
 router.resolve(routeId, options?)
 router.resolve(options)
 ```
 
 Builds an href for a route ID and then matches it back against the router.
 
-```ts
+```ts ts2js
 const match = router.resolve('users.details', {
   params: {
     id: 42,
@@ -782,7 +782,7 @@ Resolved route "users.details" did not match its generated href.
 
 ## `router.match()`
 
-```ts
+```ts ts2js
 router.match(
   href: string,
   options?: MatchOptions,
@@ -791,7 +791,7 @@ router.match(
 
 Matches an arbitrary href against the router.
 
-```ts
+```ts ts2js
 const match = router.match(
   '/users/42?tab=settings#profile',
 );
@@ -799,7 +799,7 @@ const match = router.match(
 
 No match returns `null`.
 
-```ts
+```ts ts2js
 router.match('/missing');
 // null
 ```
@@ -808,7 +808,7 @@ router.match('/missing');
 
 Use the `url` option for per-call matching policy:
 
-```ts
+```ts ts2js
 router.match('/products?tags=router,typescript', {
   url: {
     arrayFormat: 'comma',
@@ -818,14 +818,14 @@ router.match('/products?tags=router,typescript', {
 
 ## `router.preload()`
 
-```ts
+```ts ts2js
 router.preload(routeId, options?)
 router.preload(options)
 ```
 
 Preloads a route target without committing navigation.
 
-```ts
+```ts ts2js
 await router.preload('users.details', {
   params: {
     id: 42,
@@ -835,7 +835,7 @@ await router.preload('users.details', {
 
 With abort signal:
 
-```ts
+```ts ts2js
 const controller = new AbortController();
 
 void router.preload('users.details', {
@@ -870,7 +870,7 @@ Unknown targets can throw before a promise is returned.
 
 ## `router.preloadHref()`
 
-```ts
+```ts ts2js
 router.preloadHref(
   href: string,
   options?: PreloadHrefOptions,
@@ -879,7 +879,7 @@ router.preloadHref(
 
 Preloads an arbitrary app href after matching it.
 
-```ts
+```ts ts2js
 await router.preloadHref(
   '/users/42?tab=settings#profile',
 );
@@ -887,7 +887,7 @@ await router.preloadHref(
 
 With per-call URL policy:
 
-```ts
+```ts ts2js
 await router.preloadHref('/products?tags=a,b', {
   url: {
     arrayFormat: 'comma',
@@ -897,7 +897,7 @@ await router.preloadHref('/products?tags=a,b', {
 
 With abort signal:
 
-```ts
+```ts ts2js
 const controller = new AbortController();
 
 await router.preloadHref('/users/42', {
@@ -909,7 +909,7 @@ If the href does not match a route, it throws the unknown-route diagnostic.
 
 ## `router.navigate.to()`
 
-```ts
+```ts ts2js
 router.navigate.to(href, options?)
 router.navigate.to(routeId, options?)
 router.navigate.to(options)
@@ -919,7 +919,7 @@ Pushes a new history entry and resolves a transition.
 
 Route-ID navigation:
 
-```ts
+```ts ts2js
 await router.navigate.to('users.details', {
   params: {
     id: 42,
@@ -932,7 +932,7 @@ await router.navigate.to('users.details', {
 
 Object-form navigation:
 
-```ts
+```ts ts2js
 await router.navigate.to({
   route: 'users.details',
   params: {
@@ -943,7 +943,7 @@ await router.navigate.to({
 
 Literal href navigation:
 
-```ts
+```ts ts2js
 await router.navigate.to(
   '/users/42?tab=activity#profile',
 );
@@ -953,7 +953,7 @@ Literal hrefs must be app-internal hrefs.
 
 Allowed:
 
-```ts
+```ts ts2js
 '/users/42'
 '/users/42?tab=activity'
 '/users/42#profile'
@@ -961,7 +961,7 @@ Allowed:
 
 Rejected:
 
-```ts
+```ts ts2js
 'users.details'
 'https://example.com/users/42'
 '//example.com/users/42'
@@ -971,7 +971,7 @@ A literal href is not a route ID. Route-build options are invalid with literal h
 
 Wrong:
 
-```ts
+```ts ts2js
 await router.navigate.to('/users/42', {
   search: {
     tab: 'activity',
@@ -987,7 +987,7 @@ Cannot navigate to internal href "/users/42" with route option "search". Pass pa
 
 Valid literal href:
 
-```ts
+```ts ts2js
 await router.navigate.to(
   '/users/42?tab=activity',
 );
@@ -995,7 +995,7 @@ await router.navigate.to(
 
 ## `router.navigate.replace()`
 
-```ts
+```ts ts2js
 router.navigate.replace(href, options?)
 router.navigate.replace(routeId, options?)
 router.navigate.replace(options)
@@ -1003,7 +1003,7 @@ router.navigate.replace(options)
 
 Replaces the current history entry and resolves a transition.
 
-```ts
+```ts ts2js
 await router.navigate.replace('login', {
   search: {
     redirect: '/dashboard',
@@ -1013,7 +1013,7 @@ await router.navigate.replace('login', {
 
 Literal href replacement:
 
-```ts
+```ts ts2js
 await router.navigate.replace('/login?redirect=%2Fdashboard');
 ```
 
@@ -1023,7 +1023,7 @@ The same literal-href restrictions from `navigate.to()` apply.
 
 Route-ID and object navigation can carry interception and scroll metadata.
 
-```ts
+```ts ts2js
 await router.navigate.to('documents.details', {
   params: {
     documentId,
@@ -1041,7 +1041,7 @@ await router.navigate.to('documents.details', {
 
 `intercept: false` disables configured interception for that navigation.
 
-```ts
+```ts ts2js
 await router.navigate.replace(redirectTo, {
   intercept: false,
 });
@@ -1051,7 +1051,7 @@ await router.navigate.replace(redirectTo, {
 
 ## `router.navigate.back()`, `forward()`, and `go(delta)`
 
-```ts
+```ts ts2js
 router.navigate.back(): void;
 router.navigate.forward(): void;
 router.navigate.go(delta: number): void;
@@ -1059,7 +1059,7 @@ router.navigate.go(delta: number): void;
 
 Delegates to the underlying history adapter.
 
-```ts
+```ts ts2js
 router.navigate.back();
 router.navigate.forward();
 router.navigate.go(-2);
@@ -1069,7 +1069,7 @@ These methods do not return a transition promise. Listen through `subscribe()` o
 
 ## `router.subscribe(listener)`
 
-```ts
+```ts ts2js
 router.subscribe(
   listener: (state: RouterState) => void,
 ): () => void;
@@ -1077,7 +1077,7 @@ router.subscribe(
 
 Subscribes to router state changes.
 
-```ts
+```ts ts2js
 const unsubscribe = router.subscribe((state) => {
   console.log(state.navigation, state.location.href);
 });
@@ -1091,7 +1091,7 @@ It does not throw.
 
 ## `router.block(blocker)`
 
-```ts
+```ts ts2js
 interface RouterBlockerContext {
   readonly from: RouteMatch | null;
   readonly to: RouteMatch | null;
@@ -1126,7 +1126,7 @@ Registers a navigation blocker.
 
 Return `false` to block the transition.
 
-```ts
+```ts ts2js
 const unblock = router.block(({ to }) => {
   if (formIsDirty && to?.id !== 'messages.new') {
     return false;
@@ -1142,7 +1142,7 @@ Blockers run before middleware and lifecycle hooks.
 
 ## `router.useMiddleware(middleware)`
 
-```ts
+```ts ts2js
 router.useMiddleware(
   middleware: readonly Middleware[],
 ): () => void;
@@ -1150,7 +1150,7 @@ router.useMiddleware(
 
 Registers runtime middleware for as long as the cleanup is retained.
 
-```ts
+```ts ts2js
 const cleanup = router.useMiddleware([
   ({ route, redirect }) => {
     if (route.route.meta?.access === 'private') {
@@ -1166,7 +1166,7 @@ Runtime middleware participates in future transitions.
 
 If middleware must affect initial startup, register it before `start()`.
 
-```ts
+```ts ts2js
 router.useMiddleware([authMiddleware]);
 
 await router.start();
@@ -1174,7 +1174,7 @@ await router.start();
 
 Or pass it during router creation:
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   middleware: [authMiddleware],
@@ -1183,13 +1183,13 @@ const router = createRouter({
 
 ## `router.start()`
 
-```ts
+```ts ts2js
 router.start(): Promise<RouterState>;
 ```
 
 Resolves the current history or static location through canonicalization, route redirects, blockers, middleware, lifecycle hooks, and route matching.
 
-```ts
+```ts ts2js
 await router.start();
 ```
 
@@ -1197,7 +1197,7 @@ Concurrent calls share one in-flight startup promise.
 
 After startup has completed, repeated calls return the current state and do not re-run navigation work.
 
-```ts
+```ts ts2js
 await Promise.all([
   router.start(),
   router.start(),
@@ -1208,13 +1208,13 @@ Use `start()` before SSR rendering with `StaticRouterProvider`.
 
 ## `router.refresh()`
 
-```ts
+```ts ts2js
 router.refresh(): Promise<RouterState>;
 ```
 
 Re-resolves the current history or static location without pushing history.
 
-```ts
+```ts ts2js
 await router.refresh();
 ```
 
@@ -1229,19 +1229,19 @@ Use it to:
 
 ## `router.serialize()`
 
-```ts
+```ts ts2js
 router.serialize(): SerializedRouterState;
 ```
 
 Returns the minimal hydration state.
 
-```ts
+```ts ts2js
 const state = router.serialize();
 ```
 
 The serialized shape is:
 
-```ts
+```ts ts2js
 interface SerializedRouterState {
   readonly location: RouterLocation;
   readonly navigation: RouterNavigationState;
@@ -1256,7 +1256,7 @@ The client reconstructs route matching from the serialized location and its own 
 
 ## `router.dispose()`
 
-```ts
+```ts ts2js
 router.dispose(): void;
 ```
 
@@ -1273,13 +1273,13 @@ It:
 * clears blockers;
 * clears subscribers.
 
-```ts
+```ts ts2js
 router.dispose();
 ```
 
 Disposal is idempotent.
 
-```ts
+```ts ts2js
 router.dispose();
 router.dispose();
 ```
@@ -1330,7 +1330,7 @@ For each branch route, it runs:
 3. `route.view.preload`;
 4. `route.route.preload(context)`.
 
-```ts
+```ts ts2js
 {
   id: 'users.details',
   path: '/users/{id:int}',
@@ -1382,7 +1382,7 @@ External destinations belong to native browser navigation or an environment-supp
 
 ### `getRouteMeta(routes, routeId)`
 
-```ts
+```ts ts2js
 function getRouteMeta<Route extends string>(
   routes: readonly NormalizedRoute[],
   routeId: Route,
@@ -1391,7 +1391,7 @@ function getRouteMeta<Route extends string>(
 
 Returns route-local metadata for a route ID.
 
-```ts
+```ts ts2js
 const meta = getRouteMeta(
   router.routes,
   'users.details',
@@ -1402,7 +1402,7 @@ Unknown route IDs return `{}`.
 
 ### `getRouteMetaChain(routes, routeId, options?)`
 
-```ts
+```ts ts2js
 interface RouteMetaChainOptions {
   readonly includeAncestors?: boolean;
 }
@@ -1429,7 +1429,7 @@ Returns ordered metadata entries for a target route ID.
 
 Without `includeAncestors`, the chain contains only the target route entry.
 
-```ts
+```ts ts2js
 const chain = getRouteMetaChain(
   router.routes,
   'users.details',
@@ -1443,7 +1443,7 @@ Unknown route IDs return `[]`.
 
 ### `getActiveRouteMetaChain(match, options?)`
 
-```ts
+```ts ts2js
 function getActiveRouteMetaChain<
   Route extends string = RouteId,
 >(
@@ -1454,7 +1454,7 @@ function getActiveRouteMetaChain<
 
 Returns metadata entries for an active match.
 
-```ts
+```ts ts2js
 const activeChain =
   getActiveRouteMetaChain(router.state.match, {
     includeAncestors: true,
@@ -1465,7 +1465,7 @@ const activeChain =
 
 ### `RouteMetaEntry`
 
-```ts
+```ts ts2js
 interface RouteMetaEntry<Route extends string = RouteId> {
   readonly id: Route;
   readonly params: Route extends RouteId
@@ -1507,7 +1507,7 @@ interface RouteMetaEntry<Route extends string = RouteId> {
 
 ### `mergeRouteMetaChain(chain, merge?)`
 
-```ts
+```ts ts2js
 type RouteMetaMergeMode =
   | 'leaf'
   | 'shallow'
@@ -1560,7 +1560,7 @@ Merge modes:
 | `'append'`  | Values are coerced to arrays and appended root-to-leaf.                         |
 | `'prepend'` | Values are coerced to arrays and prepended leaf-to-root.                        |
 
-```ts
+```ts ts2js
 const meta = mergeRouteMetaChain(
   getActiveRouteMetaChain(router.state.match, {
     includeAncestors: true,
@@ -1580,7 +1580,7 @@ const meta = mergeRouteMetaChain(
 
 ### `serializeRouterState(router)`
 
-```ts
+```ts ts2js
 function serializeRouterState(
   router: Pick<Router, 'serialize'>,
 ): SerializedRouterState;
@@ -1588,13 +1588,13 @@ function serializeRouterState(
 
 Calls `router.serialize()` and validates the returned shape.
 
-```ts
+```ts ts2js
 const state = serializeRouterState(router);
 ```
 
 ### `stringifyRouterState(router)`
 
-```ts
+```ts ts2js
 function stringifyRouterState(
   router: Pick<Router, 'serialize'>,
 ): string;
@@ -1612,7 +1612,7 @@ U+2028
 U+2029
 ```
 
-```ts
+```ts ts2js
 const serialized = stringifyRouterState(router);
 
 const html = `
@@ -1626,7 +1626,7 @@ The output is a JSON object string, not a quoted string literal.
 
 ### `deserializeRouterState(state)`
 
-```ts
+```ts ts2js
 function deserializeRouterState(
   state: SerializedRouterState | string,
 ): SerializedRouterState;
@@ -1634,7 +1634,7 @@ function deserializeRouterState(
 
 Parses and validates serialized hydration state.
 
-```ts
+```ts ts2js
 const hydrationData = deserializeRouterState(
   window.__COOKBOOK_ROUTER__,
 );
@@ -1651,7 +1651,7 @@ Invalid serialized state throws during deserialization instead of letting the ro
 
 Server rendering:
 
-```ts
+```ts ts2js
 const router = createStaticRouter({
   routes,
   request,
@@ -1664,7 +1664,7 @@ const hydrationData = stringifyRouterState(router);
 
 Client hydration:
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   hydrationData: deserializeRouterState(
@@ -1742,7 +1742,7 @@ Router creation computes state for the current location.
 
 `start()` still matters.
 
-```ts
+```ts ts2js
 const router = createMemoryRouter({
   routes,
   initialEntries: ['/private'],
@@ -1761,7 +1761,7 @@ Do not skip `start()` when initial route guards must run.
 
 This is wrong:
 
-```ts
+```ts ts2js
 await router.navigate.to('/users/42', {
   search: {
     tab: 'activity',
@@ -1773,7 +1773,7 @@ Literal hrefs already contain their search and hash.
 
 Use a route ID:
 
-```ts
+```ts ts2js
 await router.navigate.to('users.details', {
   params: {
     id: 42,
@@ -1786,7 +1786,7 @@ await router.navigate.to('users.details', {
 
 or put the search in the href:
 
-```ts
+```ts ts2js
 await router.navigate.to(
   '/users/42?tab=activity',
 );
@@ -1796,7 +1796,7 @@ await router.navigate.to(
 
 This is wrong:
 
-```ts
+```ts ts2js
 await router.navigate.to(
   'https://example.com',
 );
@@ -1810,7 +1810,7 @@ Use native browser navigation, an anchor, or an environment-supported redirect r
 
 This is too late for initial navigation:
 
-```ts
+```ts ts2js
 await router.start();
 
 router.useMiddleware([authMiddleware]);
@@ -1818,7 +1818,7 @@ router.useMiddleware([authMiddleware]);
 
 Use:
 
-```ts
+```ts ts2js
 router.useMiddleware([authMiddleware]);
 
 await router.start();
@@ -1830,7 +1830,7 @@ or pass middleware to router creation.
 
 This warms route work:
 
-```ts
+```ts ts2js
 await router.preload('users.details', {
   params: {
     id: 42,
@@ -1844,7 +1844,7 @@ It does not change history, run blockers, run middleware, or commit a route.
 
 This throws:
 
-```ts
+```ts ts2js
 router.dispose();
 
 await router.navigate.to('/users/42');
@@ -1852,7 +1852,7 @@ await router.navigate.to('/users/42');
 
 This may still build a string:
 
-```ts
+```ts ts2js
 router.href('users.details', {
   params: {
     id: 42,

@@ -21,7 +21,7 @@ Matching is core router work. React hooks read the match that the core router al
 <Tabs items={['Core router', 'React integration']}>
   <Tab value="Core router">
 
-```ts
+```ts ts2js
 const match = router.match(
   '/users/42?tab=profile',
 );
@@ -42,7 +42,7 @@ Use `match()` for low-level checks that should not mutate history or router stat
 
   <Tab value="React integration">
 
-```tsx
+```tsx ts2js
 import {
   useMatches,
   useRouterState,
@@ -97,7 +97,7 @@ Validation happens before matching. Exact duplicate paths, invalid path patterns
 
 Nested routes usually declare paths relative to their parent:
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'organizations',
@@ -120,7 +120,7 @@ Normalization produces the complete child path:
 
 The child also inherits the parent parameter. A successful match contains both:
 
-```ts
+```ts ts2js
 {
   organizationId: 'acme',
   userId: 42,
@@ -155,7 +155,7 @@ The scores accumulate across the complete path.
 
 Given these routes:
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'users.catch',
@@ -200,7 +200,7 @@ Candidates are sorted by:
 
 Declaration order is the final tie-breaker. It is not the primary matching strategy.
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'first',
@@ -223,7 +223,7 @@ For generated modular routes, explicit modular `order` determines the composed d
 
 A constraint controls whether a parameter accepts and parses a value.
 
-```ts
+```ts ts2js
 {
   id: 'users.show',
   path: '/users/{id:int}',
@@ -238,7 +238,7 @@ This route accepts:
 
 and exposes:
 
-```ts
+```ts ts2js
 {
   id: 42,
 }
@@ -252,7 +252,7 @@ It rejects:
 
 A rejected path candidate does not stop matching. Cookbook Router continues to the next ranked candidate.
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'users.show',
@@ -282,7 +282,7 @@ The earlier declaration is attempted first.
 
 Therefore, place the narrower route first when overlapping dynamic patterns are intentional:
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'users.by-id',
@@ -301,7 +301,7 @@ Do not assume that adding a constraint automatically moves a route ahead of anot
 
 Prefer static route segments for reserved URLs:
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'users.new',
@@ -322,7 +322,7 @@ This is the preferred way to distinguish fixed application pages from dynamic re
 
 Wildcards receive the lowest segment score:
 
-```ts
+```ts ts2js
 {
   id: 'not-found',
   path: '/{*path}',
@@ -331,7 +331,7 @@ Wildcards receive the lowest segment score:
 
 A wildcard is attempted after more specific static and parameter routes.
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'overview',
@@ -348,7 +348,7 @@ const routes = defineRoutes([
 
 Wildcard parameters are parsed as path segments:
 
-```ts
+```ts ts2js
 {
   path: ['missing', 'page'],
 }
@@ -360,7 +360,7 @@ A wildcard does not replace route validation or error handling. It is an ordinar
 
 An index route has no local path:
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'dashboard',
@@ -396,7 +396,7 @@ Index routes represent the default child at a parent location. They are not redi
 
 A pathless route omits `path`:
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'authenticated',
@@ -442,7 +442,7 @@ After path parameters are accepted, Cookbook Router parses:
 
 through the route’s URL contract.
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'products',
@@ -470,7 +470,7 @@ Matching:
 
 produces typed state:
 
-```ts
+```ts ts2js
 {
   params: {},
   search: {
@@ -486,7 +486,7 @@ The pathname may match while the search or hash does not satisfy its descriptor.
 
 `invalidSearch` and `invalidHash` control malformed declared URL state.
 
-```ts
+```ts ts2js
 {
   id: 'products',
   path: '/products',
@@ -520,7 +520,7 @@ The same model applies to invalid hash values through `invalidHash`.
 
 A candidate rejected by a `no-match` URL policy does not end matching.
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'dashboard',
@@ -576,7 +576,7 @@ See [Search and hash](/docs/router/concepts/search-and-hash) for descriptor and 
 
 A successful match contains the complete active route branch.
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'organizations',
@@ -615,7 +615,7 @@ Each branch entry receives the parameters visible at that level.
 
 The leaf match contains the complete parameter set:
 
-```ts
+```ts ts2js
 {
   organizationId: 'acme',
   userId: 42,
@@ -632,7 +632,7 @@ The matching APIs have different scopes.
 
 Matches a pathname against normalized routes:
 
-```ts
+```ts ts2js
 const match = matchRoutes(routes, '/users/42');
 ```
 
@@ -651,7 +651,7 @@ Use it for path-focused matching.
 
 Matches a complete `RouterLocation`:
 
-```ts
+```ts ts2js
 const match = matchLocation({
   routes,
   location,
@@ -676,7 +676,7 @@ It resolves:
 
 Use `matchLocationResult()` when the caller must distinguish:
 
-```ts
+```ts ts2js
 type MatchLocationResult =
   | {
       status: 'matched';
@@ -698,7 +698,7 @@ The router runtime uses this distinction to render error fallbacks without prete
 
 Exact normalized paths in the same route scope are validation errors:
 
-```ts
+```ts ts2js
 const routes = defineRoutes([
   {
     id: 'users.first',

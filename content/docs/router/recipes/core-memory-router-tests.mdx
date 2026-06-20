@@ -1,0 +1,123 @@
+---
+title: "Memory-router tests"
+description: "Test route matching, navigation, middleware, and subscriptions with createMemoryRouter()."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Use `createMemoryRouter()` when a test needs router state without a browser history implementation.
+
+Memory-router tests should assert router behavior directly: current location, match ID, params, navigation state, errors, and subscriber calls.
+
+## Start at a route
+
+```ts ts2js
+import {
+  createMemoryRouter,
+  defineRoutes,
+} from '@cookbook/router';
+
+const routes = defineRoutes([
+  {
+    id: 'home',
+    path: '/',
+    view: 'home',
+  },
+  {
+    id: 'users.details',
+    path: '/users/{userId:int}',
+    view: 'users.details',
+  },
+] as const);
+
+const router = createMemoryRouter({
+  routes,
+  initialEntries: ['/users/42'],
+});
+
+await router.start();
+
+expect(router.state.match?.id).toBe('users.details');
+expect(router.state.match?.params).toEqual({
+  userId: 42,
+});
+```
+
+## Assert navigation
+
+```ts ts2js
+await router.navigate.to('users.details', {
+  params: {
+    userId: 7,
+  },
+});
+
+expect(router.state.location.href).toBe('/users/7');
+expect(router.state.match?.id).toBe('users.details');
+```
+
+## Assert subscriptions
+
+```ts ts2js
+const states: string[] = [];
+
+const unsubscribe = router.subscribe((state) => {
+  states.push(state.location.href);
+});
+
+await router.navigate.to('/users/1');
+await router.navigate.to('/users/2');
+
+unsubscribe();
+
+expect(states).toEqual([
+  '/users/1',
+  '/users/2',
+]);
+```
+
+Subscribers receive state changes after visible router state changes.
+
+## Test middleware behavior
+
+```ts ts2js
+const router = createMemoryRouter({
+  routes,
+  initialEntries: ['/admin'],
+  middleware: [
+    (context) => {
+      if (context.route.id === 'admin') {
+        return context.redirect('/login');
+      }
+    },
+  ],
+});
+
+await router.start();
+
+expect(router.state.location.href).toBe('/login');
+```
+
+## Clean up
+
+```ts ts2js
+router.dispose();
+```
+
+Disposal clears listeners, blockers, runtime middleware, subscribers, and preload state. It also prevents accidental reuse in later tests.
+
+## Where this bites
+
+### `router.state.match` can exist before `start()`
+
+Initial state is created from the initial history location. `start()` still matters because it runs current-location transition work such as middleware, redirects, lifecycle, and error handling.
+
+### Memory history is not browser history
+
+Memory history has no DOM events, scroll restoration, or external redirect transport. That is usually what core tests need.
+
+### Dispose routers in long-lived test processes
+
+A disposed router cannot navigate again. Create a new router per test case.

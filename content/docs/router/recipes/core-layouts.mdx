@@ -1,0 +1,150 @@
+---
+title: "Layouts"
+description: "Render persistent layout shells with context.outlet and layout views."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Layouts are route-owned shells. They wrap the rendered child branch and can expose named slots.
+
+In the core renderer, the equivalent of an outlet is `context.outlet`.
+
+## Declare a layout view
+
+```ts ts2js
+import {
+  defineRoutes,
+  renderRouteMatch,
+  type RouteMatch,
+} from '@cookbook/router';
+
+const routes = defineRoutes([
+  {
+    id: 'dashboard',
+    path: '/dashboard',
+    layout: {
+      view: 'dashboard.layout',
+    },
+    children: [
+      {
+        id: 'dashboard.home',
+        index: true,
+        view: 'dashboard.home',
+      },
+      {
+        id: 'dashboard.reports',
+        path: 'reports',
+        view: 'dashboard.reports',
+      },
+    ],
+  },
+] as const);
+```
+
+The layout view belongs to `dashboard`. It wraps whichever child route is active.
+
+## Render the layout
+
+```ts ts2js
+interface Node {
+  readonly kind: string;
+  readonly routeId?: string;
+  readonly children?: readonly Node[];
+}
+
+function renderDashboard(
+  match: RouteMatch | null,
+): Node | null {
+  return renderRouteMatch<string, Node | null>(match, {
+    fallback: null,
+    renderView(view, context) {
+      return {
+        kind: view,
+        routeId: context.match.id,
+      };
+    },
+    renderLayout(view, context) {
+      return {
+        kind: view,
+        routeId: context.ownerRouteId,
+        children: [
+          { kind: 'dashboard.nav' },
+          context.outlet,
+        ].filter((child): child is Node => child !== null),
+      };
+    },
+    renderEmpty() {
+      return null;
+    },
+  });
+}
+```
+
+`context.outlet` is already-rendered child output. The layout decides where to place it.
+
+## Layouts can own fallback policy
+
+Layout-level loading and error views are inherited by descendants rendered inside that layout.
+
+```ts ts2js
+const routes = defineRoutes([
+  {
+    id: 'dashboard',
+    path: '/dashboard',
+    layout: {
+      view: 'dashboard.layout',
+      loading: 'dashboard.loading',
+      error: 'dashboard.error',
+    },
+    children: [
+      {
+        id: 'dashboard.reports',
+        path: 'reports',
+        view: 'dashboard.reports',
+      },
+    ],
+  },
+] as const);
+```
+
+The renderer still decides how to install the boundary.
+
+## Pathless layouts
+
+A pathless layout can group UI without adding a URL segment.
+
+```ts ts2js
+const routes = defineRoutes([
+  {
+    id: 'app',
+    layout: {
+      view: 'app.layout',
+    },
+    children: [
+      {
+        id: 'home',
+        path: '/',
+        view: 'home.page',
+      },
+    ],
+  },
+] as const);
+```
+
+A pathless route can participate in the branch but cannot produce a standalone href.
+
+## Where this bites
+
+### A layout is not the same as a route view
+
+A route `view` renders at that route position. A layout `view` wraps the route output after the route and descendants have been rendered.
+
+### `context.outlet` is already rendered
+
+Do not try to match child routes inside a layout callback. The traversal already did that work.
+
+### Missing layout views pass through
+
+A route can own children, slots, metadata, middleware, and lifecycle without rendering a layout shell. If `layout.view` is absent, the outlet passes through.

@@ -15,7 +15,7 @@ It intentionally does not duplicate command behavior. Behavior belongs to the co
 
 ## Registration placeholders
 
-```ts
+```ts ts2js
 interface Register {}
 ```
 
@@ -23,7 +23,7 @@ interface Register {}
 
 Current generated `register.d.ts` does not augment `@cookbook/router-cli`.
 
-```ts
+```ts ts2js
 interface RouterContracts {}
 ```
 
@@ -33,7 +33,7 @@ It is not the generated application `RouterContracts` emitted in `.cookbook-rout
 
 ## Configuration contracts
 
-```ts
+```ts ts2js
 interface RouterCliConfig extends DefineRoutesOptions {
   readonly routeFiles?: string | readonly string[];
   readonly outDir?: string;
@@ -57,7 +57,7 @@ interface RouterCliConfig extends DefineRoutesOptions {
 
 `RouterCliConfig` extends `DefineRoutesOptions`, so it also accepts route-validation options such as `pathOptions` and `pathConstraints`.
 
-```ts
+```ts ts2js
 interface RuntimeImportReference {
   readonly path: string;
   readonly exportName: string;
@@ -77,7 +77,7 @@ interface RuntimeImportReference {
   }}
 />
 
-```ts
+```ts ts2js
 interface GeneratedRouteTreeRuntimeOptions {
   readonly pathConstraints?: RuntimeImportReference;
 }
@@ -93,7 +93,7 @@ interface GeneratedRouteTreeRuntimeOptions {
   }}
 />
 
-```ts
+```ts ts2js
 interface LoadedRouterConfig {
   readonly config: RouterCliConfig;
   readonly configFile: string;
@@ -124,7 +124,7 @@ interface LoadedRouterConfig {
   }}
 />
 
-```ts
+```ts ts2js
 type RouterConfigFilename =
   | 'cookbook-router.config.ts'
   | 'cookbook-router.config.mts'
@@ -136,7 +136,7 @@ type RouterConfigFilename =
 
 ## Filesystem contract
 
-```ts
+```ts ts2js
 interface CliFileSystem {
   readFile(path: string): Promise<string>;
 
@@ -219,7 +219,7 @@ Required capabilities depend on the operation.
 
 ## Route source contracts
 
-```ts
+```ts ts2js
 interface RouteFileExport {
   readonly exportName: string;
   readonly kind: 'route' | 'routes' | 'routeTree';
@@ -243,7 +243,7 @@ interface RouteFileExport {
 
 It appears structurally in route-loading results:
 
-```ts
+```ts ts2js
 interface CliRouteSource {
   readonly path: string;
   readonly routes: readonly RouteDefinition[];
@@ -275,7 +275,7 @@ interface CliRouteSource {
   }}
 />
 
-```ts
+```ts ts2js
 interface RouteFile {
   readonly routes: readonly RouteDefinition[];
   readonly routeOptions?: DefineRoutesOptions;
@@ -308,7 +308,7 @@ interface RouteFile {
   }}
 />
 
-```ts
+```ts ts2js
 interface LoadRouteFilesOptions {
   readonly routeFiles: readonly string[];
   readonly fs?: CliFileSystem;
@@ -329,7 +329,7 @@ interface LoadRouteFilesOptions {
   }}
 />
 
-```ts
+```ts ts2js
 interface ResolvedRouteInput {
   readonly routeFile: RouteFile;
   readonly options: CliRouteOptions;
@@ -351,7 +351,7 @@ interface ResolvedRouteInput {
 
 ## Command option contracts
 
-```ts
+```ts ts2js
 interface CliOutputOptions {
   readonly outDir?: string;
   readonly fs?: CliFileSystem;
@@ -373,7 +373,7 @@ interface CliOutputOptions {
   }}
 />
 
-```ts
+```ts ts2js
 interface CliRouteOptions extends CliOutputOptions {
   readonly routes?: readonly RouteDefinition[];
   readonly routeFiles?: readonly string[];
@@ -441,7 +441,7 @@ interface CliRouteOptions extends CliOutputOptions {
 
 ## Command-specific option contracts
 
-```ts
+```ts ts2js
 interface InitOptions {
   readonly cwd?: string;
   readonly fs?: CliFileSystem;
@@ -454,7 +454,7 @@ interface InitOptions {
 }
 ```
 
-```ts
+```ts ts2js
 interface GenerateOptions extends CliRouteOptions {}
 
 interface ManifestOptions extends CliRouteOptions {}
@@ -464,7 +464,7 @@ interface ValidateOptions extends CliRouteOptions {}
 interface WatchCommandOptions extends WatchOptions {}
 ```
 
-```ts
+```ts ts2js
 interface CliRunnerOptions {
   readonly stdout?: (message: string) => void;
   readonly stderr?: (message: string) => void;
@@ -474,7 +474,7 @@ interface CliRunnerOptions {
 
 ## Results and watch contracts
 
-```ts
+```ts ts2js
 interface CommandResult {
   readonly ok: boolean;
   readonly files: readonly string[];
@@ -505,7 +505,7 @@ interface CommandResult {
   }}
 />
 
-```ts
+```ts ts2js
 interface WatchOptions extends CliRouteOptions {
   readonly debounceMs?: number;
   readonly onChange?: (
@@ -529,7 +529,7 @@ interface WatchOptions extends CliRouteOptions {
   }}
 />
 
-```ts
+```ts ts2js
 interface WatchHandle {
   readonly initial: Promise<CommandResult>;
   close: () => void;
@@ -551,7 +551,7 @@ interface WatchHandle {
 
 ## Manifest contracts
 
-```ts
+```ts ts2js
 interface ManifestRoute {
   readonly id: string;
   readonly path?: string;
@@ -589,7 +589,7 @@ interface ManifestRoute {
   }}
 />
 
-```ts
+```ts ts2js
 interface RouteManifest {
   readonly routes: readonly ManifestRoute[];
 }
@@ -606,7 +606,7 @@ interface RouteManifest {
 
 ## Build integration contracts
 
-```ts
+```ts ts2js
 interface CookbookRouterBuilderPluginOptions {
   readonly cwd?: string;
   readonly configFile?: string;
@@ -646,12 +646,12 @@ interface CookbookRouterBuilderPluginOptions {
   }}
 />
 
-```ts
+```ts ts2js
 interface RouterBuildRunnerOptions
   extends CookbookRouterBuilderPluginOptions {}
 ```
 
-```ts
+```ts ts2js
 interface RouterBuildRunnerResult
   extends CommandResult {
   readonly watchPaths: readonly string[];
@@ -678,20 +678,20 @@ interface RouterBuildRunnerResult
   }}
 />
 
-```ts
+```ts ts2js
 interface RouterBuildRunner {
   run(): Promise<RouterBuildRunnerResult>;
 }
 ```
 
-```ts
+```ts ts2js
 interface RouterBuildWatchState {
   readonly watchPaths: readonly string[];
   readonly outDir: string;
 }
 ```
 
-```ts
+```ts ts2js
 interface RouterCompilerBuildHooksOptions
   extends RouterBuildRunnerOptions {
   readonly pluginName?: string;
@@ -802,7 +802,7 @@ Some of these shapes appear in implementation signatures or nested exported type
 
 The CLI package exports this placeholder:
 
-```ts
+```ts ts2js
 interface RouterContracts {}
 ```
 

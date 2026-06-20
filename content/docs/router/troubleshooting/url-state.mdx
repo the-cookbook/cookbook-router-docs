@@ -18,7 +18,7 @@ PathKit expects a raw regex source inside `regex(...)`, not a JavaScript regex l
 
 Escape backslashes in TypeScript string literals when needed:
 
-```ts
+```ts ts2js
 path: '/scores/{id:regex(\\d):min(1)}';
 ```
 
@@ -26,7 +26,7 @@ path: '/scores/{id:regex(\\d):min(1)}';
 
 Href generation, matching, resolving, and navigation now pass path params through URLKit-backed route URL contracts. Invalid values fail before the route is committed.
 
-```ts
+```ts ts2js
 router.href('users.show', { params: { id: 'abc' } }); // throws for {id:int}
 router.match('/users/abc'); // null for {id:int}
 ```
@@ -37,7 +37,7 @@ If the path uses a custom constraint, confirm the constraint is registered befor
 
 Search values now follow the route's URLKit-backed Router static descriptors.
 
-```ts
+```ts ts2js
 search: {
   page: { type: 'int', default: 1 },
   tags: { type: 'string', many: true, optional: true },
@@ -50,7 +50,7 @@ search: {
 
 Use `invalidSearch` when optional query-string state should not take down a route. This is usually the right behavior for dashboards, tables, filters, and pagination.
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   url: {
@@ -62,7 +62,7 @@ const router = createRouter({
 
 For this route:
 
-```ts
+```ts ts2js
 search: {
   page: { type: 'number', default: 1 },
   pageSize: { type: 'number', optional: true },
@@ -77,7 +77,7 @@ Use `invalidSearch: 'error'` for strict apps that should render route error fall
 
 `arrayFormat` controls repeated values.
 
-```ts
+```ts ts2js
 createRouter({ routes, url: { arrayFormat: 'repeat' } });
 ```
 
@@ -87,7 +87,7 @@ createRouter({ routes, url: { arrayFormat: 'repeat' } });
 
 Only declared route `search` keys are part of generated contracts. Unknown keys are query-string keys that are not declared by the matched route. The effective `unknownSearch` policy controls them.
 
-```ts
+```ts ts2js
 createRouter({
   routes,
   url: {
@@ -106,7 +106,7 @@ Supported modes are:
 
 For `/overview?page=0&utm_source=website`, with `unknownSearch: 'preserve'`, declared search and unknown search are separate:
 
-```ts
+```ts ts2js
 match.search;
 // { page: 0 }
 
@@ -118,7 +118,7 @@ match.unknownSearch;
 
 `useSearchParams()` returns only declared, typed route search. It does not merge preserved unknown keys into the declared search contract.
 
-```tsx
+```tsx ts2js
 const search = useSearchParams('overview');
 const unknownSearch = useUnknownSearchParams();
 
@@ -137,7 +137,7 @@ State-reading hooks such as `useParams()`, `useSearchParams()`, and `useHashPara
 
 Configure route-resolution policies on the router, route definition, explicit match calls, or static router creation:
 
-```ts
+```ts ts2js
 createRouter({
   routes,
   url: {
@@ -152,7 +152,7 @@ createRouter({
 
 `invalidSearch: 'recover'` maps to URLKit's invalid-field omit behavior. It can omit invalid optional/defaulted fields, but it does not turn required fields into optional fields.
 
-```ts
+```ts ts2js
 search: {
   page: { type: 'int' },
 }
@@ -166,14 +166,14 @@ This URL still fails because `page` is required:
 
 Choose the route contract you actually want:
 
-```ts
+```ts ts2js
 // Missing or invalid page can be omitted.
 search: {
   page: { type: 'int', optional: true },
 }
 ```
 
-```ts
+```ts ts2js
 // Missing or invalid page can fall back to a normalized default.
 search: {
   page: { type: 'int', default: 1 },
@@ -186,7 +186,7 @@ Use `invalidSearch: 'error'` when malformed required search state should render 
 
 A repeated search field is still required unless it declares `optional: true` or `default`.
 
-```ts
+```ts ts2js
 search: {
   tags: { type: 'string', many: true },
 }
@@ -194,7 +194,7 @@ search: {
 
 This requires at least one `tags` value in the URL or structured build input. For optional filters, declare the field as optional:
 
-```ts
+```ts ts2js
 search: {
   tags: { type: 'string', many: true, optional: true },
 }
@@ -202,7 +202,7 @@ search: {
 
 For default filters, provide an array default:
 
-```ts
+```ts ts2js
 search: {
   tags: { type: 'string', many: true, default: ['typescript'] },
 }
@@ -212,7 +212,7 @@ search: {
 
 URLKit parses boolean search fields strictly. Only serialized `true` and `false` are valid.
 
-```ts
+```ts ts2js
 search: {
   featured: { type: 'boolean', optional: true },
 }
@@ -235,7 +235,7 @@ Invalid URLs:
 
 Use an enum if the public URL must accept other words:
 
-```ts
+```ts ts2js
 search: {
   featured: { type: 'enum', values: ['yes', 'no'], optional: true },
 }
@@ -245,7 +245,7 @@ search: {
 
 Router search descriptors delegate date parsing to URLKit. Static `date` and `date-time` values parse into JavaScript `Date` objects using UTC fields.
 
-```ts
+```ts ts2js
 search: {
   publishedOn: { type: 'date', format: 'dd-MM-yyyy', optional: true },
   startsAt: {
@@ -258,14 +258,14 @@ search: {
 
 If a value looks one day or a few hours off, the problem is usually local-time display, not URL parsing. Avoid assertions such as:
 
-```ts
+```ts ts2js
 search.startsAt?.getHours();
 search.startsAt?.toString();
 ```
 
 Use UTC-safe checks instead:
 
-```ts
+```ts ts2js
 search.startsAt?.toISOString();
 search.startsAt?.getUTCHours();
 search.publishedOn?.getUTCDate();
@@ -279,7 +279,7 @@ URLKit validates static format strings before Router uses the route. Unsupported
 
 Common mistakes:
 
-```ts
+```ts ts2js
 search: {
   from: { type: 'date', format: 'DD-MM-yyyy', optional: true },
   at: { type: 'date-time', format: 'yyyy-MM-dd hh:mm:ss', optional: true },
@@ -288,7 +288,7 @@ search: {
 
 Use URLKit's strict UTC token subset:
 
-```ts
+```ts ts2js
 search: {
   from: { type: 'date', format: 'dd-MM-yyyy', optional: true },
   at: {
@@ -313,7 +313,7 @@ Router route definitions are Static descriptors. They must be plain data so vali
 
 This is invalid in Router route definitions:
 
-```ts
+```ts ts2js
 search: {
   from: date({ format: 'dd-MM-yyyy' }),
 }
@@ -321,7 +321,7 @@ search: {
 
 This is also invalid:
 
-```ts
+```ts ts2js
 search: {
   from: {
     type: 'date',
@@ -339,7 +339,7 @@ search: {
 
 Use a static format string instead:
 
-```ts
+```ts ts2js
 search: {
   from: { type: 'date', format: 'dd-MM-yyyy', optional: true },
 }
@@ -351,7 +351,7 @@ Custom runtime codecs belong in direct URLKit runtime contracts, not Router rout
 
 URLKit build options control whether values equal to descriptor defaults are serialized.
 
-```ts
+```ts ts2js
 search: {
   page: { type: 'int', default: 1 },
 }
@@ -365,14 +365,14 @@ hash: {
 
 By default, URLKit includes defaulted values during build:
 
-```ts
+```ts ts2js
 router.href({ route: 'products', search: { page: 1 }, hash: 'overview' });
 // '/products?page=1#overview'
 ```
 
 Use `defaults: 'omit'` at the router, route, or call site to omit values equal to normalized defaults:
 
-```ts
+```ts ts2js
 router.href({
   route: 'products',
   search: { page: 1 },
@@ -388,7 +388,7 @@ If an expected default is still present, check the effective `url.defaults` prec
 
 When a route declares hash values, generated hrefs and route state are URLKit-backed.
 
-```ts
+```ts ts2js
 hash: { type: 'enum', values: ['comments', 'share'], optional: true };
 ```
 
@@ -402,7 +402,7 @@ Hash descriptor values are bare hash values. They must not include the leading n
 
 Invalid route definition:
 
-```ts
+```ts ts2js
 hash: {
   type: 'enum',
   values: ['#comments', '#share'],
@@ -412,7 +412,7 @@ hash: {
 
 Valid route definition:
 
-```ts
+```ts ts2js
 hash: {
   type: 'enum',
   values: ['comments', 'share'],

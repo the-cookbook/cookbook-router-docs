@@ -11,7 +11,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 Put access rules where routing can see them. Attach authorization hints to route metadata, then enforce them with middleware registered through `RouterProvider`. Provider middleware runs as part of provider-owned startup, so protected routes are guarded from the first resolution.
 
-```ts
+```ts ts2js
 import type { Middleware } from '@cookbook/router';
 
 const authMiddleware: Middleware = ({ route, location, redirect }) => {
@@ -23,7 +23,7 @@ const authMiddleware: Middleware = ({ route, location, redirect }) => {
 };
 ```
 
-```tsx
+```tsx ts2js
 const middleware = React.useMemo(() => [authMiddleware], []);
 
 return <RouterProvider router={router} middleware={middleware} />;
@@ -31,7 +31,7 @@ return <RouterProvider router={router} middleware={middleware} />;
 
 Read metadata from the normalized matched route:
 
-```ts
+```ts ts2js
 route.route.meta;
 ```
 
@@ -41,7 +41,7 @@ Reach for `route.route.route` only when you need the original declated `RouteDef
 
 Make public access a route property, not a growing list of exceptions. Metadata keeps the policy visible where the route is defined.
 
-```ts
+```ts ts2js
 export const privacyPolicyRoute = defineRoute({
   id: 'policies.privacy',
   parent: 'policies',
@@ -55,7 +55,7 @@ export const privacyPolicyRoute = defineRoute({
 
 Then middleware can skip public routes without hard-coding route ids:
 
-```ts
+```ts ts2js
 const authMiddleware: Middleware = ({ route, redirect, location }) => {
   if (route.route.meta?.access === 'public' || session.isAuthenticated()) {
     return;

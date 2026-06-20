@@ -13,7 +13,7 @@ It is not a usage guide. It is the map of what the React package commits to expo
 
 `@cookbook/router-react` also exposes focused subpaths:
 
-```ts
+```ts ts2js
 '@cookbook/router-react/hooks'
 '@cookbook/router-react/links'
 '@cookbook/router-react/outlets'
@@ -26,7 +26,7 @@ Those subpaths re-export smaller surfaces. This page is scoped to the root React
 
 ### `LinkPrefetch`
 
-```ts
+```ts ts2js
 type LinkPrefetch =
   | false
   | 'hover'
@@ -47,7 +47,7 @@ Controls speculative route preloading for `Link` and `NavLink`.
 
 ### `LinkProps<Route>`
 
-```ts
+```ts ts2js
 interface LinkProps<Route extends RouteId = RouteId>
   extends Omit<
     AnchorHTMLAttributes<HTMLAnchorElement>,
@@ -147,7 +147,7 @@ optional: true,
 
 ### `NavLinkEndOptions`
 
-```ts
+```ts ts2js
 interface NavLinkEndOptions {
   readonly search?: 'all' | 'ignore';
 }
@@ -166,7 +166,7 @@ optional: true,
 
 ### `NavLinkEnd`
 
-```ts
+```ts ts2js
 type NavLinkEnd =
   | boolean
   | NavLinkEndOptions;
@@ -183,7 +183,7 @@ Controls active matching strictness for `NavLink`.
 
 ### `NavLinkRenderProps`
 
-```ts
+```ts ts2js
 interface NavLinkRenderProps {
   readonly isActive: boolean;
 }
@@ -200,7 +200,7 @@ type: 'boolean',
 
 ### `NavLinkProps<Route>`
 
-```ts
+```ts ts2js
 interface NavLinkProps<Route extends RouteId = RouteId>
   extends Omit<
     AnchorHTMLAttributes<HTMLAnchorElement>,
@@ -308,7 +308,7 @@ optional: true,
 
 ### `OutletProps<T>`
 
-```ts
+```ts ts2js
 interface OutletProps<T = unknown> {
   readonly context?: T;
   readonly children?: ReactNode;
@@ -332,7 +332,7 @@ optional: true,
 
 ### `SlotErrorFallbackProps`
 
-```ts
+```ts ts2js
 interface SlotErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -354,7 +354,7 @@ type: '() => void',
 
 ### `SlotErrorFallback`
 
-```ts
+```ts ts2js
 type SlotErrorFallback =
   | ComponentType<SlotErrorFallbackProps>
   | null;
@@ -370,7 +370,7 @@ Controls slot-local render-error isolation.
 
 ### `SlotProps<T>`
 
-```ts
+```ts ts2js
 interface SlotProps<T = unknown> {
   readonly name: string;
   readonly context?: T;
@@ -403,7 +403,7 @@ Slot error fallback contracts are not route error fallback contracts. Treating t
 
 ### `LazyRouteViewComponent<Component>`
 
-```ts
+```ts ts2js
 interface LazyRouteViewComponent<
   Component extends ComponentType<any> = ComponentType<any>,
 > extends LazyExoticComponent<Component> {
@@ -428,7 +428,7 @@ type: "() => Promise<{ readonly default: Component }>",
 
 ### `RouterScrollBehavior`
 
-```ts
+```ts ts2js
 type RouterScrollBehavior = ScrollBehavior;
 ```
 
@@ -436,13 +436,13 @@ Public alias for DOM scroll behavior accepted by provider-managed scroll restora
 
 Common browser values:
 
-```ts
+```ts ts2js
 'auto' | 'instant' | 'smooth'
 ```
 
 ### `RouterProviderProps`
 
-```ts
+```ts ts2js
 interface RouterProviderProps {
   readonly router: Router;
   readonly autoStart?: boolean;
@@ -511,7 +511,7 @@ optional: true,
 
 ### `StaticRouterProviderProps`
 
-```ts
+```ts ts2js
 interface StaticRouterProviderProps {
   readonly router: Router;
   readonly children?: ReactNode;
@@ -563,7 +563,7 @@ optional: true,
 
 ### `RenderReactRouteMatchOptions`
 
-```ts
+```ts ts2js
 interface RenderReactRouteMatchOptions {
   readonly loadingFallback?: ReactNode;
   readonly errorFallback?: ComponentType<RouterErrorFallbackProps>;
@@ -593,7 +593,7 @@ optional: true,
 
 ### `RouteLoadingFallbackProps`
 
-```ts
+```ts ts2js
 interface RouteLoadingFallbackProps {
   readonly route: MatchedRoute;
 }
@@ -610,7 +610,7 @@ type: 'MatchedRoute',
 
 ### `RouteErrorFallbackProps`
 
-```ts
+```ts ts2js
 interface RouteErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -637,7 +637,7 @@ type: 'MatchedRoute',
 
 ### `RouterErrorFallbackProps`
 
-```ts
+```ts ts2js
 interface RouterErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -669,7 +669,7 @@ optional: true,
 
 ### `RouterContextValue`
 
-```ts
+```ts ts2js
 interface RouterContextValue {
   readonly router: Router;
   readonly state: RouterState;
@@ -691,7 +691,7 @@ type: 'RouterState',
 
 ### `OutletContextValue`
 
-```ts
+```ts ts2js
 interface OutletContextValue {
   readonly context?: unknown;
 }
@@ -709,7 +709,7 @@ optional: true,
 
 ### `RouteRenderContextValue`
 
-```ts
+```ts ts2js
 interface RouteRenderContextValue {
   readonly match: MatchedRoute;
 }
@@ -726,7 +726,7 @@ type: 'MatchedRoute',
 
 ### `SlotRenderContextValue`
 
-```ts
+```ts ts2js
 interface SlotRenderContextValue {
   readonly ownerRouteId: string;
   readonly slots: Readonly<Record<string, ReactNode>>;
@@ -756,7 +756,7 @@ optional: true,
 
 The root entrypoint exports these React context values:
 
-```ts
+```ts ts2js
 const RouterContext:
   Context<RouterContextValue | null>;
 
@@ -776,14 +776,14 @@ Internal contexts are not root exports.
 
 Not public:
 
-```ts
+```ts ts2js
 OutletRenderContext
 SlotErrorIsolationContext
 ```
 
 Not public:
 
-```ts
+```ts ts2js
 useOutletContextValue
 useOutletRenderContextValue
 useRouteRenderContext
@@ -794,7 +794,7 @@ useSlotRenderContext
 
 ### `UseBlockerOptions`
 
-```ts
+```ts ts2js
 interface UseBlockerOptions {
   readonly when: boolean;
   readonly message?: string;
@@ -817,7 +817,7 @@ optional: true,
 
 ### `BlockerState`
 
-```ts
+```ts ts2js
 interface BlockerState {
   readonly blocked: boolean;
 }
@@ -836,7 +836,7 @@ type: 'boolean',
 
 ### `OutletContextOptions`
 
-```ts
+```ts ts2js
 interface OutletContextOptions {
   readonly strict?: boolean;
 }
@@ -855,7 +855,7 @@ optional: true,
 
 ### `UseRouteMetaOptions`
 
-```ts
+```ts ts2js
 interface UseRouteMetaOptions {
   readonly includeAncestors?: boolean;
   readonly merge?: false | RouteMetaMergeInput;
@@ -882,7 +882,7 @@ optional: true,
 
 ### `Register`
 
-```ts
+```ts ts2js
 interface Register {}
 ```
 
@@ -902,7 +902,7 @@ The base interface is intentionally empty. Generated `register.d.ts` augments it
 
 ### `RouterContracts`
 
-```ts
+```ts ts2js
 interface RouterContracts extends CoreRouterContracts {}
 ```
 
@@ -941,7 +941,7 @@ The exact fields are supplied by generated core contracts. React consumes the sa
 
 ### `RegisteredContracts`
 
-```ts
+```ts ts2js
 type RegisteredContracts =
   Register extends {
     readonly contracts: infer Contracts;
@@ -1024,7 +1024,7 @@ They expose focused subsets of the root surface. They do not make every implemen
 
 The root entrypoint only re-exports:
 
-```ts
+```ts ts2js
 Register
 RegisteredContracts
 RouterContracts
@@ -1040,7 +1040,7 @@ Do not document the rest as root exports unless `packages/router-react/src/index
 
 Slot error fallback:
 
-```ts
+```ts ts2js
 interface SlotErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -1049,7 +1049,7 @@ interface SlotErrorFallbackProps {
 
 Route error fallback:
 
-```ts
+```ts ts2js
 interface RouteErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;

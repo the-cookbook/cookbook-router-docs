@@ -15,7 +15,7 @@ There is no public `@cookbook/router/contracts` subpath. Import these contracts 
 
 ## Generated registration
 
-```ts
+```ts ts2js
 interface Register {}
 ```
 
@@ -23,7 +23,7 @@ interface Register {}
 
 The generated `register.d.ts` augments it with a concrete `contracts` property:
 
-```ts
+```ts ts2js
 interface Register {
   contracts: RouterContracts;
 }
@@ -33,7 +33,7 @@ Without augmentation, router APIs remain permissive.
 
 ## `RouterContracts`
 
-```ts
+```ts ts2js
 interface RouterContracts {
   params?: Record<string, Record<string, unknown>>;
   paramsInput?: Record<string, Record<string, unknown>>;
@@ -95,7 +95,7 @@ Most applications should not author `RouterContracts` by hand. The CLI or bundle
 
 ## `RegisteredContracts`
 
-```ts
+```ts ts2js
 type RegisteredContracts =
   Register extends {
     contracts: infer Contracts;
@@ -110,7 +110,7 @@ When no generated registration exists, it falls back to the permissive `RouterCo
 
 ## Route-indexed contracts
 
-```ts
+```ts ts2js
 type RouteId =
   RegisteredContracts extends {
     paths: infer Paths;
@@ -123,7 +123,7 @@ type RouteId =
 
 Without generated `paths`, it falls back to `string`.
 
-```ts
+```ts ts2js
 type RouteParams<Route extends string> =
   RegisteredContracts extends {
     params: infer Params;
@@ -161,7 +161,7 @@ type RouteSearchInput<Route extends string> =
     : RouteSearch<Route>;
 ```
 
-```ts
+```ts ts2js
 type RouteHash<Route extends string> =
   RegisteredContracts extends {
     hash: infer Hash;
@@ -186,7 +186,7 @@ type RouteHashInput<Route extends string> =
           );
 ```
 
-```ts
+```ts ts2js
 type RegisteredRouteMeta<Route extends string> =
   RegisteredContracts extends {
     meta: infer Meta;
@@ -253,7 +253,7 @@ Defaulted search fields are present after parsing but optional while building. W
 
 ## `RouteUrlOptions`
 
-```ts
+```ts ts2js
 interface RouteUrlOptions<Route extends string> {
   readonly params?: RouteParamsInput<Route>;
   readonly search?: RouteSearchInput<Route>;
@@ -272,7 +272,7 @@ It is not the same as `RouterUrlOptions`.
 
 ## Authored route contracts
 
-```ts
+```ts ts2js
 type RouteView = unknown;
 
 type RouteMeta = Record<string, unknown>;
@@ -289,7 +289,7 @@ type RouteHashSchema = StaticHashDescriptor;
 
 ## `RouteDefinition`
 
-```ts
+```ts ts2js
 interface RouteDefinition {
   readonly id: string;
   readonly path?: string;
@@ -408,7 +408,7 @@ optional: true,
 
 ## `RouteDeclaration`
 
-```ts
+```ts ts2js
 interface RouteDeclaration
   extends Omit<RouteDefinition, 'children'> {
   readonly parent?: string;
@@ -441,7 +441,7 @@ optional: true,
 
 ## Layout contracts
 
-```ts
+```ts ts2js
 interface RouteLayoutDefinition {
   readonly view?: RouteView;
   readonly loading?: RouteView;
@@ -450,7 +450,7 @@ interface RouteLayoutDefinition {
 }
 ```
 
-```ts
+```ts ts2js
 interface RouteSlotConfig {
   readonly view?: RouteView;
   readonly routes?: readonly RouteDefinition[];
@@ -511,7 +511,7 @@ A slot shorthand may be:
 
 ## Redirect contracts
 
-```ts
+```ts ts2js
 type RouteRedirect =
   | string
   | {
@@ -526,7 +526,7 @@ A string redirect is a literal href. An object redirect targets a route ID and b
 
 ## Interception contracts
 
-```ts
+```ts ts2js
 interface RouteInterceptConfig {
   readonly to: string | readonly string[];
   readonly view: RouteView;
@@ -538,7 +538,7 @@ type RouteIntercepts =
 
 Route-configured intercepts are keyed by slot name.
 
-```ts
+```ts ts2js
 interface CallSiteInterceptInput {
   readonly slot: string;
   readonly view?: RouteView;
@@ -552,7 +552,7 @@ type InterceptInput =
 
 A string `InterceptInput` selects a configured slot. An object supplies a slot and optional view. `false` disables configured interception for one href/navigation call.
 
-```ts
+```ts ts2js
 interface InterceptHistoryState {
   readonly __cookbookRouterIntercept: {
     readonly slot: string;
@@ -567,7 +567,7 @@ interface InterceptHistoryState {
 
 `InterceptHistoryState` is router-owned browser history state. Do not forge it manually.
 
-```ts
+```ts ts2js
 interface ResolvedIntercept {
   readonly slot: string;
   readonly sourceRouteId: string;
@@ -583,7 +583,7 @@ interface ResolvedIntercept {
 
 ## Normalized route contracts
 
-```ts
+```ts ts2js
 interface RouteParamConstraint {
   readonly type: string;
   readonly params: string;
@@ -602,7 +602,7 @@ interface RouteParamDefinition {
 
 `token` preserves the full path token for diagnostics. `constraints` stores each constraint name and raw argument string.
 
-```ts
+```ts ts2js
 interface NormalizedRouteSlotFallback {
   readonly ownerRouteId: string;
   readonly slotName: string;
@@ -630,7 +630,7 @@ interface NormalizedRouteLayout {
 
 `fallback: undefined` means no fallback was declared. `fallback: null` represents an explicitly enabled slot without fallback content.
 
-```ts
+```ts ts2js
 interface NormalizedRoute {
   readonly id: string;
   readonly localPath?: string;
@@ -668,7 +668,7 @@ interface RankedRoute extends NormalizedRoute {
 
 ## Match contracts
 
-```ts
+```ts ts2js
 interface MatchedRoute {
   readonly id: string;
   readonly route: NormalizedRoute;
@@ -676,7 +676,7 @@ interface MatchedRoute {
 }
 ```
 
-```ts
+```ts ts2js
 interface RouteMatch<Route extends string = string> {
   readonly id: Route;
   readonly pathname: string;
@@ -704,7 +704,7 @@ When generated contracts are registered, `params`, `search`, and `hash` narrow b
 
 ## Resolved slots and intercepted route state
 
-```ts
+```ts ts2js
 interface ResolvedSlot {
   readonly ownerRouteId: string;
   readonly name: string;
@@ -732,7 +732,7 @@ type ResolvedSlots =
   >;
 ```
 
-```ts
+```ts ts2js
 interface ResolvedInterceptedRoute {
   readonly slot: string;
   readonly sourceRouteId: string;
@@ -750,7 +750,7 @@ interface ResolvedInterceptedRoute {
 
 ## Preload contracts
 
-```ts
+```ts ts2js
 interface RoutePreloadContext<
   Route extends string = string,
 > {
@@ -780,7 +780,7 @@ Preloading warms route work. It does not commit navigation, run middleware, or m
 
 ## Middleware contracts
 
-```ts
+```ts ts2js
 interface MiddlewareContext {
   readonly route: MatchedRoute;
   readonly location: RouterLocation;
@@ -796,7 +796,7 @@ interface MiddlewareContext {
 }
 ```
 
-```ts
+```ts ts2js
 type MiddlewareResult =
   | void
   | false
@@ -862,7 +862,7 @@ type: '() => MiddlewareResult',
 
 ## Lifecycle contracts
 
-```ts
+```ts ts2js
 interface RouteLifecycleContext {
   readonly from: RouteMatch | null;
   readonly to: RouteMatch | null;
@@ -876,7 +876,7 @@ interface RouteLifecycleContext {
 }
 ```
 
-```ts
+```ts ts2js
 interface RouteLifecycle {
   readonly beforeEnter?: (
     context: RouteLifecycleContext,
@@ -894,7 +894,7 @@ interface RouteLifecycle {
 }
 ```
 
-```ts
+```ts ts2js
 interface GlobalLifecycle {
   readonly beforeNavigate?: (
     context: RouteLifecycleContext,
@@ -915,7 +915,7 @@ Route and global lifecycle hooks share `RouteLifecycleContext`.
 
 ## Runtime option contracts
 
-```ts
+```ts ts2js
 interface CreateRouterOptions {
   readonly routes: readonly RouteDefinition[];
   readonly basename?: string;
@@ -944,7 +944,7 @@ interface CreateStaticRouterOptions
 }
 ```
 
-```ts
+```ts ts2js
 interface HrefOptions<Route extends string>
   extends RouteUrlOptions<Route> {
   readonly url?: RouterUrlBuildOptions;
@@ -976,7 +976,7 @@ interface PreloadHrefOptions extends MatchOptions {
 
 ## Router runtime contracts
 
-```ts
+```ts ts2js
 type RouterNavigationState =
   | 'idle'
   | 'pending'
@@ -985,7 +985,7 @@ type RouterNavigationState =
   | 'error';
 ```
 
-```ts
+```ts ts2js
 interface RouterState {
   readonly location: RouterLocation;
   readonly match: RouteMatch | null;
@@ -1004,7 +1004,7 @@ interface SerializedRouterState {
 
 ## History contracts
 
-```ts
+```ts ts2js
 type HistoryAction =
   | 'push'
   | 'replace'
@@ -1047,7 +1047,7 @@ interface RouterHistory {
 
 ## URL policy contracts
 
-```ts
+```ts ts2js
 type RouterUrlArrayFormat =
   | 'repeat'
   | 'comma';
@@ -1066,7 +1066,7 @@ type RouterUnknownSearchParams =
   Record<string, unknown>;
 ```
 
-```ts
+```ts ts2js
 interface RouterUrlOptions {
   readonly arrayFormat?: RouterUrlArrayFormat;
   readonly defaults?: 'include' | 'omit';
@@ -1082,7 +1082,7 @@ interface RouterUrlBuildOptions {
 }
 ```
 
-```ts
+```ts ts2js
 interface RouterRouteSearchParseOptions
   extends RouterPathMatchOptions {
   readonly arrayFormat?: RouterUrlArrayFormat;
@@ -1101,7 +1101,7 @@ interface ResolveUrlOptionsInput {
 
 ## Path contracts
 
-```ts
+```ts ts2js
 interface RouterPathOptions {
   readonly prune?: 'all' | 'duplication' | 'trailing' | false;
 }
@@ -1116,7 +1116,7 @@ interface RouterPathMatchOptions {
 }
 ```
 
-```ts
+```ts ts2js
 type RouterPathConstraint = ConstraintValidation;
 
 type RouterPathConstraints =
@@ -1127,7 +1127,7 @@ The root exports the common path option and constraint contracts. More path-spec
 
 ## URL contract types
 
-```ts
+```ts ts2js
 interface RouterRouteUrlDescriptor {
   readonly path?: string;
   readonly search?: RouteSearchSchema;
@@ -1143,7 +1143,7 @@ interface CreateRouterRouteUrlContractOptions {
 }
 ```
 
-```ts
+```ts ts2js
 interface RouterRouteUrlContract {
   readonly pattern: string | undefined;
   parse(
@@ -1187,7 +1187,7 @@ interface RouterRouteUrlContract {
 
 ## Metadata contracts
 
-```ts
+```ts ts2js
 interface RouteMetaEntry<
   Route extends string = RouteId,
 > {
@@ -1203,7 +1203,7 @@ interface RouteMetaEntry<
 }
 ```
 
-```ts
+```ts ts2js
 interface RouteMetaChainOptions {
   readonly includeAncestors?: boolean;
 }
@@ -1239,7 +1239,7 @@ Merge modes:
 
 ## Rendering contracts
 
-```ts
+```ts ts2js
 interface RenderRouteMatchOptions<
   View = RouteView,
   Output = unknown,
@@ -1280,7 +1280,7 @@ interface RenderRouteMatchOptions<
 }
 ```
 
-```ts
+```ts ts2js
 interface RouteViewContext<Output = unknown> {
   readonly match: MatchedRoute;
   readonly outlet: Output;
@@ -1304,7 +1304,7 @@ interface RouteErrorViewContext<Output = unknown>
 }
 ```
 
-```ts
+```ts ts2js
 interface RouteSlotViewContext<Output = unknown>
   extends RouteViewContext<Output> {
   readonly ownerRouteId: string;
@@ -1322,7 +1322,7 @@ interface RouteInterceptViewContext<Output = unknown>
 }
 ```
 
-```ts
+```ts ts2js
 interface ResolvedRouteFallback<
   View = RouteView,
 > {
@@ -1356,7 +1356,7 @@ These are renderer-neutral contracts. They describe traversal and ownership. The
 
 ## Generated search descriptor contract
 
-```ts
+```ts ts2js
 type MergedSearchDescriptors<
   Descriptors extends readonly RouteSearchSchema[],
 > = /* merged static search descriptor object */;

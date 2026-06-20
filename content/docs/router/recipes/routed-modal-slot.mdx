@@ -11,7 +11,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 Use configured intercepts when a source route should consistently open a target route in a slot during client navigation.
 
-```tsx
+```tsx ts2js
 const CreateModal = lazyRouteView(() => import('./create-modal'));
 
 export const overviewRoute = defineRoute({
@@ -30,7 +30,7 @@ export const overviewRoute = defineRoute({
 
 The source layout must define and render the slot:
 
-```tsx
+```tsx ts2js
 function DashboardLayout() {
   return (
     <>
@@ -47,7 +47,7 @@ Client navigation from the configured source route renders the target through th
 
 Give the layout named places to work with. Use slots for dashboard UI such as sidebars, headers, modals, and panels.
 
-```ts
+```ts ts2js
 export const rootRoute = defineRoute({
   id: 'root',
   path: '/',
@@ -64,7 +64,7 @@ export const rootRoute = defineRoute({
 
 Render slots from the layout view:
 
-```tsx
+```tsx ts2js
 function DashboardLayout() {
   return (
     <>

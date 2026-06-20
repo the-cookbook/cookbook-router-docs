@@ -11,7 +11,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 Filters belong in the URL when users need links, refreshes, and browser history to keep their place. Define search params once and let navigation stay typed.
 
-```ts
+```ts ts2js
 import { defineRoute, defineSearch, mergeSearch } from '@cookbook/router';
 
 const paginationSearch = defineSearch({
@@ -34,7 +34,7 @@ export const usersRoute = defineRoute({
 
 Update filters by navigating to the same route with new search state:
 
-```tsx
+```tsx ts2js
 function UsersFilters() {
   const search = useSearchParams('users');
   const navigate = useNavigate();
@@ -63,7 +63,7 @@ Use `NavLink` `end` options when active matching should ignore selected URL part
 
 Use the hash for lightweight page state that feels local to the page, such as active tabs or jump sections.
 
-```ts
+```ts ts2js
 export const settingsRoute = defineRoute({
   id: 'settings',
   path: '/settings',
@@ -75,7 +75,7 @@ export const settingsRoute = defineRoute({
 } as const);
 ```
 
-```tsx
+```tsx ts2js
 function SettingsTabs() {
   const navigate = useNavigate();
   const activeTab = useHashParams('settings') ?? 'profile';

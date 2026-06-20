@@ -13,7 +13,7 @@ That is expected. Slot fallbacks are render defaults, not navigable routes.
 
 Use generic outlet context typing in fallback components:
 
-```tsx
+```tsx ts2js
 const context = useOutletContext<{ user: string }>();
 ```
 
@@ -37,21 +37,21 @@ cookbook-router generate --routes src/routes.tsx --out-dir .cookbook-router --wa
 
 This is expected URLKit-backed behavior.
 
-```tsx
+```tsx ts2js
 {
   id: 'users.show',
   path: '/users/{id:int}',
 }
 ```
 
-```ts
+```ts ts2js
 const params = useParams('users.show');
 params.id; // number
 ```
 
 Use numeric params in links, hrefs, navigation, tests, middleware assumptions, and generated-contract assertions:
 
-```tsx
+```tsx ts2js
 <Link to="users.show" params={{ id: 42 }} />
 ```
 
@@ -61,14 +61,14 @@ Use numeric params in links, hrefs, navigation, tests, middleware assumptions, a
 
 These constraints validate string shape or length. They do not make the parsed value numeric:
 
-```tsx
+```tsx ts2js
 {
   id: 'articles.show',
   path: '/articles/{slug:minlength(3):maxlength(50)}',
 }
 ```
 
-```ts
+```ts ts2js
 const params = useParams('articles.show');
 params.slug; // string
 ```
@@ -79,14 +79,14 @@ Use `min(...)` and `max(...)` for numeric bounds. Use `minlength(...)` and `maxl
 
 Custom constraints validate shape but generate and expose `string` params unless the same constraint chain also includes a numeric built-in constraint.
 
-```tsx
+```tsx ts2js
 {
   id: 'posts.show',
   path: '/posts/{slug:slug}',
 }
 ```
 
-```ts
+```ts ts2js
 const params = useParams('posts.show');
 params.slug; // string
 ```

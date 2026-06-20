@@ -15,7 +15,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 The loader supports JSON route files, static TypeScript/JavaScript route modules, simple globs, watch roots, route option merging, custom path constraints, modular route composition, and route export metadata for generated `routes.ts`.
 
-```ts
+```ts ts2js
 import {
   expandRouteFilePatterns,
   getRouteFilePatternWatchPaths,
@@ -41,7 +41,7 @@ import type {
 
 ## `resolveRoutes(options)`
 
-```ts
+```ts ts2js
 function resolveRoutes(
   options: CliRouteOptions,
 ): Promise<readonly RouteDefinition[]>;
@@ -51,7 +51,7 @@ Convenience projection over `resolveRouteInput()`.
 
 It returns only the resolved route array.
 
-```ts
+```ts ts2js
 const routes = await resolveRoutes({
   routeFiles: ['src/**/*.route.tsx'],
 });
@@ -61,7 +61,7 @@ Use `resolveRouteInput()` when you need route options, route source metadata, or
 
 ## `resolveRouteInput(options)`
 
-```ts
+```ts ts2js
 function resolveRouteInput(
   options: CliRouteOptions,
 ): Promise<RouteFile>;
@@ -83,7 +83,7 @@ No routes or routeFiles were provided.
 
 ## `RouteFile`
 
-```ts
+```ts ts2js
 interface RouteFile {
   readonly routes: readonly RouteDefinition[];
   readonly routeOptions?: DefineRoutesOptions;
@@ -122,7 +122,7 @@ Route-file input returns `routeSources` and merged `routeOptions` when applicabl
 
 ## `resolveRouteInputWithOptions(options)`
 
-```ts
+```ts ts2js
 interface ResolvedRouteInput {
   readonly routeFile: RouteFile;
   readonly options: CliRouteOptions;
@@ -144,7 +144,7 @@ Use this when a command or plugin needs both:
 * loaded config path;
 * runtime route options.
 
-```ts
+```ts ts2js
 const resolved =
   await resolveRouteInputWithOptions({
     configFile: 'cookbook-router.config.ts',
@@ -157,7 +157,7 @@ resolved.options.routeFileWatchPaths;
 
 ## `resolveEffectiveRouteOptions(options)`
 
-```ts
+```ts ts2js
 function resolveEffectiveRouteOptions(
   options: CliRouteOptions,
 ): Promise<CliRouteOptions>;
@@ -216,7 +216,7 @@ No route files matched routeFiles pattern ["src/**/*.route.tsx"].
 
 Internal watch-mode resolution can pass:
 
-```ts
+```ts ts2js
 allowEmptyRouteFiles: true
 ```
 
@@ -242,7 +242,7 @@ Duplicate path constraint name "slug" was provided by router config or route sou
 
 ## `loadRouteFiles(options)`
 
-```ts
+```ts ts2js
 interface LoadRouteFilesOptions {
   readonly routeFiles: readonly string[];
   readonly fs?: CliFileSystem;
@@ -257,7 +257,7 @@ Loads each explicit route file and returns one source record per file.
 
 `CliRouteSource` is not exported from the package root as a named type. Its structural shape is:
 
-```ts
+```ts ts2js
 interface CliRouteSource {
   readonly path: string;
   readonly routes: readonly RouteDefinition[];
@@ -373,7 +373,7 @@ It defers validation when a file uses modular composition or may depend on route
 
 ## `validateRouteFiles(options)`
 
-```ts
+```ts ts2js
 function validateRouteFiles(
   options: LoadRouteFilesOptions,
 ): Promise<readonly CliRouteSource[]>;
@@ -397,7 +397,7 @@ This is the right API for checking a multi-file route graph without writing arti
 
 ## `expandRouteFilePatterns(options)`
 
-```ts
+```ts ts2js
 function expandRouteFilePatterns(
   options: {
     readonly patterns: string | readonly string[];
@@ -490,7 +490,7 @@ Results are:
 
 ## `getRouteFilePatternWatchPaths(options)`
 
-```ts
+```ts ts2js
 function getRouteFilePatternWatchPaths(
   options: {
     readonly patterns: string | readonly string[];
@@ -521,13 +521,13 @@ Duplicate watch paths are removed while preserving first occurrence.
 
 The extractor supports these exported route shapes:
 
-```ts
+```ts ts2js
 export const routes = defineRoutes([
   // ...
 ] as const);
 ```
 
-```ts
+```ts ts2js
 export const routes = defineRouteTree({
   routes: [
     // ...
@@ -535,14 +535,14 @@ export const routes = defineRouteTree({
 } as const);
 ```
 
-```ts
+```ts ts2js
 export const articleRoute = defineRoute({
   id: 'article',
   path: '/articles/{slug}',
 } as const);
 ```
 
-```ts
+```ts ts2js
 export const routes = [
   {
     id: 'home',
@@ -553,7 +553,7 @@ export const routes = [
 
 Named export aliases are supported:
 
-```ts
+```ts ts2js
 const appRoutes = defineRoutes([
   // ...
 ] as const);
@@ -563,7 +563,7 @@ export {
 };
 ```
 
-```ts
+```ts ts2js
 const tree = defineRouteTree({
   routes: [
     // ...
@@ -731,7 +731,7 @@ Route file "routes.tsx" could not statically evaluate defineRoutes options. Use 
 
 ## `RouteFileExport`
 
-```ts
+```ts ts2js
 interface RouteFileExport {
   readonly exportName: string;
   readonly kind: 'route' | 'routes' | 'routeTree';
@@ -829,7 +829,7 @@ Use the structural shapes documented above when you need to annotate local integ
 
 This can be valid TypeScript:
 
-```ts
+```ts ts2js
 export const routes = buildRoutesFromDatabase();
 ```
 
@@ -867,7 +867,7 @@ Use:
 
 This does not apply discovered config route options:
 
-```ts
+```ts ts2js
 await resolveEffectiveRouteOptions({
   routeFiles: ['src/**/*.route.tsx'],
 });
@@ -879,7 +879,7 @@ Pass `configFile` when explicit route files should still merge with config path 
 
 This can be ignored by the static evaluator when used only as `view`:
 
-```ts
+```ts ts2js
 import {
   OverviewPage,
 } from '@/pages/overview';
@@ -887,7 +887,7 @@ import {
 
 This cannot be resolved when used to build static route metadata:
 
-```ts
+```ts ts2js
 import {
   paginationSearch,
 } from '@/lib/routes/pagination';
@@ -899,7 +899,7 @@ Static metadata imports must be relative or absolute file paths.
 
 This is wrong:
 
-```ts
+```ts ts2js
 await loadRouteFiles({
   routeFiles: ['src/**/*.route.tsx'],
 });
@@ -907,7 +907,7 @@ await loadRouteFiles({
 
 Use:
 
-```ts
+```ts ts2js
 const routeFiles =
   await expandRouteFilePatterns({
     patterns: 'src/**/*.route.tsx',

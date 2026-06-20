@@ -11,7 +11,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 Make the route view lazy once, then let links create intent before the click. `lazyRouteView()` lets the same route view be rendered and preloaded without duplicating imports.
 
-```tsx
+```tsx ts2js
 import { lazyRouteView } from '@cookbook/router-react';
 
 const UsersPage = lazyRouteView(() => import('./users-page'));
@@ -25,7 +25,7 @@ export const usersRoute = defineRoute({
 
 Prefetch route views or generated route modules from links:
 
-```tsx
+```tsx ts2js
 <Link to="users" prefetch="interaction">
   Users
 </Link>
@@ -33,7 +33,7 @@ Prefetch route views or generated route modules from links:
 
 Available prefetch modes are:
 
-```ts
+```ts ts2js
 false;
 ('hover');
 ('focus');
@@ -49,7 +49,7 @@ For generated or file-based routes, generated runtime route modules attach inter
 
 Preloading should prepare your app, not move ownership into the router. Use route-level `preload` when a route should warm application-owned systems before navigation.
 
-```ts
+```ts ts2js
 export const userDetailsRoute = defineRoute({
   id: 'users.details',
   path: '/users/{id:int}',
@@ -66,7 +66,7 @@ This does not put data into the router. The query client still owns caching, inv
 
 You can also preload explicitly:
 
-```ts
+```ts ts2js
 await router.preload('users.details', {
   params: { id: 123 },
 });
@@ -74,6 +74,6 @@ await router.preload('users.details', {
 
 or by href:
 
-```ts
+```ts ts2js
 await router.preloadHref('/users/123');
 ```

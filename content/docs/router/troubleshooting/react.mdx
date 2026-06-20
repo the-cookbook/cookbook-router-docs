@@ -18,7 +18,7 @@ A sidebar, header, modal, or other slot throws during render and the route/provi
 **Fix**
 Pass a slot-local fallback. Use `errorFallback={null}` to render nothing, an inline function for custom UI, or a fallback component.
 
-```tsx
+```tsx ts2js
 <Slot name="modal" errorFallback={null} />
 <Slot name="modal" errorFallback={ModalError} />
 ```

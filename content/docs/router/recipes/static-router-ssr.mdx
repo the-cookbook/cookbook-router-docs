@@ -11,7 +11,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 On the server, resolve first and respond with intent. A static router resolves the request URL before rendering.
 
-```tsx
+```tsx ts2js
 const router = createStaticRouter({
   routes,
   url: request.url,
@@ -22,7 +22,7 @@ const state = await router.start();
 
 Map router state to your server framework response before rendering or sending headers:
 
-```ts
+```ts ts2js
 if (!state.match) {
   return new Response(renderNotFoundHtml(), { status: 404 });
 }
@@ -36,6 +36,6 @@ Cookbook Router does not force an HTTP server framework. Keep redirect, status, 
 
 Client hydration uses serialized router state:
 
-```tsx
+```tsx ts2js
 const hydrationData = stringifyRouterState(router);
 ```

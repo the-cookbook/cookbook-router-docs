@@ -28,7 +28,7 @@ Generated contracts register with both runtime packages that consume typed route
 
 Core APIs use generated contracts for route IDs, params, search, hash, and metadata.
 
-```ts
+```ts ts2js
 const href = router.href('articles.show', {
   params: {
     slug: 'typed-routing',
@@ -49,7 +49,7 @@ The same contracts drive `href()`, `resolve()`, `match()`, `navigate`, `preload`
 
 React APIs read the same registered contracts.
 
-```tsx
+```tsx ts2js
 <Link
   to="articles.show"
   params={{
@@ -94,7 +94,7 @@ See [Generated artifacts](/docs/router/getting-started/generated-artifacts) for 
 
 The generator emits these interfaces:
 
-```ts
+```ts ts2js
 export interface RouteParams {}
 export interface RouteParamsInput {}
 export interface RouteSearch {}
@@ -120,7 +120,7 @@ Every map is keyed by route ID.
 
 A generated dashboard contract can contain entries such as:
 
-```ts
+```ts ts2js
 export interface RouteParams {
   'documents.details': {
     documentId: string;
@@ -142,7 +142,7 @@ The interfaces describe the complete generated route registry. They are not gene
 
 The generated `register.d.ts` file registers `RouterContracts` with both public packages:
 
-```ts
+```ts ts2js
 import type { RouterContracts } from './contracts';
 
 declare module '@cookbook/router' {
@@ -194,7 +194,7 @@ The distinction is:
 
 Import public selector types from `@cookbook/router` when application code needs the type associated with a route.
 
-```ts
+```ts ts2js
 import type {
   RegisteredRouteMeta,
   RouteHash,
@@ -210,7 +210,7 @@ import type {
 
 Select a contract by route ID:
 
-```ts
+```ts ts2js
 type UserParams =
   RouteParams<'users.details'>;
 
@@ -238,7 +238,7 @@ type DashboardContext =
 
 Use `RouteId` when a value may be any registered route ID:
 
-```ts
+```ts ts2js
 function preloadRoute(routeId: RouteId) {
   return router.preload(routeId);
 }
@@ -250,7 +250,7 @@ These public types read from the generated registration. They do not duplicate t
 
 Use React hooks when a component needs the current parsed value rather than only its TypeScript type.
 
-```tsx
+```tsx ts2js
 import {
   useHashParams,
   useParams,
@@ -275,7 +275,7 @@ The route ID selects the generated contract used by the hook.
 
 For outlet context, use the generic form when the application owns the context shape:
 
-```tsx
+```tsx ts2js
 import { useOutletContext } from '@cookbook/router-react';
 
 interface DashboardContext {
@@ -293,7 +293,7 @@ The current generator emits `{}` for route outlet-context entries because compon
 
 Links and router methods select their input types from the route ID automatically.
 
-```tsx
+```tsx ts2js
 <Link
   route="users.details"
   params={{
@@ -306,7 +306,7 @@ Links and router methods select their input types from the route ID automaticall
 
 For a route with generated search input:
 
-```tsx
+```tsx ts2js
 <Link
   route="users.index"
   search={{
@@ -320,7 +320,7 @@ For a route with generated search input:
 
 The same contracts apply to core router methods:
 
-```ts
+```ts ts2js
 router.href('users.details', {
   params: {
     slug: 'ada-lovelace',
@@ -341,7 +341,7 @@ Application code usually does not need to name the contract types here. The sele
 
 The generated file contains interfaces such as:
 
-```ts
+```ts ts2js
 export interface RouteParams {
   'users.details': {
     slug: string;
@@ -363,7 +363,7 @@ These are route-keyed maps, not generic selector types.
 
 Direct indexing is possible:
 
-```ts
+```ts ts2js
 import type {
   RouteParams as GeneratedRouteParams,
   RouteSearch as GeneratedRouteSearch,
@@ -385,7 +385,7 @@ Direct imports are mainly useful for:
 
 Normal application code should prefer public selectors:
 
-```ts
+```ts ts2js
 import type {
   RouteParams,
   RouteSearch,
@@ -404,7 +404,7 @@ The public types remain stable even when the generated output directory changes.
 
 Some generated interfaces and public selector types share names, but their syntax reveals their purpose:
 
-```ts
+```ts ts2js
 // Generated route map
 GeneratedRouteParams['users.details'];
 
@@ -414,7 +414,7 @@ RouteParams<'users.details'>;
 
 The important exception is metadata:
 
-```ts
+```ts ts2js
 // Generated map
 RouteMeta['login'];
 
@@ -430,7 +430,7 @@ RegisteredRouteMeta<'login'>;
 
 Given:
 
-```ts
+```ts ts2js
 export interface RoutePaths {
   main: '/';
   login: '/login';
@@ -442,7 +442,7 @@ export interface RoutePaths {
 
 the public type includes:
 
-```ts
+```ts ts2js
 type RouteId =
   | 'main'
   | 'login'
@@ -453,7 +453,7 @@ type RouteId =
 
 Use it directly when an API accepts any registered route:
 
-```ts
+```ts ts2js
 import type { RouteId } from '@cookbook/router';
 
 function preloadRoute(routeId: RouteId) {
@@ -469,7 +469,7 @@ Without generated registration, `RouteId` falls back to `string`.
 
 From the generated dashboard contract:
 
-```ts
+```ts ts2js
 export interface RouteParams {
   'documents.details': {
     documentId: string;
@@ -506,7 +506,7 @@ Built-in numeric constraints generate `number`:
 
 Wildcards generate an array of parsed path segments:
 
-```ts
+```ts ts2js
 type NotFoundParams =
   RouteParams<'not-found'>;
 
@@ -517,7 +517,7 @@ type NotFoundParams =
 
 React hooks consume the same registered contract:
 
-```tsx
+```tsx ts2js
 import { useParams } from '@cookbook/router-react';
 
 function UserDetails() {
@@ -533,7 +533,7 @@ function UserDetails() {
 
 Most params have the same parsed and input type:
 
-```ts
+```ts ts2js
 type UserParamsInput =
   RouteParamsInput<'users.details'>;
 
@@ -546,7 +546,7 @@ Wildcards differ.
 
 Generated parsed state:
 
-```ts
+```ts ts2js
 export interface RouteParams {
   'not-found': {
     path: readonly string[];
@@ -556,7 +556,7 @@ export interface RouteParams {
 
 Generated input:
 
-```ts
+```ts ts2js
 export interface RouteParamsInput {
   'not-found': {
     path: string | readonly string[];
@@ -566,7 +566,7 @@ export interface RouteParamsInput {
 
 Both forms are accepted during URL generation:
 
-```ts
+```ts ts2js
 router.href('not-found', {
   params: {
     path: 'missing/document',
@@ -574,7 +574,7 @@ router.href('not-found', {
 });
 ```
 
-```ts
+```ts ts2js
 router.href('not-found', {
   params: {
     path: ['missing', 'document'],
@@ -590,7 +590,7 @@ Matched state remains normalized as `readonly string[]`.
 
 The dashboard example generates:
 
-```ts
+```ts ts2js
 export interface RouteSearch {
   login: {
     redirect?: string;
@@ -614,7 +614,7 @@ export interface RouteSearch {
 
 The corresponding declarations are assembled from local and shared descriptors:
 
-```ts
+```ts ts2js
 const usersSearch = defineSearch({
   status: {
     type: 'string',
@@ -644,7 +644,7 @@ export const paginationSearch = defineSearch({
 
 After:
 
-```ts
+```ts ts2js
 search: mergeSearch(
   usersSearch,
   paginationSearch,
@@ -653,7 +653,7 @@ search: mergeSearch(
 
 the generated parsed type is:
 
-```ts
+```ts ts2js
 type UsersSearch =
   RouteSearch<'users.index'>;
 
@@ -668,7 +668,7 @@ type UsersSearch =
 
 `status` is required in parsed state because its descriptor has a default.
 
-```tsx
+```tsx ts2js
 import { useSearchParams } from '@cookbook/router-react';
 
 function UsersPage() {
@@ -686,7 +686,7 @@ function UsersPage() {
 
 For the same route, generation produces:
 
-```ts
+```ts ts2js
 export interface RouteSearchInput {
   'users.index': {
     status?: string;
@@ -702,7 +702,7 @@ export interface RouteSearchInput {
 
 This is valid:
 
-```tsx
+```tsx ts2js
 import { Link } from '@cookbook/router-react';
 
 <Link
@@ -752,7 +752,7 @@ Unknown or unsupported static descriptor types generate `unknown`.
 
 A route with no hash descriptor generates `never`:
 
-```ts
+```ts ts2js
 export interface RouteHash {
   login: never;
   overview: never;
@@ -762,7 +762,7 @@ export interface RouteHash {
 
 An enum descriptor such as:
 
-```ts
+```ts ts2js
 hash: {
   type: 'enum',
   values: ['comments', 'share'],
@@ -772,7 +772,7 @@ hash: {
 
 generates:
 
-```ts
+```ts ts2js
 export interface RouteHash {
   'articles.show':
     | 'comments'
@@ -791,7 +791,7 @@ The CLI does not generate a `RouteHashInput` interface.
 
 For:
 
-```ts
+```ts ts2js
 type ArticleHash =
   RouteHash<'articles.show'>;
 
@@ -800,7 +800,7 @@ type ArticleHash =
 
 the accepted input is:
 
-```ts
+```ts ts2js
 type ArticleHashInput =
   RouteHashInput<'articles.show'>;
 
@@ -814,7 +814,7 @@ type ArticleHashInput =
 
 For a route whose generated hash is `never`:
 
-```ts
+```ts ts2js
 type UsersHashInput =
   RouteHashInput<'users.index'>;
 
@@ -835,7 +835,7 @@ It returns `null` when:
 
 The hook excludes `undefined` from the generated route hash and uses `null` for absence.
 
-```tsx
+```tsx ts2js
 const hash =
   useHashParams('articles.show');
 
@@ -844,7 +844,7 @@ const hash =
 
 For a route whose generated hash contract is `never`:
 
-```tsx
+```tsx ts2js
 const hash =
   useHashParams('users.index');
 
@@ -857,7 +857,7 @@ const hash =
 
 The dashboard contract includes:
 
-```ts
+```ts ts2js
 export interface RouteMeta {
   login: {
     access?: string;
@@ -885,7 +885,7 @@ Metadata properties are:
 
 Given:
 
-```ts
+```ts ts2js
 meta: {
   access: 'public',
   requiresAuth: true,
@@ -895,7 +895,7 @@ meta: {
 
 generation produces:
 
-```ts
+```ts ts2js
 {
   access?: string;
   requiresAuth?: boolean;
@@ -909,7 +909,7 @@ Objects, arrays, and `null` follow JavaScript `typeof` behavior and therefore pr
 
 Use the public metadata selector:
 
-```ts
+```ts ts2js
 import type {
   RegisteredRouteMeta,
 } from '@cookbook/router';
@@ -924,7 +924,7 @@ type LoginMeta =
 
 Read metadata through public runtime helpers:
 
-```ts
+```ts ts2js
 import {
   getRouteMeta,
 } from '@cookbook/router';
@@ -939,7 +939,7 @@ meta.access;
 
 In React:
 
-```tsx
+```tsx ts2js
 import {
   useRouteMeta,
 } from '@cookbook/router-react';
@@ -958,7 +958,7 @@ meta.access;
 
 The dashboard contract includes:
 
-```ts
+```ts ts2js
 export interface RoutePaths {
   main: '/';
   'main.redirect': '/';
@@ -981,7 +981,7 @@ The generated path is the normalized full pattern, not only the local child segm
 
 Index routes share their parent path:
 
-```ts
+```ts ts2js
 documents: '/documents';
 'documents.index': '/documents';
 ```
@@ -996,7 +996,7 @@ The current generator does not infer outlet context from components, layouts, `<
 
 It emits `{}` for every route:
 
-```ts
+```ts ts2js
 export interface RouteOutletContext {
   main: {};
   login: {};
@@ -1010,7 +1010,7 @@ Do not interpret these empty objects as inferred application context.
 
 Use the generic hook overload for application-owned outlet context:
 
-```tsx
+```tsx ts2js
 import {
   useOutletContext,
 } from '@cookbook/router-react';
@@ -1034,7 +1034,7 @@ Do not edit the generated interface manually.
 
 Both `route` and `to` are supported for route-ID navigation.
 
-```tsx
+```tsx ts2js
 import { Link } from '@cookbook/router-react';
 
 <Link
@@ -1051,7 +1051,7 @@ The generated `RouteParamsInput['users.details']` contract requires `slug`.
 
 For defaulted search state:
 
-```tsx
+```tsx ts2js
 <Link
   route="users.index"
   search={{
@@ -1071,7 +1071,7 @@ A normal `href` bypasses route-ID URL generation and should be used for external
 
 Core route-ID APIs consume the same contracts:
 
-```ts
+```ts ts2js
 router.href('users.details', {
   params: {
     slug: 'ada-lovelace',
@@ -1079,7 +1079,7 @@ router.href('users.details', {
 });
 ```
 
-```ts
+```ts ts2js
 await router.navigate.to(
   'users.index',
   {
@@ -1091,7 +1091,7 @@ await router.navigate.to(
 );
 ```
 
-```ts
+```ts ts2js
 const match = router.resolve(
   'users.details',
   {
@@ -1108,7 +1108,7 @@ The router retains string overloads for dynamic route IDs and internal href navi
 
 Generated contracts flow into the state-reading hooks:
 
-```tsx
+```tsx ts2js
 const params =
   useParams('users.details');
 
@@ -1124,7 +1124,7 @@ const meta =
 
 The inferred values are:
 
-```ts
+```ts ts2js
 params.slug;
 // string
 
@@ -1192,7 +1192,7 @@ Contract-relevant fields include:
 
 Use static descriptors and supported helpers such as:
 
-```ts
+```ts ts2js
 defineSearch(...)
 mergeSearch(...)
 defineHash(...)
@@ -1229,13 +1229,13 @@ They share names such as `RouteParams` and `RouteSearch`, but they serve differe
 
 Generated:
 
-```ts
+```ts ts2js
 RouteParams['users.details']
 ```
 
 Public:
 
-```ts
+```ts ts2js
 RouteParams<'users.details'>
 ```
 
@@ -1243,7 +1243,7 @@ RouteParams<'users.details'>
 
 That is intentional.
 
-```ts
+```ts ts2js
 status: string;
 ```
 
@@ -1251,7 +1251,7 @@ The runtime always supplies the descriptor default.
 
 It remains optional in navigation input:
 
-```ts
+```ts ts2js
 status?: string;
 ```
 
@@ -1263,13 +1263,13 @@ Custom constraints such as `{slug:slug}` generate `string`. The generator only a
 
 Parsed state uses:
 
-```ts
+```ts ts2js
 readonly string[]
 ```
 
 Navigation input accepts:
 
-```ts
+```ts ts2js
 string | readonly string[]
 ```
 
@@ -1281,13 +1281,13 @@ That prevents typed href and navigation calls from supplying hash state for that
 
 ### Metadata literals are widened
 
-```ts
+```ts ts2js
 access: 'public'
 ```
 
 generates:
 
-```ts
+```ts ts2js
 access?: string
 ```
 

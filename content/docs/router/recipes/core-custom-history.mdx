@@ -1,0 +1,158 @@
+---
+title: "Custom history"
+description: "Inject a custom RouterHistory for native shells, embedded apps, and controlled tests."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+The router runtime consumes a `RouterHistory`. Browser, memory, and static histories are built in. Custom histories let another host own location storage and traversal.
+
+Use a custom history for native shells, embedded apps, controlled tests, browser-like runtimes, and app hosts with their own navigation stack.
+
+## Implement the contract
+
+```ts ts2js
+import {
+  createRouter,
+  parseHref,
+  type HistoryEvent,
+  type RouterHistory,
+  type RouterLocation,
+} from '@cookbook/router';
+
+function createHostHistory(
+  initialHref = '/',
+): RouterHistory {
+  let location: RouterLocation = parseHref(initialHref);
+  const listeners = new Set<
+    (event: HistoryEvent) => void
+  >();
+
+  function emit(action: HistoryEvent['action']) {
+    const event: HistoryEvent = {
+      action,
+      location,
+    };
+
+    for (const listener of listeners) {
+      listener(event);
+    }
+  }
+
+  return {
+    mode: 'memory',
+
+    get location() {
+      return location;
+    },
+
+    push(href, state) {
+      location = parseHref(href, { state });
+      emit('push');
+    },
+
+    replace(href, state) {
+      location = parseHref(href, {
+        state,
+        key: location.key,
+      });
+      emit('replace');
+    },
+
+    back() {
+      hostNavigation.back();
+    },
+
+    forward() {
+      hostNavigation.forward();
+    },
+
+    go(delta) {
+      hostNavigation.go(delta);
+    },
+
+    listen(listener) {
+      listeners.add(listener);
+
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+}
+```
+
+`parseHref()` normalizes hrefs into `RouterLocation` shape. It does not match routes or parse typed URL state.
+
+## Inject it into the router
+
+```ts ts2js
+const router = createRouter({
+  routes,
+  history: createHostHistory('/'),
+});
+
+await router.start();
+```
+
+The router now reads and writes through the injected history.
+
+## Emit host changes
+
+If the host changes location outside router navigation, update `location` and emit an event.
+
+```ts ts2js
+function applyHostLocation(nextHref: string) {
+  location = parseHref(nextHref);
+
+  emit('pop');
+}
+```
+
+The router listener will resolve the new location.
+
+## Preserve replace keys
+
+`replace()` should keep the current location key.
+
+```ts ts2js
+location = parseHref(href, {
+  state,
+  key: location.key,
+});
+```
+
+Rendering integrations use keys for behaviors such as scroll restoration and transition identity.
+
+## External redirects
+
+Implement `redirectExternal` only when the host can perform external navigation.
+
+```ts ts2js
+redirectExternal(href, mode) {
+  if (mode === 'replace') {
+    hostNavigation.replaceExternal(href);
+    return;
+  }
+
+  hostNavigation.openExternal(href);
+}
+```
+
+If `redirectExternal` is missing, external router redirects produce a router error state.
+
+## Where this bites
+
+### `href` must be origin-free
+
+`RouterLocation.href` must equal `pathname + search + hash`. Do not store an origin in it.
+
+### Notify after visible changes
+
+Listeners should be called after `location` has changed, not before.
+
+### Traversal is host-owned
+
+`back()`, `forward()`, and `go()` may be no-ops if the host has no stack. That is valid, but it should be deliberate.

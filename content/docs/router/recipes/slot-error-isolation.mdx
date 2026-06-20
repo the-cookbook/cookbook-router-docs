@@ -13,13 +13,13 @@ A slot view error bubbles to the nearest route/provider error boundary unless th
 
 ## Render nothing for a failed slot
 
-```tsx
+```tsx ts2js
 <Slot name="modal" errorFallback={null} />
 ```
 
 ## Render a retry UI
 
-```tsx
+```tsx ts2js
 <Slot
   name="modal"
   errorFallback={({ error, reset }) => (
@@ -30,7 +30,7 @@ A slot view error bubbles to the nearest route/provider error boundary unless th
 
 A component reference is also accepted:
 
-```tsx
+```tsx ts2js
 <Slot name="modal" errorFallback={ModalError} />
 ```
 

@@ -11,7 +11,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 Sometimes the URL carries value your route contract does not own. Preserve unknown search params when UTM tags, attribution keys, or partner parameters need to survive navigation.
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   url: {
@@ -22,7 +22,7 @@ const router = createRouter({
 
 Read undeclared keys separately from typed declared search:
 
-```tsx
+```tsx ts2js
 import { useSearchParams, useUnknownSearchParams } from '@cookbook/router-react';
 
 function Attribution() {

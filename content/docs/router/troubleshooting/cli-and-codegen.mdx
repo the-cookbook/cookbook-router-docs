@@ -11,7 +11,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 Declare custom constraints in the second `defineRoutes` argument so the CLI can extract and register them before validation and generation.
 
-```ts
+```ts ts2js
 export const routes = defineRoutes([{ id: 'posts.show', path: '/posts/{slug:slug}' }], {
   pathConstraints: { slug },
 });
@@ -23,7 +23,7 @@ Avoid registering constraints only through side effects in files the CLI cannot 
 
 CLI-consumed route files must remain statically analyzable. Do not use runtime builders like `int().default(1)` in static route definitions unless the CLI explicitly supports them. Use static descriptors instead:
 
-```ts
+```ts ts2js
 search: {
   page: { type: 'int', default: 1 },
 }

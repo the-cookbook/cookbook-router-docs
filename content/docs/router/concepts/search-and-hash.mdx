@@ -17,7 +17,7 @@ Search and hash state are parsed by the core router. React hooks read the parsed
 <Tabs items={['Core router', 'React integration']}>
   <Tab value="Core router">
 
-```ts
+```ts ts2js
 const match = router.match('/articles?page=2#comments');
 
 match?.search;
@@ -33,7 +33,7 @@ Use core access in framework adapters, services, loaders, and tests.
 
   <Tab value="React integration">
 
-```tsx
+```tsx ts2js
 import {
   useHashParams,
   useSearchParams,
@@ -56,7 +56,7 @@ React hooks preserve the same generated search and hash contracts as core route 
 
 Use URLKit-backed Router static descriptors in route definitions.
 
-```tsx
+```tsx ts2js
 {
   id: 'articles.index',
   path: '/articles',
@@ -72,7 +72,7 @@ Use URLKit-backed Router static descriptors in route definitions.
 
 The generated contract and runtime state follow URLKit parsed-value semantics:
 
-```ts
+```ts ts2js
 interface ArticlesSearch {
   query?: string;
   page: number;
@@ -89,7 +89,7 @@ Router route definitions use URLKit Static descriptors. They are plain data, not
 
 Every static search field uses this object pattern:
 
-```ts
+```ts ts2js
 search: {
   fieldName: {
     type: 'string' | 'number' | 'int' | 'boolean' | 'date' | 'date-time' | 'enum',
@@ -139,7 +139,7 @@ search: {
 
 ### Required, optional, and defaulted fields
 
-```ts
+```ts ts2js
 search: {
   // Required. Missing ?q throws missing-search.
   q: { type: 'string' },
@@ -154,7 +154,7 @@ search: {
 
 Do not combine `optional: true` with `default`:
 
-```ts
+```ts ts2js
 // Invalid
 search: {
   page: { type: 'int', optional: true, default: 1 },
@@ -183,7 +183,7 @@ Static date and date-time defaults are serialized values, not `Date` instances, 
 
 ### Free-text query
 
-```ts
+```ts ts2js
 search: {
   q: { type: 'string', optional: true },
 }
@@ -191,7 +191,7 @@ search: {
 
 ### Pagination
 
-```ts
+```ts ts2js
 search: {
   page: { type: 'int', default: 1 },
   pageSize: { type: 'int', default: 20 },
@@ -200,7 +200,7 @@ search: {
 
 ### Sorting with enum values
 
-```ts
+```ts ts2js
 search: {
   sort: {
     type: 'enum',
@@ -212,7 +212,7 @@ search: {
 
 ### Boolean filters
 
-```ts
+```ts ts2js
 search: {
   featured: { type: 'boolean', optional: true },
 }
@@ -222,7 +222,7 @@ Serialized boolean values must be exactly `true` or `false`. Values such as `1`,
 
 ### Repeated filters
 
-```ts
+```ts ts2js
 search: {
   tags: { type: 'string', many: true, optional: true },
 }
@@ -232,7 +232,7 @@ With `arrayFormat: 'repeat'`, tags build as `?tags=router&tags=typescript`. With
 
 ### Date range filters
 
-```ts
+```ts ts2js
 search: {
   from: { type: 'date', format: 'dd-MM-yyyy', optional: true },
   to: { type: 'date', format: 'dd-MM-yyyy', optional: true },
@@ -241,7 +241,7 @@ search: {
 
 ### Date-time schedule filters
 
-```ts
+```ts ts2js
 search: {
   startsAt: {
     type: 'date-time',
@@ -255,7 +255,7 @@ search: {
 
 Use URLKit static date descriptors when a route search field should parse into a `Date`.
 
-```tsx
+```tsx ts2js
 {
   id: 'products.index',
   path: '/products',
@@ -285,7 +285,7 @@ This keeps the route definition statically analyzable while still allowing URLKi
 /products?publishedOn=06-06-2026&startsAt=06-06-2026T14%3A30%3A05Z&createdAt=1780756205
 ```
 
-```tsx
+```tsx ts2js
 const search = useSearchParams('products.index');
 
 search.publishedOn;
@@ -330,7 +330,7 @@ Rules:
 - Unsupported or ambiguous tokens such as `YY`, `YYYY`, `M`, `D`, `DD`, `h`, `a`, timezone names, and locale month names are rejected.
 - If a date-time format omits `SSS`, URLKit rejects serialization of a `Date` with non-zero milliseconds to avoid silent precision loss.
 
-```ts
+```ts ts2js
 search: {
   from: {
     type: 'date',
@@ -347,14 +347,14 @@ search: {
 
 Do not use URLKit runtime builders or custom parse/serialize codec functions inside route definitions:
 
-```ts
+```ts ts2js
 // Bad for router static descriptors
 search: {
   from: date({ format: 'dd-MM-yyyy' }),
 }
 ```
 
-```ts
+```ts ts2js
 // Bad for router static descriptors
 search: {
   from: {
@@ -375,7 +375,7 @@ URLKit validates static date/date-time descriptors at compile time and runtime. 
 
 ## Generate search URLs
 
-```ts
+```ts ts2js
 router.href({
   route: 'articles.index',
   search: {
@@ -396,7 +396,7 @@ Undefined and null search values are omitted.
 
 ## Read search values
 
-```tsx
+```tsx ts2js
 import { useSearchParams } from '@cookbook/router-react';
 
 export function ArticlesPage() {
@@ -413,14 +413,14 @@ export function ArticlesPage() {
 
 Configure `arrayFormat` globally, per route, or on URL-building call sites such as `router.href()`, `router.navigate.to()`, `useHref()`, `Link`, and `NavLink`.
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   url: { arrayFormat: 'repeat' },
 });
 ```
 
-```tsx
+```tsx ts2js
 {
   id: 'products',
   path: '/products',
@@ -431,7 +431,7 @@ const router = createRouter({
 }
 ```
 
-```tsx
+```tsx ts2js
 <Link to="products" search={{ tags: ['router', 'typescript'] }} url={{ arrayFormat: 'repeat' }}>
   Products
 </Link>
@@ -457,14 +457,14 @@ URLKit controls whether defaulted search and hash values are serialized while bu
 
 Configure `defaults` globally, per route, or on URL-building call sites.
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   url: { defaults: 'omit' },
 });
 ```
 
-```tsx
+```tsx ts2js
 <Link to="articles.index" search={{ page: 1 }} url={{ defaults: 'omit' }}>
   Articles
 </Link>
@@ -472,7 +472,7 @@ const router = createRouter({
 
 For this descriptor:
 
-```ts
+```ts ts2js
 search: {
   page: { type: 'int', default: 1 },
 }
@@ -484,7 +484,7 @@ search: {
 
 Search params are commonly edited by users or left behind by old links. Cookbook Router therefore exposes `invalidSearch` to control how URLKit-backed search parsing handles malformed declared values.
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   url: {
@@ -506,7 +506,7 @@ The default is `'recover'`. URLKit omits invalid optional/defaulted values, but 
 
 For example:
 
-```ts
+```ts ts2js
 search: {
   page: { type: 'number', default: 1 },
   pageSize: { type: 'number', optional: true },
@@ -515,7 +515,7 @@ search: {
 
 With `invalidSearch: 'recover'`, `/overview?page=a&pageSize=10` parses as:
 
-```ts
+```ts ts2js
 { page: 1, pageSize: 10 }
 ```
 
@@ -525,7 +525,7 @@ With `invalidSearch: 'error'`, the same URL keeps the path route matched and exp
 
 `invalidHash` uses the same policy model as `invalidSearch`:
 
-```ts
+```ts ts2js
 createRouter({
   routes,
   url: {
@@ -540,7 +540,7 @@ With `recover`, URLKit omits invalid optional/defaulted hash values and applies 
 
 Route `search` descriptors define the route-owned search state. Unknown search params are query-string keys that are present in the URL but not declared by the matched route. URLKit controls them with `unknownSearch`.
 
-```ts
+```ts ts2js
 createRouter({
   routes,
   url: {
@@ -561,7 +561,7 @@ The default is `'strip'`, inherited from URLKit.
 
 For this route:
 
-```ts
+```ts ts2js
 {
   id: 'overview',
   path: '/overview',
@@ -582,7 +582,7 @@ This URL:
 
 produces declared search and preserved unknown search as separate values:
 
-```ts
+```ts ts2js
 match.search;
 // { page: 0 }
 
@@ -596,7 +596,7 @@ match.unknownSearch;
 
 `useSearchParams()` returns only declared route search. When `unknownSearch: 'preserve'` is configured, use `useUnknownSearchParams()` to read URLKit-preserved unknown keys from the active match.
 
-```tsx
+```tsx ts2js
 import { useSearchParams, useUnknownSearchParams } from '@cookbook/router-react';
 
 export function OverviewPage() {
@@ -619,7 +619,7 @@ Use declared search fields for application state. Use preserved unknown search p
 
 Static hash descriptors use object form only. Hash values are parsed and generated without the leading `#`; Router adds `#` when building hrefs.
 
-```tsx
+```tsx ts2js
 {
   id: 'articles.show',
   path: '/articles/{slug}',
@@ -652,7 +652,7 @@ Routes without declared hash values generate `never`.
 
 Hash descriptor values must be bare values such as `'comments'`, not `'#comments'`.
 
-```ts
+```ts ts2js
 // Correct
 hash: { type: 'enum', values: ['comments', 'share'], optional: true }
 
@@ -664,19 +664,19 @@ hash: { type: 'enum', values: ['#comments', '#share'], optional: true }
 
 ### Optional section hash
 
-```ts
+```ts ts2js
 hash: { type: 'string', optional: true }
 ```
 
 Generated contract:
 
-```ts
+```ts ts2js
 'articles.show': string | undefined;
 ```
 
 ### Required section hash
 
-```ts
+```ts ts2js
 hash: {
   type: 'string';
 }
@@ -686,7 +686,7 @@ A missing hash is invalid for the route candidate unless `invalidHash: 'recover'
 
 ### Enum tabs or anchors
 
-```ts
+```ts ts2js
 hash: {
   type: 'enum',
   values: ['overview', 'comments', 'share'],
@@ -696,13 +696,13 @@ hash: {
 
 Generated contract:
 
-```ts
+```ts ts2js
 'articles.show': 'overview' | 'comments' | 'share' | undefined;
 ```
 
 ### Default hash
 
-```ts
+```ts ts2js
 hash: {
   type: 'enum',
   values: ['overview', 'comments'],
@@ -716,7 +716,7 @@ Missing hash normalizes to `'overview'`. When building URLs, `defaults: 'omit'` 
 
 Hash input may include or omit `#`.
 
-```ts
+```ts ts2js
 router.href({
   route: 'articles.show',
   params: { slug: 'typed-routing' },
@@ -740,7 +740,7 @@ Pass `null` to avoid a hash.
 
 ## Read hash values
 
-```tsx
+```tsx ts2js
 import { useHashParams } from '@cookbook/router-react';
 
 export function ArticlePage() {
@@ -763,7 +763,7 @@ export function ArticlePage() {
 
 Route files consumed by `@cookbook/router-cli` must remain statically analyzable. Use static descriptors such as:
 
-```ts
+```ts ts2js
 search: {
   page: { type: 'int', default: 1 },
   tags: { type: 'string', many: true },

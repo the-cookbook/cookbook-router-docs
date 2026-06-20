@@ -9,7 +9,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 ## Declare the wire format
 
-```ts title="reports.route.ts"
+```ts ts2js title="reports.route.ts"
 import { defineRoute, defineSearch } from '@cookbook/router';
 
 export const reportsRoute = defineRoute({
@@ -26,7 +26,7 @@ The descriptor is static route metadata. Do not put a runtime URLKit codec objec
 
 ## Navigate with typed values
 
-```ts
+```ts ts2js
 await router.navigate.to({
   route: 'reports',
   search: {

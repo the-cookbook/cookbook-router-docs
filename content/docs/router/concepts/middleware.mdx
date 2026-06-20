@@ -30,7 +30,7 @@ Register middleware before the navigation it must affect.
 
 Core middleware can be passed to router creation or registered before startup.
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   middleware: [requireSession],
@@ -48,7 +48,7 @@ Use this for SSR, tests, non-React runtimes, and middleware that must affect the
 
 Provider middleware is registered from a React effect, so it applies only after the provider has mounted.
 
-```tsx
+```tsx ts2js
 <RouterProvider
   router={router}
   middleware={[auditNavigation]}
@@ -64,7 +64,7 @@ Do not use provider middleware for initial SSR resolution or first client startu
 
 Register router-wide middleware through `createRouter()`:
 
-```ts
+```ts ts2js
 import {
   createRouter,
   type Middleware,
@@ -97,7 +97,7 @@ export const router = createRouter({
 
 For a protected route:
 
-```tsx
+```tsx ts2js
 {
   id: 'account',
   path: '/account',
@@ -118,7 +118,7 @@ Middleware can be router-wide, registered temporarily at runtime, or attached to
 
 Pass middleware when creating the router:
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   middleware: [ // [!code highlight]
@@ -142,7 +142,7 @@ Configured middleware remains active for the lifetime of the router.
 
 Use `router.useMiddleware()` when an integration or application subsystem needs to register middleware temporarily:
 
-```ts
+```ts ts2js
 const unregister = router.useMiddleware([
   recordNavigationIntent,
   requireWorkspace,
@@ -151,7 +151,7 @@ const unregister = router.useMiddleware([
 
 Remove it when the integration is disposed:
 
-```ts
+```ts ts2js
 unregister();
 ```
 
@@ -161,7 +161,7 @@ Runtime registration only affects transitions that begin after registration. It 
 
 Use `router.refresh()` when the current location should be resolved again through the active middleware and lifecycle pipeline:
 
-```ts
+```ts ts2js
 await router.refresh();
 ```
 
@@ -169,7 +169,7 @@ await router.refresh();
 
 Declare middleware directly on a route when the policy belongs to that branch:
 
-```tsx
+```tsx ts2js
 const requireAuthenticatedSession: Middleware = ({
   location,
   redirect,
@@ -225,7 +225,7 @@ The middleware context always describes the final leaf destination.
 
 For a navigation to `account.profile`, middleware attached to `account` still receives:
 
-```ts
+```ts ts2js
 route.id === 'account.profile';
 ```
 
@@ -239,7 +239,7 @@ When a parent owns a fixed policy, express that policy in the middleware itself 
 
 The React provider can register runtime middleware:
 
-```tsx
+```tsx ts2js
 import {
   RouterProvider,
 } from '@cookbook/router-react';
@@ -310,7 +310,7 @@ The first redirect, rewrite, cancellation, `Response`, or thrown error stops the
 
 A route-level `redirect` is resolved before blockers, lifecycle hooks, and middleware:
 
-```ts
+```ts ts2js
 {
   id: 'legacy-account',
   path: '/old-account',
@@ -331,7 +331,7 @@ Use middleware instead of a static redirect when the source route must inspect r
 
 Every middleware receives:
 
-```ts
+```ts ts2js
 interface MiddlewareContext {
   readonly route: MatchedRoute;
   readonly location: RouterLocation;
@@ -361,7 +361,7 @@ interface MiddlewareContext {
 
 `route` is the leaf entry of the accepted destination branch:
 
-```ts
+```ts ts2js
 const inspectDestination: Middleware = ({
   route,
 }) => {
@@ -371,19 +371,19 @@ const inspectDestination: Middleware = ({
 
 The normalized route definition is available through:
 
-```ts
+```ts ts2js
 route.route;
 ```
 
 Local metadata is available through:
 
-```ts
+```ts ts2js
 route.route.meta;
 ```
 
 For example:
 
-```ts
+```ts ts2js
 const requireAuth: Middleware = ({
   route,
   redirect,
@@ -401,7 +401,7 @@ Metadata remains `Record<string, unknown>` inside `MiddlewareContext`. Generated
 
 Narrow metadata values before using them:
 
-```ts
+```ts ts2js
 const access =
   route.route.meta?.access;
 
@@ -416,7 +416,7 @@ Metadata is local to the leaf route in this context. Parent metadata is not auto
 
 `location` is the target location currently being resolved:
 
-```ts
+```ts ts2js
 const logTarget: Middleware = ({
   location,
 }) => {
@@ -432,7 +432,7 @@ After a rewrite begins, the rewritten transition receives the rewritten target l
 
 `params` contains the parsed parameters for the accepted leaf match:
 
-```ts
+```ts ts2js
 const validateDocument: Middleware = ({
   params,
 }) => {
@@ -463,7 +463,7 @@ The middleware context is intentionally broad. Narrow values before passing them
 
 `search` contains parsed declared search state:
 
-```ts
+```ts ts2js
 const validatePage: Middleware = ({
   search,
 }) => {
@@ -488,7 +488,7 @@ A defaulted field can therefore exist even when it was absent from the original 
 
 `unknownSearch` contains undeclared query keys when the accepted route preserves unknown search state.
 
-```ts
+```ts ts2js
 const recordCampaign: Middleware = ({
   unknownSearch,
 }) => {
@@ -507,7 +507,7 @@ It is absent when unknown search values were stripped or no preserved unknown va
 
 `hash` contains the parsed declared hash value:
 
-```ts
+```ts ts2js
 const validateSection: Middleware = ({
   hash,
 }) => {
@@ -529,7 +529,7 @@ The leading `#` is not part of the parsed hash value.
 
 A middleware function returns:
 
-```ts
+```ts ts2js
 type MiddlewareResult =
   | void
   | false
@@ -563,7 +563,7 @@ Prefer the context helpers instead of constructing result objects manually.
 
 Return nothing when the transition may continue:
 
-```ts
+```ts ts2js
 const requireWorkspace: Middleware = () => {
   if (workspace.isAvailable()) {
     return;
@@ -581,7 +581,7 @@ After a `void` result, the next middleware runs.
 
 Use `redirect()` when the destination should become the committed URL:
 
-```ts
+```ts ts2js
 const requireAuth: Middleware = ({
   location,
   redirect,
@@ -610,7 +610,7 @@ The intermediate attempted location is not committed as its own history entry.
 
 Absolute redirect targets are supported:
 
-```ts
+```ts ts2js
 const openDocumentation: Middleware = ({
   redirect,
 }) => {
@@ -622,7 +622,7 @@ const openDocumentation: Middleware = ({
 
 Browser history performs the external navigation with:
 
-```ts
+```ts ts2js
 window.location.replace(target);
 ```
 
@@ -634,7 +634,7 @@ If the active history cannot perform an external redirect, the router enters err
 
 Use `rewrite()` when another internal route should resolve without writing that target to history:
 
-```ts
+```ts ts2js
 const showLogin: Middleware = ({
   location,
   rewrite,
@@ -677,7 +677,7 @@ During startup, refresh, or browser back/forward resolution, the current history
 
 External rewrites are rejected:
 
-```ts
+```ts ts2js
 return rewrite(
   'https://example.com',
 );
@@ -689,7 +689,7 @@ Use `redirect()` to leave the application.
 
 Use middleware cancellation when application policy should refuse the destination without producing an error:
 
-```ts
+```ts ts2js
 const requireReportsAccess: Middleware = ({
   cancel,
 }) => {
@@ -701,7 +701,7 @@ const requireReportsAccess: Middleware = ({
 
 Returning `false` has the same outcome:
 
-```ts
+```ts ts2js
 const requireReportsAccess: Middleware = () => {
   if (!permissions.canOpenReports()) {
     return false;
@@ -725,7 +725,7 @@ Use a navigation blocker instead when the decision is primarily about leaving ap
 
 Middleware may return a web `Response`:
 
-```ts
+```ts ts2js
 const requireAuthorization: Middleware = () => {
   return new Response(
     'Forbidden',
@@ -738,7 +738,7 @@ const requireAuthorization: Middleware = () => {
 
 The current runtime stores it as navigation error state:
 
-```ts
+```ts ts2js
 router.state.navigation === 'error';
 router.state.error instanceof Response;
 ```
@@ -753,7 +753,7 @@ The core router does not automatically:
 
 This does not redirect:
 
-```ts
+```ts ts2js
 return new Response(null, {
   status: 302,
   headers: {
@@ -764,7 +764,7 @@ return new Response(null, {
 
 Use:
 
-```ts
+```ts ts2js
 return redirect('/login');
 ```
 
@@ -774,7 +774,7 @@ Server and platform integrations must inspect `router.state.error` and map a ret
 
 Throw when middleware cannot complete its policy check:
 
-```ts
+```ts ts2js
 const requireConfiguration: Middleware = () => {
   if (!configuration.isLoaded()) {
     throw new Error(
@@ -786,7 +786,7 @@ const requireConfiguration: Middleware = () => {
 
 A thrown or rejected value enters the navigation error path:
 
-```ts
+```ts ts2js
 router.state.navigation === 'error';
 router.state.error;
 ```
@@ -801,7 +801,7 @@ Every redirect or rewrite begins another transition.
 
 The router protects against loops:
 
-```ts
+```ts ts2js
 const router = createRouter({
   routes,
   maxRedirectDepth: 10,
@@ -830,7 +830,7 @@ Middleware only runs for a matched destination transition.
 
 It does not run during:
 
-```ts
+```ts ts2js
 router.href(...);
 router.resolve(...);
 router.match(...);
@@ -840,13 +840,13 @@ router.preloadHref(...);
 
 It also does not run when no route matches:
 
-```ts
+```ts ts2js
 router.match('/missing') === null;
 ```
 
 Define a wildcard not-found route when unknown paths must pass through route middleware:
 
-```ts
+```ts ts2js
 {
   id: 'not-found',
   path: '/{*path}',
@@ -900,13 +900,13 @@ Middleware decides whether a destination may proceed. It should not become an un
 
 Use:
 
-```ts
+```ts ts2js
 route.route.meta;
 ```
 
 Not:
 
-```ts
+```ts ts2js
 route.route.route.meta;
 ```
 

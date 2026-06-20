@@ -1,0 +1,135 @@
+---
+title: "Slots"
+description: "Render named layout regions with context.slots, renderSlot(), and resolved slot state."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Slots are named secondary regions owned by a layout route. Use them for sidebars, headers, panels, drawers, modals, and contextual surfaces.
+
+In core rendering, slots are rendered by `renderRouteMatch()` and exposed to layout callbacks as `context.slots`.
+
+## Declare slot ownership
+
+```ts ts2js
+import {
+  defineRoutes,
+  renderRouteMatch,
+  type RouteMatch,
+} from '@cookbook/router';
+
+const routes = defineRoutes([
+  {
+    id: 'dashboard',
+    path: '/dashboard',
+    layout: {
+      view: 'dashboard.layout',
+      slots: {
+        sidebar: {
+          view: 'dashboard.sidebar.default',
+          routes: [
+            {
+              id: 'dashboard.sidebar.reports',
+              path: 'reports',
+              view: 'dashboard.sidebar.reports',
+            },
+          ],
+        },
+        modal: true,
+      },
+    },
+    children: [
+      {
+        id: 'dashboard.home',
+        index: true,
+        view: 'dashboard.home',
+      },
+      {
+        id: 'dashboard.reports',
+        path: 'reports',
+        view: 'dashboard.reports',
+      },
+    ],
+  },
+] as const);
+```
+
+The `dashboard` layout owns `sidebar` and `modal`. Slot routes are normalized independently but remain scoped to the owner route and slot name.
+
+## Render slots from the layout
+
+```ts ts2js
+interface Node {
+  readonly kind: string;
+  readonly routeId?: string;
+  readonly children?: readonly Node[];
+}
+
+function renderDashboard(
+  match: RouteMatch | null,
+): Node | null {
+  return renderRouteMatch<string, Node | null>(match, {
+    fallback: null,
+    renderView(view, context) {
+      return {
+        kind: view,
+        routeId: context.match.id,
+      };
+    },
+    renderLayout(view, context) {
+      return {
+        kind: view,
+        routeId: context.ownerRouteId,
+        children: [
+          context.slots.sidebar ?? null,
+          context.outlet,
+          context.slots.modal ?? null,
+        ].filter((child): child is Node => child !== null),
+      };
+    },
+    renderSlot(view, context) {
+      return {
+        kind: view,
+        routeId: context.match.id,
+      };
+    },
+    renderEmpty(context) {
+      if (context.slot) {
+        return null;
+      }
+
+      return { kind: context.reason };
+    },
+  });
+}
+```
+
+`context.slots` contains already-rendered slot output for the current layout owner.
+
+## Slot states
+
+| Status | Meaning |
+| --- | --- |
+| `matched` | A slot route matched and rendered. |
+| `fallback` | No slot route matched, but a fallback view exists. |
+| `empty` | The slot is enabled but has no output. |
+| `disabled` | The slot is disabled in resolved state. |
+| `not-found` | The slot route tree did not find a valid route. |
+
+The renderer decides whether an empty slot is `null`, an empty region, a placeholder, or a diagnostic node.
+
+## Where this bites
+
+### Slots are owned by layout routes
+
+Slot names are not global. The same slot name can appear under different layout owners.
+
+### Empty slots need a different policy from page not-found
+
+Without `renderEmpty()`, every empty state returns the global fallback. That usually renders page fallback content inside sidebars or modal containers.
+
+### A slot fallback can have a synthetic match
+
+Configured slot fallback content receives stable route context even when no real slot route matched. Do not assume every rendered slot match comes from a declared primary route.

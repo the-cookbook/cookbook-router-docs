@@ -11,7 +11,7 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 Use custom path constraints when a route parameter has a product rule worth naming and reusing.
 
-```ts
+```ts ts2js
 import { createPathConstraint } from '@cookbook/router';
 
 export const pathConstraints = {
@@ -33,7 +33,7 @@ export const pathConstraints = {
 
 Register custom constraints in router config so generation and runtime matching agree:
 
-```ts
+```ts ts2js
 import { defineRouterConfig } from '@cookbook/router-cli';
 import { pathConstraints } from './app/lib/routes/path-constraints';
 
@@ -45,7 +45,7 @@ export default defineRouterConfig({
 
 Then use the constraint in route paths:
 
-```ts
+```ts ts2js
 export const userDetailsRoute = defineRoute({
   id: 'users.details',
   path: '/users/{slug:slug}',
