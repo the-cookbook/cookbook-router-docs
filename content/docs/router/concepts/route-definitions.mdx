@@ -9,6 +9,66 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 Routes describe URL matching, route identity, rendering hierarchy, metadata, redirects, slots, intercepts, middleware, lifecycle hooks, and generated contract inputs. URL state is parsed and built by [`@cookbook/urlkit`](https://github.com/the-cookbook/urlkit); Cookbook Router owns the route tree and routing behavior around the URL state.
 
+
+## Core and React usage
+
+Route definitions are core router data. The `view` field is opaque to `@cookbook/router`.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+Core examples can use strings, symbols, objects, or renderer-owned handles as route views.
+
+```ts
+import { defineRoutes } from '@cookbook/router';
+
+export const routes = defineRoutes([
+  {
+    id: 'home',
+    path: '/',
+    view: 'home-screen',
+  },
+  {
+    id: 'users.show',
+    path: '/users/{id:int}',
+    view: 'user-screen',
+  },
+] as const);
+```
+
+The core router matches and navigates. Your adapter decides how `'home-screen'` becomes UI.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+React examples usually pass components as route views and render them through `RouterProvider`.
+
+```tsx
+import { defineRoutes } from '@cookbook/router';
+import { RouterProvider } from '@cookbook/router-react';
+
+export const routes = defineRoutes([
+  {
+    id: 'home',
+    path: '/',
+    view: HomePage,
+  },
+  {
+    id: 'users.show',
+    path: '/users/{id:int}',
+    view: UserPage,
+  },
+] as const);
+
+<RouterProvider router={router} />;
+```
+
+React is an adapter on top of the same route definitions. It is not a different route model.
+
+  </Tab>
+</Tabs>
+
 ## Route definition
 
 The current public route shape is:

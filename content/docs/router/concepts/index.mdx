@@ -1,0 +1,87 @@
+---
+title: "Concepts overview"
+description: "Read the router concepts as one model: route data, URL state, transitions, rendering adapters, and runtime environments."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+Cookbook Router has a core runtime and optional rendering integrations.
+
+The core package owns route declarations, matching, URL state, transitions, middleware, lifecycle, history, preloading, serialization, and renderer-neutral traversal. React is one adapter on top of that state. It adds components, hooks, links, outlets, slots, Suspense boundaries, and error boundaries.
+
+Read this section as a model, not as a list of disconnected features.
+
+## The core layer
+
+The core router answers these questions:
+
+| Question | Concept pages |
+| --- | --- |
+| What routes exist? | [Route definitions](./route-definitions), [Modular route trees](./modular-route-trees) |
+| Which route accepts a URL? | [Matching and ranking](./matching-and-ranking), [Path routes and constraints](./path-routes-and-constraints) |
+| What URL state belongs to the route? | [Search and hash](./search-and-hash), [Generated route contracts](./typed-contracts) |
+| What happens before navigation commits? | [Redirects, rewrites, and cancellation](./redirects-rewrites-and-cancellation), [Middleware](./middleware), [Lifecycle](./lifecycle) |
+| What can be warmed before navigation? | [Preloading](./preloading) |
+| What does the active route render? | [Layouts, outlets, and slots](./layouts-outlets-and-slots), [Intercepting routes](./intercepting-routes), [Loading and errors](./loading-and-errors) |
+| Where does navigation state live? | [History](./history), [Serialization and hydration](./serialization-and-hydration), [SSR and static routing](./ssr) |
+| What application metadata is attached? | [Route metadata](./route-metadata) |
+
+## The React layer
+
+The React package consumes the same core state.
+
+| Core concept | React surface |
+| --- | --- |
+| Route match | `<RouterProvider />`, `useRouterState()`, `useMatches()` |
+| Navigation | `<Link />`, `<NavLink />`, `useNavigate()` |
+| URL state | `useSearchParams()`, `useHashParams()`, `useUnknownSearchParams()` |
+| Layout traversal | `<Outlet />`, `<Slot />` |
+| Loading and errors | Suspense and error boundaries installed by the provider/rendering layer |
+| Metadata | `useRouteMeta()` |
+| SSR | `<StaticRouterProvider />` |
+
+React does not replace the core model. It renders it.
+
+When a page contains **Core router** and **React integration** tabs, the core tab shows the framework-agnostic state or operation. The React tab shows the adapter surface that reads or renders the same state.
+
+## How to read the section
+
+Start with [Route definitions](./route-definitions). Everything else depends on route identity, route paths, and route-owned fields.
+
+Then read [Matching and ranking](./matching-and-ranking), [Path routes and constraints](./path-routes-and-constraints), and [Search and hash](./search-and-hash). Those pages explain how a URL becomes typed route state.
+
+After that, read [Navigation](./navigation), [Redirects, rewrites, and cancellation](./redirects-rewrites-and-cancellation), [Middleware](./middleware), and [Lifecycle](./lifecycle). These pages explain the transition pipeline.
+
+Read [Layouts, outlets, and slots](./layouts-outlets-and-slots), [Intercepting routes](./intercepting-routes), and [Loading and errors](./loading-and-errors) together. Slots and intercepts are rendering concepts built from core route state.
+
+Read [History](./history), [Serialization and hydration](./serialization-and-hydration), and [SSR and static routing](./ssr) when moving from client-only routing to tests, non-DOM environments, or server rendering.
+
+## What belongs elsewhere
+
+These pages explain concepts and boundaries.
+
+Use the API reference when you need exact signatures, exports, and type inventories.
+
+Use recipes when you need a concrete implementation pattern, such as protected routes, routed modals, breadcrumbs, generated route plugins, or SSR setup.
+
+Use the error reference when you already have a diagnostic and need the exact cause and repair.
+
+## Where this bites
+
+### React examples are not the only model
+
+A route view is opaque to the core router. React components are one possible value. A core renderer can use strings, symbols, template handles, server functions, or another framework’s component model.
+
+### Core examples do not install UI behavior
+
+Core examples show route state and transition behavior. They do not install React Suspense, React error boundaries, click interception, or hook context.
+
+### Rendering pages still depend on route matching
+
+Outlets, slots, intercepts, loading fallbacks, and error fallbacks all start from a resolved route match. Fix route definitions and matching before debugging rendering symptoms.
+
+### Generated contracts are not optional for type safety
+
+The core runtime works without generated contracts. Precise route IDs, params, search, hash, and metadata inference require generated `contracts.ts` and `register.d.ts` to be included by TypeScript.

@@ -1,6 +1,6 @@
 ---
 title: "SSR and static routing"
-description: "Resolve one request with read-only history, map HTTP outcomes, render React, and hydrate the same route safely."
+description: "Resolve one request with read-only history, map HTTP outcomes, render core or React output, and hydrate safely."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
@@ -12,6 +12,63 @@ SSR is not a browser router with [`window`](https://developer.mozilla.org/en-US/
 Create one static router for one request, resolve it completely, map server outcomes, render it, serialize the successful location, and then dispose it.
 
 The browser creates a separate router from that serialized location.
+
+
+## Core and React SSR outputs
+
+Static routing is core. React is one rendering adapter.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+A core renderer can produce any output type from the started static router.
+
+```ts
+import {
+  createStaticRouter,
+  renderRouteMatch,
+  stringifyRouterState,
+} from '@cookbook/router';
+
+const router = createStaticRouter({
+  routes,
+  request,
+});
+
+await router.start();
+
+const body = renderRouteMatch(router.state.match, {
+  error: router.state.error,
+  fallback: '<h1>Not found</h1>',
+  renderView(view, context) {
+    return renderTemplate(view, context);
+  },
+});
+
+const hydrationJson = stringifyRouterState(router);
+```
+
+The renderer decides what `RouteView` means. The static router only resolves the request.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+React SSR renders the already-started static router with `StaticRouterProvider`.
+
+```tsx
+const appHtml = renderToString(
+  <StaticRouterProvider
+    router={router}
+    fallback={<NotFoundPage />}
+  />,
+);
+```
+
+The client hydrates with `RouterProvider` and the serialized router state.
+
+  </Tab>
+</Tabs>
 
 ## Request lifecycle
 
@@ -229,7 +286,7 @@ await router.start();
 They can also be registered through `router.useMiddleware()` before startup:
 
 ```ts
-const unregister = router.useMiddleware(requestMiddleware);
+const unregister = router.useMiddleware([requestMiddleware]);
 
 try {
   await router.start();

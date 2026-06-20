@@ -20,6 +20,46 @@ Use it when a navigation may need to:
 
 Middleware is destination-side policy. It is not a replacement for blockers, route lifecycle hooks, runtime URL parsing, or application data loaders.
 
+
+## Core and React registration
+
+Register middleware before the navigation it must affect.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+Core middleware can be passed to router creation or registered before startup.
+
+```ts
+const router = createRouter({
+  routes,
+  middleware: [requireSession],
+});
+
+router.useMiddleware([auditNavigation]);
+await router.start();
+```
+
+Use this for SSR, tests, non-React runtimes, and middleware that must affect the initial location.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+Provider middleware is registered from a React effect, so it applies only after the provider has mounted.
+
+```tsx
+<RouterProvider
+  router={router}
+  middleware={[auditNavigation]}
+/>
+```
+
+Do not use provider middleware for initial SSR resolution or first client startup policy. Register that middleware on the router before `start()`.
+
+  </Tab>
+</Tabs>
+
 ## Basic example
 
 Register router-wide middleware through `createRouter()`:
@@ -53,7 +93,7 @@ export const router = createRouter({
   routes,
   middleware: [requireAuth], // [!code highlight]
 });
-````
+```
 
 For a protected route:
 

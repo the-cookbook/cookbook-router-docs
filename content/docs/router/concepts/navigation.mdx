@@ -9,6 +9,58 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 Cookbook Router navigation is route-ID based. Paths declare URL matching; route IDs drive href generation, links, programmatic navigation, redirects, and generated type inference. URLKit builds and parses params, search, and hash for these route operations.
 
+
+## Core and React entry points
+
+The core router owns href generation and transitions. React links and hooks delegate to the same router instance.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+```ts
+const href = router.href('users.show', {
+  params: {
+    id: 42,
+  },
+  search: {
+    tab: 'settings',
+  },
+});
+
+await router.navigate.to('users.show', {
+  params: {
+    id: 42,
+  },
+});
+```
+
+Use core APIs in non-React renderers, command handlers, tests, services, and framework adapters.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+```tsx
+import { Link } from '@cookbook/router-react';
+
+<Link
+  to="users.show"
+  params={{
+    id: 42,
+  }}
+  search={{
+    tab: 'settings',
+  }}
+>
+  User 42
+</Link>
+```
+
+React links render real anchors and intercept only unmodified same-origin clicks.
+
+  </Tab>
+</Tabs>
+
 ## Href generation
 
 Use `router.href()` to generate a URL from a route ID.

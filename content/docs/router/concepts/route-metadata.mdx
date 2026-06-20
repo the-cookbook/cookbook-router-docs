@@ -24,6 +24,58 @@ Cookbook Router preserves metadata on normalized and matched routes. It does not
 
 Your application decides what each metadata key means.
 
+
+## Core and React reads
+
+Metadata is stored in the core route tree. React hooks read the same data through render context.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+```ts
+import {
+  getActiveRouteMetaChain,
+  mergeRouteMetaChain,
+} from '@cookbook/router';
+
+const chain = getActiveRouteMetaChain(
+  router.state.match,
+  {
+    includeAncestors: true,
+  },
+);
+
+const meta = mergeRouteMetaChain(chain, {
+  default: 'shallow',
+});
+```
+
+Use core helpers in head managers, analytics pipelines, server renderers, and non-React adapters.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+```tsx
+import { useRouteMeta } from '@cookbook/router-react';
+
+function PageTitle() {
+  const meta = useRouteMeta({
+    includeAncestors: true,
+    merge: {
+      default: 'shallow',
+    },
+  });
+
+  return <title>{meta.title}</title>;
+}
+```
+
+React hooks use the route render context and can read local, active, or target-route metadata.
+
+  </Tab>
+</Tabs>
+
 ## Declare metadata
 
 Add a `meta` object to a route:
@@ -58,7 +110,7 @@ export const routes = defineRoutes([
     ],
   },
 ] as const);
-````
+```
 
 The authored metadata type is:
 

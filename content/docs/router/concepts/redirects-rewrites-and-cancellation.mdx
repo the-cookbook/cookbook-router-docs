@@ -14,6 +14,55 @@ The distinction comes down to two questions:
 1. Which location should the router resolve?
 2. Should that location be written to history?
 
+
+## Core and React outcomes
+
+Redirects, rewrites, blockers, middleware cancellation, and lifecycle cancellation are core transition outcomes. React links and hooks trigger the same transition pipeline.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+```ts
+const result = await router.navigate.to(
+  'dashboard',
+);
+
+result.location.href;
+// final committed href after redirects or rewrites
+
+result.navigation;
+// 'idle', 'blocked', or 'error'
+```
+
+Use the returned state to inspect whether the transition committed, blocked, redirected, rewrote, or failed.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+```tsx
+import {
+  Link,
+  useNavigation,
+} from '@cookbook/router-react';
+
+function DashboardEntry() {
+  const navigation = useNavigation();
+
+  return (
+    <>
+      <Link to="dashboard">Dashboard</Link>
+      <span>{navigation}</span>
+    </>
+  );
+}
+```
+
+A React link does not bypass middleware, lifecycle hooks, route redirects, blockers, or rewrite rules.
+
+  </Tab>
+</Tabs>
+
 ## Outcome at a glance
 
 | Control | Declared from | Router resolves | History outcome |
@@ -88,7 +137,7 @@ const routes = defineRoutes([
     path: '/overview',
   },
 ] as const);
-````
+```
 
 Opening `/` resolves `overview`. The redirect route is never committed as the active rendered destination.
 

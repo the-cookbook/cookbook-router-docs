@@ -21,6 +21,59 @@ Lifecycle hooks are not component mount and unmount events. They operate on comp
 
 Use middleware for redirects, rewrites, and destination access policy. Use blockers for application state that may prevent leaving, such as an unsaved form.
 
+
+## Core and React usage
+
+Lifecycle is a core transition feature. React components can observe committed state, but lifecycle hooks are route/router transition hooks, not component mount hooks.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+```ts
+const router = createRouter({
+  routes,
+  lifecycle: {
+    beforeNavigate({ to }) {
+      if (to?.id === 'admin') {
+        return canEnterAdmin();
+      }
+    },
+  },
+});
+
+await router.start();
+```
+
+Use lifecycle hooks when policy or instrumentation belongs to the transition pipeline.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+```tsx
+import {
+  useNavigation,
+  useRouterState,
+} from '@cookbook/router-react';
+
+function NavigationStatus() {
+  const navigation = useNavigation();
+  const state = useRouterState();
+
+  return (
+    <Status
+      navigation={navigation}
+      routeId={state.match?.id}
+    />
+  );
+}
+```
+
+React can display transition state. It should not be used to reimplement route lifecycle order.
+
+  </Tab>
+</Tabs>
+
 ## Lifecycle hooks
 
 Cookbook Router provides route-level and router-wide hooks.
@@ -82,7 +135,7 @@ const dashboardLifecycle: RouteLifecycle = {
     });
   },
 };
-````
+```
 
 Attach it to a route:
 

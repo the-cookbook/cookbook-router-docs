@@ -13,6 +13,61 @@ It validates the complete tree, resolves every matchable path, ranks candidates 
 
 The first candidate that survives the complete process becomes the match.
 
+
+## Core and React reads
+
+Matching is core router work. React hooks read the match that the core router already resolved.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+```ts
+const match = router.match(
+  '/users/42?tab=profile',
+);
+
+match?.id;
+// 'users.show'
+
+match?.params;
+// { id: 42 }
+
+match?.search;
+// { tab: 'profile' }
+```
+
+Use `match()` for low-level checks that should not mutate history or router state.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+```tsx
+import {
+  useMatches,
+  useRouterState,
+} from '@cookbook/router-react';
+
+function RouteDebugPanel() {
+  const state = useRouterState();
+  const matches = useMatches();
+
+  return (
+    <pre>
+      {JSON.stringify({
+        active: state.match?.id,
+        branch: matches.map((match) => match.id),
+      }, null, 2)}
+    </pre>
+  );
+}
+```
+
+React reads the committed match. It does not rerank routes on its own.
+
+  </Tab>
+</Tabs>
+
 ## Matching pipeline
 
 <Steps>
@@ -55,7 +110,7 @@ const routes = defineRoutes([
     ],
   },
 ] as const);
-````
+```
 
 Normalization produces the complete child path:
 

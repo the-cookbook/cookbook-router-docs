@@ -13,6 +13,68 @@ Routes can be declared where their features are implemented, shared URL contract
 
 Hierarchy comes from route declarations: not filenames, directories, or import paths.
 
+
+## Core and React usage
+
+Modular route trees are still core route definitions. React consumes the composed route tree through the same router instance.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+```ts
+import {
+  createRouter,
+  defineRoute,
+  defineRouteTree,
+} from '@cookbook/router';
+
+const root = defineRoute({
+  id: 'root',
+  path: '/',
+});
+
+const users = defineRoute({
+  id: 'users',
+  parent: 'root',
+  path: 'users',
+});
+
+const routes = defineRouteTree({
+  routes: [root, users],
+});
+
+const router = createRouter({ routes });
+```
+
+The core tree composer resolves parents, children, ordering, and validation before the router starts.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+```tsx
+import {
+  createRouter,
+} from '@cookbook/router';
+import {
+  RouterProvider,
+} from '@cookbook/router-react';
+import {
+  routes,
+} from '../.cookbook-router/routes';
+
+const router = createRouter({ routes });
+
+export function App() {
+  return <RouterProvider router={router} />;
+}
+```
+
+React does not compose modular route files. The CLI or bundler plugin produces the route tree React renders.
+
+  </Tab>
+</Tabs>
+
 ## The composition model
 
 Modular routing has two steps:
@@ -39,7 +101,7 @@ const userRoute = defineRoute({
 export const routes = defineRouteTree({
   routes: [usersRoute, userRoute],
 });
-````
+```
 
 `defineRoute()` validates what can be known from one declaration. It does not require the parent route to be present in the same module.
 

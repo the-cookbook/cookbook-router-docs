@@ -13,6 +13,49 @@ Cookbook Router resolves the target through the normal route matcher, walks the 
 
 It does not commit navigation, mutate history, or replace application-owned caching.
 
+
+## Core and React entry points
+
+Preloading is a core runtime capability. React link prefetch is a convenience on top of it.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+```ts
+await router.preload('users.show', {
+  params: {
+    id: 42,
+  },
+});
+
+await router.preloadHref('/users/42');
+```
+
+The router matches the target and runs preload work. It does not commit navigation or write history.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+```tsx
+import { Link } from '@cookbook/router-react';
+
+<Link
+  to="users.show"
+  params={{
+    id: 42,
+  }}
+  prefetch="interaction"
+>
+  User 42
+</Link>
+```
+
+React prefetch calls core preload APIs from browser interaction or mount triggers.
+
+  </Tab>
+</Tabs>
+
 ## Preloading model
 
 <Steps>
@@ -53,7 +96,7 @@ await router.preload('users.details', {
     tab: 'activity',
   },
 });
-````
+```
 
 Generated contracts provide typed params, search, and hash input for the selected route.
 

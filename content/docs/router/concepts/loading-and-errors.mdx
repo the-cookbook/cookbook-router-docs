@@ -13,6 +13,72 @@ The correct fallback is not simply the closest property in the route tree. Route
 
 In React, Cookbook Router maps these declarations to Suspense and error boundaries while keeping the core router renderer-neutral.
 
+
+## Core and React fallback ownership
+
+Fallback ownership is core route metadata. Rendering behavior belongs to the adapter.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+Core renderers receive loading and error fallback ownership through `renderBoundary()`.
+
+```ts
+import { renderRouteMatch } from '@cookbook/router';
+
+const output = renderRouteMatch(router.state.match, {
+  error: router.state.error,
+  fallback: null,
+  renderView(view, context) {
+    return renderViewHandle(view, context);
+  },
+  renderBoundary(content, context) {
+    return wrapBoundary(content, {
+      routeId: context.match.id,
+      loadingView: context.loading?.view,
+      errorView: context.error?.view,
+      errorOwner: context.error?.match.id,
+    });
+  },
+});
+```
+
+The core renderer decides what a boundary means. It can produce strings, templates, virtual nodes, framework primitives, or server output.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+React maps the same fallback ownership to Suspense and error boundaries.
+
+```tsx
+export const routes = defineRoutes([
+  {
+    id: 'dashboard',
+    path: '/dashboard',
+    layout: {
+      view: DashboardLayout,
+      loading: DashboardLoading,
+      error: DashboardError,
+    },
+    children: [
+      {
+        id: 'dashboard.report',
+        path: 'reports/{reportId}',
+        view: ReportPage,
+        loading: ReportLoading,
+        error: ReportError,
+      },
+    ],
+  },
+] as const);
+```
+
+React components suspend or throw. The provider chooses the route, layout, slot, or provider fallback that owns that failure.
+
+  </Tab>
+</Tabs>
+
 ## Fallback layers
 
 | Fallback | Responsibility |
@@ -78,7 +144,7 @@ export const routes = defineRoutes([
     ],
   },
 ] as const);
-````
+```
 
 For `dashboard.report`:
 

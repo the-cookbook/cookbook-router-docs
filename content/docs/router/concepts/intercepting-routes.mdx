@@ -20,13 +20,69 @@ This is useful for:
 
 The destination remains a normal canonical route. Interception only changes how that navigation is rendered.
 
+
+## Core state and React rendering
+
+Interception has two layers: core state and adapter rendering.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+The core router records the destination match and the intercepted rendering state.
+
+```ts
+const state = await router.navigate.to({
+  route: 'photos.show',
+  params: {
+    photoId: 42,
+  },
+  intercept: 'modal',
+});
+
+state.match?.id;
+// 'photos.show'
+
+state.match?.intercepted?.slot;
+// 'modal'
+
+state.match?.intercepted?.previousHref;
+// '/gallery'
+```
+
+A custom renderer can inspect `match.intercepted` and `match.slots` to decide how to draw the source branch and intercepted target.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+React renders the intercepted target through a source-owned `<Slot />`.
+
+```tsx
+import { Link } from '@cookbook/router-react';
+
+<Link
+  to="photos.show"
+  params={{
+    photoId: 42,
+  }}
+  intercept="modal"
+>
+  Open photo
+</Link>
+```
+
+The URL becomes `/photos/42`, but the source page can remain visible behind the modal slot.
+
+  </Tab>
+</Tabs>
+
 ## The interception model
 
 Suppose the user is viewing:
 
 ```text
 /gallery
-````
+```
 
 and selects a photo whose canonical route is:
 

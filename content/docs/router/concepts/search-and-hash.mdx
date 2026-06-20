@@ -9,6 +9,49 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 Search and hash declarations describe URL state for runtime parsing, href/navigation building, and generated contracts. `@cookbook/router` delegates this URL-state work to `@cookbook/urlkit`.
 
+
+## Core and React reads
+
+Search and hash state are parsed by the core router. React hooks read the parsed values from router state.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+```ts
+const match = router.match('/articles?page=2#comments');
+
+match?.search;
+// { page: 2 }
+
+match?.hash;
+// 'comments'
+```
+
+Use core access in framework adapters, services, loaders, and tests.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+```tsx
+import {
+  useHashParams,
+  useSearchParams,
+} from '@cookbook/router-react';
+
+function ArticleFilters() {
+  const search = useSearchParams('articles.index');
+  const hash = useHashParams('articles.index');
+
+  return <Filters search={search} hash={hash} />;
+}
+```
+
+React hooks preserve the same generated search and hash contracts as core route methods.
+
+  </Tab>
+</Tabs>
+
 ## Declare search fields
 
 Use URLKit-backed Router static descriptors in route definitions.

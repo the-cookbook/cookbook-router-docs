@@ -18,13 +18,63 @@ Two layers are involved:
 
 Do not confuse the generated interfaces with the public generic selector types that share some of their names.
 
+
+## Core and React consumers
+
+Generated contracts register with both runtime packages that consume typed route IDs.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+Core APIs use generated contracts for route IDs, params, search, hash, and metadata.
+
+```ts
+const href = router.href('articles.show', {
+  params: {
+    slug: 'typed-routing',
+  },
+  search: {
+    preview: true,
+  },
+});
+
+const match = router.match(href);
+```
+
+The same contracts drive `href()`, `resolve()`, `match()`, `navigate`, `preload`, and route metadata helpers.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+React APIs read the same registered contracts.
+
+```tsx
+<Link
+  to="articles.show"
+  params={{
+    slug: 'typed-routing',
+  }}
+  search={{
+    preview: true,
+  }}
+>
+  Read article
+</Link>
+```
+
+Links, hooks, outlets, route metadata hooks, and provider state all use the same generated registration.
+
+  </Tab>
+</Tabs>
+
 ## Generate the contracts
 
 Run generation using the configured route inputs:
 
 ```bash
 cbr generate
-````
+```
 
 The relevant generated files are:
 
@@ -156,7 +206,7 @@ import type {
   RouteSearch,
   RouteSearchInput,
 } from '@cookbook/router';
-````
+```
 
 Select a contract by route ID:
 

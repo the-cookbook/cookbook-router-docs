@@ -9,9 +9,74 @@ import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
 
 Serialization transfers the minimum router state needed for an SSR client to reproduce the server’s initial route render.
 
-Hydration uses that snapshot to initialize the client router before React hydrates the server HTML.
+Hydration uses that snapshot to initialize the client router before the UI framework hydrates the server HTML.
 
 It does not serialize the complete router runtime, application data, React state, middleware state, or loaded modules.
+
+
+## Core and React hydration
+
+Serialization belongs to the core router. React hydration consumes the same serialized state through the provider.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+Server:
+
+```ts
+const router = createStaticRouter({
+  routes,
+  request,
+});
+
+await router.start();
+
+const hydrationJson = stringifyRouterState(router);
+```
+
+Client:
+
+```ts
+const hydrationData = deserializeRouterState(
+  window.__COOKBOOK_ROUTER__,
+);
+
+const router = createRouter({
+  routes,
+  hydrationData,
+});
+```
+
+This works for any renderer that can use the core router state.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+Server rendering uses the started static router.
+
+```tsx
+const html = renderToString(
+  <StaticRouterProvider
+    router={router}
+    fallback={<NotFoundPage />}
+  />,
+);
+```
+
+Client hydration creates the browser router with the same serialized state.
+
+```tsx
+hydrateRoot(
+  root,
+  <RouterProvider router={router} />,
+);
+```
+
+Do not start the browser router before React hydrates.
+
+  </Tab>
+</Tabs>
 
 ## The hydration flow
 
@@ -97,7 +162,7 @@ export async function renderRequest(
   </body>
 </html>`;
 }
-````
+```
 
 `StaticRouterProvider` requires a started router. It does not start the router during static rendering because React effects do not run on the server.
 

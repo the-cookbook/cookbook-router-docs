@@ -1,6 +1,6 @@
 ---
 title: "Layouts, outlets, and slots"
-description: "Render persistent shells, nested route content, named regions, and intercepted destinations in React."
+description: "Render persistent shells, nested route content, named regions, and intercepted destinations in core and React."
 ---
 
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
@@ -17,19 +17,115 @@ The rendering model has three building blocks:
 - A **layout view** wraps route content and can render an `<Outlet />`.
 - A **slot** renders a named secondary branch such as a sidebar, header, drawer, or modal.
 
+
+## Core and React rendering
+
+The same route tree can be rendered by a custom core adapter or by the React integration.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+Core rendering uses `renderRouteMatch()` and converts opaque `RouteView` values into adapter output.
+
+```ts
+import {
+  renderRouteMatch,
+  type RouteMatch,
+} from '@cookbook/router';
+
+interface Node {
+  readonly kind: string;
+  readonly routeId?: string;
+  readonly view?: unknown;
+  readonly children?: readonly Node[];
+}
+
+export function renderCoreTree(
+  match: RouteMatch | null,
+): Node {
+  return renderRouteMatch(match, {
+    fallback: { kind: 'not-found' },// [!code highlight]
+    
+    renderView(view, context) {// [!code highlight]
+      return {
+        kind: 'route',
+        routeId: context.match.id,
+        view,
+        children: [
+          context.outlet,
+          ...Object.values(context.slots),
+        ],
+      };
+    },
+    
+    renderLayout(view, context) {// [!code highlight]
+      return {
+        kind: 'layout',
+        routeId: context.ownerRouteId,
+        view,
+        children: [
+          context.outlet,
+          ...Object.values(context.slots),
+        ],
+      };
+    },
+    
+    renderEmpty(context) {// [!code highlight]
+      return { kind: context.reason };
+    },
+  });
+}
+```
+
+There is no `<Outlet />` component in core. `context.outlet` and `context.slots` are the adapter-level equivalents.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+React turns the same match into components, outlets, slots, boundaries, and hooks.
+
+```tsx
+import {
+  Outlet,
+  Slot,
+} from '@cookbook/router-react';
+
+export function DashboardLayout() {
+  return (
+    <section>
+      <DashboardNavigation />
+
+      <main>
+        <Outlet />
+      </main>
+
+      <aside>
+        <Slot name="sidebar" />
+      </aside>
+    </section>
+  );
+}
+```
+
+`<Outlet />` renders the next primary branch. `<Slot />` renders a named secondary branch owned by the current layout route.
+
+  </Tab>
+</Tabs>
+
 ## Mental model
 
 A matched branch is rendered from parent to leaf.
 
-```text 
+```text
 app
   dashboard
     dashboard.report
-````
+```
 
 A layout wraps the content below it:
 
-```tsx 
+```tsx
 function DashboardLayout() {
   return (
     <section>
@@ -44,7 +140,7 @@ function DashboardLayout() {
 
 `<Slot />` renders named content owned by the nearest active layout context.
 
-```tsx 
+```tsx
 function DashboardLayout() {
   return (
     <section>
@@ -70,13 +166,13 @@ The filesystem does not decide this structure. The route tree does.
 
 A route view renders when its route appears in the active branch:
 
-```tsx 
+```tsx
 function DashboardHome() {
   return <h1>Dashboard</h1>;
 }
 ```
 
-```tsx 
+```tsx
 const routes = defineRoutes([
   {
     id: 'dashboard',
@@ -88,7 +184,7 @@ const routes = defineRoutes([
 
 A route view can render an outlet when it also has children:
 
-```tsx 
+```tsx
 function DocumentsPage() {
   return (
     <section>
@@ -99,7 +195,7 @@ function DocumentsPage() {
 }
 ```
 
-```tsx 
+```tsx
 {
   id: 'documents',
   path: '/documents',
@@ -125,7 +221,7 @@ For `/documents/handbook`, `DocumentsPage` renders and its `<Outlet />` renders 
 
 A layout view is a persistent shell around route content.
 
-```tsx 
+```tsx
 function AppLayout() {
   return (
     <section>
@@ -139,7 +235,7 @@ function AppLayout() {
 }
 ```
 
-```tsx 
+```tsx
 const routes = defineRoutes([
   {
     id: 'app',
@@ -178,7 +274,7 @@ Use a layout when the parent owns persistent UI:
 
 A route may have both `view` and `layout.view`.
 
-```tsx 
+```tsx
 {
   id: 'dashboard',
   path: '/dashboard',
@@ -210,7 +306,7 @@ Most applications use either a route view or a layout view at a given level. Use
 
 `Outlet` renders the next primary child branch from the current route render context:
 
-```tsx 
+```tsx
 import { Outlet } from '@cookbook/router-react';
 
 function RootLayout() {
@@ -226,7 +322,7 @@ When no child branch exists, `<Outlet />` renders nothing.
 
 You can pass explicit children to override the router-provided outlet:
 
-```tsx 
+```tsx
 <Outlet>
   <CustomChild />
 </Outlet>
@@ -238,7 +334,7 @@ That is useful for custom shells, but normal route rendering should rely on the 
 
 `Outlet` can provide context to descendants rendered through that outlet:
 
-```tsx 
+```tsx
 function DashboardLayout() {
   const user = useCurrentUser();
 
@@ -347,7 +443,7 @@ Declaring the slot makes it available. Rendering `<Slot />` chooses where it app
 
 A slot can be declared with a view shorthand:
 
-```tsx 
+```tsx
 layout: {
   view: DashboardLayout,
   slots: {
@@ -358,7 +454,7 @@ layout: {
 
 or with an object:
 
-```tsx 
+```tsx
 layout: {
   view: DashboardLayout,
   slots: {
@@ -381,7 +477,7 @@ layout: {
 
 Supported object keys are:
 
-```text 
+```text
 view
 meta
 routes
@@ -393,7 +489,7 @@ There is no `fallback` key. The slot fallback view is declared with `view`.
 
 A slot can have its own route tree.
 
-```tsx 
+```tsx
 const routes = defineRoutes([
   {
     id: 'dashboard',
@@ -439,7 +535,7 @@ The main route branch and the slot route branch are matched from the same active
 
 `Slot` can provide outlet context to the content it renders:
 
-```tsx 
+```tsx
 <Slot
   name="sidebar"
   context={{
@@ -450,7 +546,7 @@ The main route branch and the slot route branch are matched from the same active
 
 Slot content reads it with `useOutletContext()`:
 
-```tsx 
+```tsx
 interface SidebarContext {
   readonly source: 'dashboard';
 }
@@ -501,7 +597,7 @@ A descendant that declares its own `layout.view` owns a new layout scope. Slot o
 
 A slot can render nothing.
 
-```tsx 
+```tsx
 layout: {
   view: DashboardLayout,
   slots: {
@@ -510,7 +606,7 @@ layout: {
 }
 ```
 
-```tsx 
+```tsx
 <Slot name="modal" />
 ```
 
@@ -524,7 +620,7 @@ By default, a slot render error participates in the normal route/provider error-
 
 Pass `errorFallback` to isolate the error to that slot:
 
-```tsx 
+```tsx
 <Slot
   name="modal"
   errorFallback={ModalError}
@@ -533,7 +629,7 @@ Pass `errorFallback` to isolate the error to that slot:
 
 The fallback receives:
 
-```ts 
+```ts
 interface SlotErrorFallbackProps {
   readonly error: unknown;
   readonly reset: () => void;
@@ -542,7 +638,7 @@ interface SlotErrorFallbackProps {
 
 Pass `null` when the slot should catch the error and render nothing:
 
-```tsx 
+```tsx
 <Slot
   name="notifications"
   errorFallback={null}
@@ -551,7 +647,7 @@ Pass `null` when the slot should catch the error and render nothing:
 
 Omitting the prop is different:
 
-```tsx 
+```tsx
 <Slot name="notifications" />
 ```
 
@@ -563,7 +659,7 @@ Layout fallbacks belong to the main outlet branch.
 
 They are not automatically inherited by named slot route trees.
 
-```tsx 
+```tsx
 layout: {
   view: DashboardLayout,
   loading: DashboardLoading,
@@ -594,7 +690,7 @@ See [Loading and errors](/docs/router/concepts/loading-and-errors) for the compl
 
 An intercept renders a destination route through a slot while preserving the source branch.
 
-```tsx 
+```tsx
 const routes = defineRoutes([
   {
     id: 'blog',
@@ -629,7 +725,7 @@ const routes = defineRoutes([
 
 The layout renders the slot:
 
-```tsx 
+```tsx
 function BlogLayout() {
   return (
     <>
@@ -642,7 +738,7 @@ function BlogLayout() {
 
 When the active source route is `blog` and the user navigates to `blog.posts.show`, the router can keep the blog branch rendered and show `BlogPostModal` in the `modal` slot.
 
-```tsx 
+```tsx
 <Link
   route="blog.posts.show"
   params={{ slug }}
@@ -655,7 +751,7 @@ Configured intercepts are automatic when the active source branch declares a mat
 
 Use `intercept={false}` to bypass a configured intercept for one navigation:
 
-```tsx 
+```tsx
 <Link
   route="blog.posts.show"
   params={{ slug }}
@@ -667,7 +763,7 @@ Use `intercept={false}` to bypass a configured intercept for one navigation:
 
 Use an object form for an inline intercept:
 
-```tsx 
+```tsx
 <Link
   route="blog.posts.show"
   params={{ slug }}
@@ -688,7 +784,7 @@ Intercept views receive the destination route render context.
 
 Inside an intercepted `blog.posts.show` view, route hooks read the destination state:
 
-```tsx 
+```tsx
 function BlogPostModal() {
   const params = useParams('blog.posts.show');
 
@@ -702,7 +798,7 @@ function BlogPostModal() {
 
 A link can also pass intercept context:
 
-```tsx 
+```tsx
 <Link
   route="blog.posts.show"
   params={{ slug }}
@@ -720,7 +816,7 @@ A link can also pass intercept context:
 
 The intercept view can read that value with `useOutletContext()`:
 
-```tsx 
+```tsx
 const context = useOutletContext<{ source: string }>();
 ```
 
@@ -728,7 +824,7 @@ const context = useOutletContext<{ source: string }>();
 
 `RouterProvider` has three fallback props:
 
-```tsx 
+```tsx
 <RouterProvider
   router={router}
   fallback={<NotFoundPage />}
@@ -749,7 +845,7 @@ They do different jobs:
 
 Use a wildcard route when not-found should participate in layouts, metadata, middleware, or lifecycle:
 
-```tsx 
+```tsx
 {
   id: 'not-found',
   path: '/{*path}',
@@ -776,7 +872,7 @@ For router-state errors, `reset()` is not a universal retry. Use navigation or `
 
 A route with no `view` can still participate in rendering.
 
-```tsx 
+```tsx
 {
   id: 'documents',
   path: '/documents',
@@ -800,7 +896,7 @@ When no match exists, `RouterProvider.fallback` renders.
 
 Route and slot views receive a local render context.
 
-```tsx 
+```tsx
 function DocumentDetails() {
   const params = useParams('documents.details');
 

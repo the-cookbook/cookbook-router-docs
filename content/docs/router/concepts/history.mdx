@@ -19,6 +19,65 @@ Cookbook Router includes three adapters:
 
 The same router transition pipeline runs above each adapter.
 
+
+## Core and React usage
+
+History is a core router adapter. React uses it indirectly through the router instance.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+```ts
+import {
+  createMemoryHistory,
+  createRouter,
+} from '@cookbook/router';
+
+const history = createMemoryHistory({
+  initialEntries: ['/users/42'],
+});
+
+const router = createRouter({
+  routes,
+  history,
+});
+
+await router.start();
+
+router.state.location.href;
+// '/users/42'
+```
+
+Use a custom or memory history when the runtime is not a browser.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+```tsx
+import {
+  createBrowserHistory,
+  createRouter,
+} from '@cookbook/router';
+import {
+  RouterProvider,
+} from '@cookbook/router-react';
+
+const router = createRouter({
+  routes,
+  history: createBrowserHistory(),
+});
+
+export function App() {
+  return <RouterProvider router={router} />;
+}
+```
+
+React does not own the history adapter. It renders the state produced by the router that consumes that adapter.
+
+  </Tab>
+</Tabs>
+
 ## The adapter boundary
 
 The router consumes this contract:
@@ -57,7 +116,7 @@ interface RouterHistory {
     ) => void,
   ) => () => void;
 }
-````
+```
 
 The history adapter does not know about:
 

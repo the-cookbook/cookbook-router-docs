@@ -11,6 +11,55 @@ Route `path` values describe the URL pathname matched by a route. Cookbook Route
 
 Use this page when defining route paths, choosing built-in constraints, or adding a custom path constraint.
 
+
+## Core and React URL building
+
+Path patterns and constraints belong to the core route tree. React links use the same generated route contracts and runtime validation.
+
+<Tabs items={['Core router', 'React integration']}>
+  <Tab value="Core router">
+
+```ts
+const href = router.href('users.show', {
+  params: {
+    id: 42,
+  },
+});
+
+href;
+// '/users/42'
+```
+
+If `id` does not satisfy the route path constraint, href generation fails before navigation.
+
+  </Tab>
+
+  <Tab value="React integration">
+
+```tsx
+import {
+  Link,
+} from '@cookbook/router-react';
+
+function UserLink() {
+  return (
+    <Link
+      to="users.show"
+      params={{
+        id: 42,
+      }}
+    >
+      Open user
+    </Link>
+  );
+}
+```
+
+The link builds its href through the same core route path and constraint rules.
+
+  </Tab>
+</Tabs>
+
 ## Path route basics
 
 A route path is a [PathKit](https://github.com/the-cookbook/pathkit) pattern:
