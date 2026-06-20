@@ -1,0 +1,448 @@
+---
+title: "Core quick start"
+description: "Build a framework-agnostic Cookbook Router app with route definitions, generated contracts, a core router runtime, and renderer-neutral output."
+---
+
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC items={toc}>On this page</InlineTOC>
+
+This guide builds a Cookbook Router app with the core package only.
+
+It does not use React, `RouterProvider`, hooks, links, or JSX. The router owns route matching, URL state, navigation, middleware, lifecycle, preloading, and serialization. Your application owns rendering.
+
+## Install
+
+```sh
+pnpm add @cookbook/router
+pnpm add -D @cookbook/router-cli
+```
+
+For npm, Yarn, Bun, bundler plugins, and project initialization, see [Installation](/docs/router/getting-started/installation).
+
+## Define route views
+
+Create `src/views.ts`.
+
+```ts
+export interface AppViewContext {
+  readonly routeId: string;
+  readonly params: Record<string, unknown>;
+  readonly search?: unknown;
+  readonly hash?: unknown;
+  readonly outlet: string;
+  readonly slots: Readonly<Record<string, string>>;
+}
+
+export interface AppView {
+  readonly kind: 'layout' | 'page';
+  readonly render: (context: AppViewContext) => string;
+}
+
+export const RootLayout: AppView = {
+  kind: 'layout',
+  render(context) {
+    return `
+      <main>
+        <nav>
+          <a href="/">Home</a>
+          <a href="/users/42?tab=settings#profile">User 42</a>
+        </nav>
+        ${context.outlet}
+      </main>
+    `;
+  },
+};
+
+export const HomePage: AppView = {
+  kind: 'page',
+  render() {
+    return '<h1>Home</h1>';
+  },
+};
+
+export const UserPage: AppView = {
+  kind: 'page',
+  render(context) {
+    return `
+      <article>
+        <h1>User ${String(context.params.id)}</h1>
+        <pre>${JSON.stringify(
+          {
+            search: context.search,
+            hash: context.hash,
+          },
+          null,
+          2,
+        )}</pre>
+      </article>
+    `;
+  },
+};
+
+export const NotFoundPage: AppView = {
+  kind: 'page',
+  render() {
+    return '<h1>Not found</h1>';
+  },
+};
+```
+
+`RouteView` is opaque to the core router. These views are plain objects with render functions, but they could be strings, templates, virtual nodes, server component handles, or another framework's primitive.
+
+## Define routes
+
+Create `src/routes.ts`.
+
+```ts
+import { defineRoutes } from '@cookbook/router';
+import {
+  HomePage,
+  NotFoundPage,
+  RootLayout,
+  UserPage,
+} from './views';
+
+export const routes = defineRoutes([
+  {
+    id: 'root',
+    path: '/',
+    layout: {
+      view: RootLayout,
+    },
+    children: [
+      {
+        id: 'home',
+        index: true,
+        view: HomePage,
+        meta: {
+          title: 'Home',
+        },
+      },
+      {
+        id: 'users.show',
+        path: 'users/{id:int}',
+        search: {
+          tab: {
+            type: 'string',
+            optional: true,
+          },
+        },
+        hash: {
+          type: 'enum',
+          values: ['profile', 'settings', 'security'],
+          optional: true,
+        },
+        view: UserPage,
+        meta: {
+          title: 'User',
+        },
+      },
+      {
+        id: 'not-found',
+        path: '{*path}',
+        view: NotFoundPage,
+        meta: {
+          title: 'Not found',
+        },
+      },
+    ],
+  },
+] as const);
+```
+
+Use static descriptors in route files consumed by the CLI. The generator can inspect `defineRoutes()`, route IDs, paths, search descriptors, hash descriptors, metadata, and runtime view references without executing arbitrary project code.
+
+## Render a match
+
+Create `src/renderer.ts`.
+
+```ts
+import {
+  renderRouteMatch,
+  type RouteLayoutViewContext,
+  type RouteViewContext,
+  type RouterState,
+} from '@cookbook/router';
+import type { AppView } from './views';
+
+function renderAppView(
+  view: AppView,
+  context: RouteViewContext<string>,
+  state: RouterState,
+): string {
+  const active = state.match;
+
+  return view.render({
+    routeId: context.match.id,
+    params: context.match.params,
+    search:
+      context.match.id === active?.id
+        ? active.search
+        : undefined,
+    hash:
+      context.match.id === active?.id
+        ? active.hash
+        : undefined,
+    outlet: context.outlet,
+    slots: context.slots,
+  });
+}
+
+function renderAppLayout(
+  view: AppView,
+  context: RouteLayoutViewContext<string>,
+  state: RouterState,
+): string {
+  return renderAppView(view, context, state);
+}
+
+export function renderApp(state: RouterState): string {
+  return renderRouteMatch<AppView, string>(state.match, {
+    fallback: '<h1>Not found</h1>',
+
+    renderView(view, context) {
+      return renderAppView(view, context, state);
+    },
+
+    renderLayout(view, context) {
+      return renderAppLayout(view, context, state);
+    },
+
+    renderEmpty(context) {
+      if (context.reason === 'not-found') {
+        return '<h1>Not found</h1>';
+      }
+
+      return '';
+    },
+  });
+}
+```
+
+`renderRouteMatch()` traverses the matched branch, layouts, slots, intercepted routes, and empty states. It still does not know how to render a view. The adapter callback decides how an `AppView` becomes output.
+
+## Create the router
+
+Create `src/router.ts`.
+
+```ts
+import { createRouter } from '@cookbook/router';
+import { routes } from './routes';
+
+export const router = createRouter({
+  routes,
+});
+```
+
+The default router uses browser history when `window` exists and memory history otherwise.
+
+For tests, scripts, and deterministic non-DOM work, use `createMemoryRouter()` instead.
+
+```ts
+import { createMemoryRouter } from '@cookbook/router';
+import { routes } from './routes';
+
+export const router = createMemoryRouter({
+  routes,
+  initialEntries: ['/users/42?tab=settings#profile'],
+});
+```
+
+## Start and render
+
+Create `src/main.ts`.
+
+```ts
+import { router } from './router';
+import { renderApp } from './renderer';
+
+const root = document.getElementById('app');
+
+function commit() {
+  if (!root) {
+    return;
+  }
+
+  root.innerHTML = renderApp(router.state);
+}
+
+router.subscribe(commit);
+
+await router.start();
+
+commit();
+```
+
+This is a minimal browser shell, not a framework integration. The core router gives you state changes. Your application decides what to do with them.
+
+If your runtime does not support top-level `await`, wrap startup in an async function.
+
+```ts
+async function main() {
+  await router.start();
+  
+  commit();
+}
+
+void main();
+```
+
+## Navigate without framework links
+
+Core navigation does not require a component.
+
+```ts
+await router.navigate.to('users.show', {
+  params: {
+    id: 42,
+  },
+  search: {
+    tab: 'settings',
+  },
+  hash: 'profile',
+});
+```
+
+Generate an href without navigating:
+
+```ts
+const href = router.href('users.show', {
+  params: {
+    id: 42,
+  },
+  search: {
+    tab: 'settings',
+  },
+  hash: 'security',
+});
+```
+
+Match an arbitrary app href without changing history:
+
+```ts
+const match = router.match('/users/42?tab=settings#profile');
+```
+
+Resolve a route ID into a match without changing history:
+
+```ts
+const resolved = router.resolve('users.show', {
+  params: {
+    id: 42,
+  },
+});
+```
+
+`href()`, `resolve()`, `match()`, and `navigate` use generated contracts when `.cookbook-router/register.d.ts` is included in TypeScript.
+
+## Generate contracts
+
+Add scripts to `package.json`.
+
+```json
+{
+  "scripts": {
+    "generate:routes": "cookbook-router generate --routes src/routes.ts --out-dir .cookbook-router",
+    "validate:routes": "cookbook-router validate --routes src/routes.ts"
+  }
+}
+```
+
+Run generation:
+
+```sh
+pnpm generate:routes
+```
+
+Successful generation creates at least:
+
+```text
+.cookbook-router/contracts.ts
+.cookbook-router/manifest.json
+.cookbook-router/register.d.ts
+```
+
+It also creates:
+
+```text
+.cookbook-router/routes.ts
+```
+
+when the route source has statically composable route exports.
+
+Add the generated contract and registration files to `tsconfig.json`.
+
+```json
+{
+  "include": [
+    "src",
+    ".cookbook-router/contracts.ts",
+    ".cookbook-router/register.d.ts"
+  ]
+}
+```
+
+The generated registration augments `@cookbook/router`. After TypeScript sees it, core APIs know route IDs, path params, search input, hash input, metadata, and route paths.
+
+## Add a config file instead of flags
+
+Create `cookbook-router.config.ts`.
+
+```ts
+import { defineRouterConfig } from '@cookbook/router-cli';
+
+export default defineRouterConfig({
+  routeFiles: 'src/routes.ts',
+  outDir: '.cookbook-router',
+} as const);
+```
+
+Then simplify scripts:
+
+```json
+{
+  "scripts": {
+    "generate:routes": "cookbook-router generate",
+    "validate:routes": "cookbook-router validate"
+  }
+}
+```
+
+Use a bundler plugin when you want generation to run during the host build. Use direct CLI scripts when you want the generation step to stay explicit.
+
+## Where this bites
+
+### The core router does not render your app
+
+This starts and resolves routing state:
+
+```ts
+await router.start();
+```
+
+It does not mount UI. React apps use `RouterProvider`; non-React apps need their own adapter or render function.
+
+### `RouteView` is opaque
+
+The core router stores views and passes them through renderer-neutral traversal.
+
+It never assumes that a view is callable, a component, JSX, HTML, or a template.
+
+### Search and hash live on the active `RouteMatch`
+
+`renderRouteMatch()` callback context exposes branch entries. The full active match is still available from `router.state.match`.
+
+Use the active match when your renderer needs parsed search or hash state.
+
+### A valid runtime module may not be statically extractable
+
+The CLI must recover route structure without executing arbitrary project code.
+
+Keep route declarations static. Put runtime work in `view`, `middleware`, `preload`, lifecycle hooks, or imported runtime references.
+
+### `routes.ts` is conditional
+
+Contracts, register augmentation, and the manifest are always generated for valid route input.
+
+The generated `.cookbook-router/routes.ts` module appears only when the route input has statically composable route exports.

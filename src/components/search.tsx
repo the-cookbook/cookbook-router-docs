@@ -2,8 +2,6 @@
 
 import { create } from "@orama/orama";
 import { liteClient } from "algoliasearch/lite";
-import React, { useMemo } from "react";
-
 import { useDocsSearch } from "fumadocs-core/search/client";
 import { algoliaClient as createAlgoliaClient } from "fumadocs-core/search/client/algolia";
 import { oramaStaticClient } from "fumadocs-core/search/client/orama-static";
@@ -19,6 +17,7 @@ import {
   type SharedProps,
 } from "fumadocs-ui/components/dialog/search";
 import { useI18n } from "fumadocs-ui/contexts/i18n";
+import React, { useMemo } from "react";
 
 interface AlgoliaEnv {
   readonly appId: string;

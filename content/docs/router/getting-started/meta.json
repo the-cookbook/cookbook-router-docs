@@ -3,6 +3,7 @@
   "pages": [
     "installation",
     "quick-start",
+    "core-quick-start",
     "project-setup",
     "config-file",
     "generated-artifacts"
